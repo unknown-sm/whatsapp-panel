@@ -1,0 +1,544 @@
+// WhatsApp Panel — Prisma Schema
+// Base de datos PostgreSQL para plataforma de automatizacion
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTENTICACION Y USUARIOS
+// ═══════════════════════════════════════════════════════════
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(AGENT)
+  name      String?
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedConversations Conversation[]
+  notes                 ContactNote[]
+  assignedDeals         Deal[]
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONFIGURACION DE WHATSAPP
+// ═══════════════════════════════════════════════════════════
+
+model WhatsappConfig {
+  id            String   @id @default(uuid())
+  phoneNumberId String
+  accessToken   String
+  verifyToken   String
+  status        String   @default("offline")
+  lastPing      DateTime?
+  webhookUrl    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOTS Y FLOW
+// ═══════════════════════════════════════════════════════════
+
+model Bot {
+  id           String   @id @default(uuid())
+  name         String
+  exactMatch   Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  keywords     BotKeyword[]
+  flowSteps    FlowStep[]
+  followUpRules FollowUpRule[]
+  conversations Conversation[]
+}
+
+model BotKeyword {
+  id      String @id @default(uuid())
+  keyword String
+  botId   String
+  bot     Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId])
+  @@index([keyword])
+}
+
+model FlowStep {
+  id              String   @id @default(uuid())
+  botId           String
+  order           Int
+  stepType        StepType
+  message         String?
+  waitSeconds     Int      @default(0)
+  responseType    ResponseType?
+  responseCapture String?
+  config          Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bot             Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  media           FlowStepMedia?
+  intentRoutes    IntentRoute[]
+  httpRoutes      HttpRoute?
+
+  // Secuencia de pasos
+  nextStepId      String?
+  nextStep        FlowStep?  @relation("StepSequence", fields: [nextStepId], references: [id])
+  previousSteps   FlowStep[] @relation("StepSequence")
+
+  // Rutas de fallback y exito para bloques condicionales
+  onSuccessStepId String?
+  onSuccessStep   FlowStep?  @relation("OnSuccessStep", fields: [onSuccessStepId], references: [id])
+  onFailureStepId String?
+  onFailureStep   FlowStep?  @relation("OnFailureStep", fields: [onFailureStepId], references: [id])
+  successFromSteps FlowStep[] @relation("OnSuccessStep")
+  failureFromSteps FlowStep[] @relation("OnFailureStep")
+  intentFromSteps IntentRoute[] @relation("IntentNextStep")
+
+  @@index([botId])
+  @@index([order])
+}
+
+model FlowStepMedia {
+  id       String   @id @default(uuid())
+  stepId   String   @unique
+  fileType String
+  fileName String
+  filePath String
+  fileSize Int
+  mimeType String?
+
+  step     FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+}
+
+model IntentRoute {
+  id         String   @id @default(uuid())
+  stepId     String
+  label      String
+  samples    String[]
+  nextStepId String?
+
+  step       FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  nextStep   FlowStep? @relation("IntentNextStep", fields: [nextStepId], references: [id])
+
+  @@index([stepId])
+}
+
+model HttpRoute {
+  id          String   @id @default(uuid())
+  stepId      String   @unique
+  method      String   @default("GET")
+  url         String
+  headers     Json?
+  body        Json?
+  variableMap Json?
+  timeout     Int      @default(10000)
+
+  step        FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONFIGURACION DE IA
+// ═══════════════════════════════════════════════════════════
+
+model AIConfig {
+  id        String   @id @default(uuid())
+  name      String
+  provider  String
+  apiKey    String
+  model     String
+  endpoint  String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════════════════════
+// CRM — CONTACTOS
+// ═══════════════════════════════════════════════════════════
+
+model Contact {
+  id           String   @id @default(uuid())
+  phone        String   @unique
+  name         String?
+  firstContact DateTime @default(now())
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tags         ContactTags[]
+  conversations Conversation[]
+  notes        ContactNote[]
+  leadScores   LeadScore[]
+  deals        Deal[]
+  broadcastRecipients BroadcastRecipient[]
+  customFieldValues   CustomFieldValue[]
+}
+
+model ContactTags {
+  contactId String
+  tagId     String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model Tag {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  color    String    @default("#3B82F6")
+  contacts ContactTags[]
+}
+
+model ContactNote {
+  id        String   @id @default(uuid())
+  contactId String
+  content   String
+  agentId   String?
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  agent   User?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([contactId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONVERSACIONES Y MENSAJES
+// ═══════════════════════════════════════════════════════════
+
+model Conversation {
+  id              String   @id @default(uuid())
+  contactId       String
+  botId           String?
+  status          String   @default("active")
+  currentStepId   String?
+  silencedUntil   DateTime?
+  assignedAgentId String?
+  contextVars     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contact         Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  bot             Bot?       @relation(fields: [botId], references: [id], onDelete: SetNull)
+  assignedAgent   User?      @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  messages        Message[]
+  followUpAttempts FollowUpAttempt[]
+
+  @@index([contactId])
+  @@index([botId])
+  @@index([status])
+  @@index([assignedAgentId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  direction      String
+  type           String   @default("text")
+  content        String
+  mediaUrl       String?
+  variables      Json?
+  timestamp      DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([timestamp])
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEGUIMIENTO (FOLLOW-UP)
+// ═══════════════════════════════════════════════════════════
+
+model FollowUpRule {
+  id          String   @id @default(uuid())
+  botId       String
+  stepId      String?
+  delayHours  Int
+  maxAttempts Int      @default(3)
+  message     String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+}
+
+model FollowUpAttempt {
+  id             String   @id @default(uuid())
+  conversationId String
+  ruleId         String
+  attemptNumber  Int
+  sentAt         DateTime @default(now())
+  replied        Boolean  @default(false)
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([replied])
+}
+
+// ═══════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════
+
+enum Role {
+  ADMIN
+  AGENT
+}
+
+enum StepType {
+  TEXT
+  AI_AGENT
+  HTTP_REQUEST
+  INTENT
+  SILENCE
+  CALENDAR
+  VOICE_AI
+  STRUCTURED_OUTPUT
+  FORWARD
+}
+
+enum ResponseType {
+  FREE_TEXT
+  BUTTONS
+  YES_NO
+  NONE
+}
+
+// ═══════════════════════════════════════════════════════════
+// CRM — PIPELINE Y VENTAS
+// ═══════════════════════════════════════════════════════════
+
+model Pipeline {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stages PipelineStage[]
+  deals  Deal[]
+}
+
+model PipelineStage {
+  id         String   @id @default(uuid())
+  name       String
+  pipelineId String
+  order      Int      @default(0)
+  color      String   @default("#3B82F6")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@index([pipelineId])
+  @@index([order])
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum DealPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Deal {
+  id                String       @id @default(uuid())
+  name              String
+  value             Float        @default(0)
+  currency          String       @default("USD")
+  contactId         String?
+  stageId           String
+  pipelineId        String
+  status            DealStatus   @default(OPEN)
+  priority          DealPriority @default(MEDIUM)
+  assignedToId      String?
+  expectedCloseDate DateTime?
+  source            String?
+  tags              String[]     @default([])
+  notes             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  contact    Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  assignedTo User?         @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([stageId])
+  @@index([pipelineId])
+  @@index([assignedToId])
+  @@index([contactId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEAD SCORING
+// ═══════════════════════════════════════════════════════════
+
+enum ScoreCondition {
+  MESSAGE_RECEIVED
+  MESSAGE_SENT
+  KEYWORD_MATCHED
+  TAG_ADDED
+  CONVERSATION_CLOSED
+  FOLLOW_UP_REPLIED
+  DEAL_CREATED
+  DEAL_WON
+}
+
+model LeadScoreRule {
+  id          String        @id @default(uuid())
+  name        String
+  condition   ScoreCondition
+  config      Json?         // { keyword: "comprar", tagId: "...", minMessages: 3 }
+  points      Int
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  scores      LeadScore[]
+}
+
+model LeadScore {
+  id        String   @id @default(uuid())
+  contactId String
+  ruleId    String
+  points    Int
+  reason    String   // descripción legible del evento
+  createdAt DateTime @default(now())
+
+  contact   Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  rule      LeadScoreRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([ruleId])
+  @@index([createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════
+// BROADCAST / CAMPAIGNS
+// ═══════════════════════════════════════════════════════════
+
+model BroadcastTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  content   String
+  variables String[] @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  broadcasts Broadcast[]
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+model Broadcast {
+  id          String          @id @default(uuid())
+  name        String
+  templateId  String?
+  content     String
+  status      BroadcastStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  totalCount  Int             @default(0)
+  sentCount   Int             @default(0)
+  failedCount Int             @default(0)
+  filters     Json?           // { tags: ["vip"], minScore: 50 }
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  template    BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients  BroadcastRecipient[]
+}
+
+model BroadcastRecipient {
+  id          String   @id @default(uuid())
+  broadcastId String
+  contactId   String
+  status      String   @default("pending") // pending, sent, failed
+  sentAt      DateTime?
+  error       String?
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId])
+  @@index([contactId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// CUSTOM FIELDS
+// ═══════════════════════════════════════════════════════════
+
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  BOOLEAN
+}
+
+enum EntityType {
+  CONTACT
+  DEAL
+}
+
+model CustomField {
+  id          String   @id @default(uuid())
+  name        String
+  fieldType   FieldType
+  entityType  EntityType
+  options     String[] @default([]) // For SELECT type
+  isRequired  Boolean  @default(false)
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  values CustomFieldValue[]
+}
+
+model CustomFieldValue {
+  id            String @id @default(uuid())
+  customFieldId String
+  contactId     String?
+  dealId        String?
+  value         String
+
+  customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([customFieldId])
+  @@index([contactId])
+  @@index([dealId])
+}

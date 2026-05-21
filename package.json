@@ -1,0 +1,18 @@
+{
+  "name": "whatsapp-panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WhatsApp Automation Panel with AI",
+  "scripts": {
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd backend && npx prisma generate && npx tsc && cd ../frontend && npm run build",
+    "start": "node backend/dist/index.js",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "db:generate": "cd backend && npx prisma generate",
+    "db:push": "cd backend && npx prisma db push",
+    "db:seed": "cd backend && npx tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

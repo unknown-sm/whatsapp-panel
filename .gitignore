@@ -1,0 +1,32 @@
+﻿# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+frontend/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Prisma
+*.db
+*.sqlite
+
+# Uploads
+uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

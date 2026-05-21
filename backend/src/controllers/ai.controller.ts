@@ -1,0 +1,49 @@
+import { Request, Response } from "express";
+import * as aiService from "../services/ai.service";
+import { z } from "zod";
+
+export async function listConfigs(req: Request, res: Response) {
+  try {
+    const configs = await aiService.getAIConfigs();
+    res.json({ configs });
+  } catch {
+    res.status(500).json({ error: "Error al obtener configs" });
+  }
+}
+
+export async function createConfig(req: Request, res: Response) {
+  try {
+    const config = await aiService.createAIConfig(req.body);
+    res.status(201).json({ config });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    res.status(500).json({ error: "Error al crear config" });
+  }
+}
+
+export async function updateConfig(req: Request, res: Response) {
+  try {
+    const config = await aiService.updateAIConfig(req.params.id, req.body);
+    res.json({ config });
+  } catch {
+    res.status(500).json({ error: "Error al actualizar config" });
+  }
+}
+
+export async function deleteConfig(req: Request, res: Response) {
+  try {
+    await aiService.deleteAIConfig(req.params.id);
+    res.json({ message: "Config eliminada" });
+  } catch {
+    res.status(500).json({ error: "Error al eliminar config" });
+  }
+}
+
+export async function setDefault(req: Request, res: Response) {
+  try {
+    const config = await aiService.setDefault(req.params.id);
+    res.json({ config });
+  } catch {
+    res.status(500).json({ error: "Error al setear default" });
+  }
+}

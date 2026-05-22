@@ -1,6 +1,7 @@
 import axios from "axios";
 import prisma from "../lib/prisma";
 import { io } from "../index";
+import { generateResponse, classifyIntent } from "./ai.service";
 
 export async function sendWhatsAppMessage(phoneNumber: string, message: string): Promise<boolean> {
   const config = await prisma.whatsappConfig.findFirst();
@@ -128,7 +129,12 @@ export async function processIncomingMessage(data: any) {
 async function processBotFlow(conversation: any, userMessage: string) {
   const bot = await prisma.bot.findUnique({
     where: { id: conversation.botId },
-    include: { flowSteps: { orderBy: { order: "asc" } } },
+    include: {
+      flowSteps: {
+        orderBy: { order: "asc" },
+        include: { httpRoutes: true, intentRoutes: true },
+      },
+    },
   });
 
   if (!bot || bot.flowSteps.length === 0) return;
@@ -139,6 +145,10 @@ async function processBotFlow(conversation: any, userMessage: string) {
   if (currentStepIndex >= bot.flowSteps.length) return;
 
   const step = bot.flowSteps[currentStepIndex];
+
+  if (step.responseCapture && userMessage) {
+    contextVars[step.responseCapture] = userMessage;
+  }
 
   switch (step.stepType) {
     case "TEXT":
@@ -173,13 +183,107 @@ async function processBotFlow(conversation: any, userMessage: string) {
       return;
     }
 
-    case "AI_AGENT":
-      // TODO: Call AI service
+    case "AI_AGENT": {
+      const cfg = (step.config as any) || {};
+      let configId = cfg.configId;
+      if (!configId) {
+        const defaultConfig = await prisma.aIConfig.findFirst({ where: { isDefault: true, isActive: true } });
+        if (!defaultConfig) break;
+        configId = defaultConfig.id;
+      }
+      const messages = await prisma.message.findMany({
+        where: { conversationId: conversation.id },
+        orderBy: { timestamp: "asc" },
+        take: 20,
+      });
+      const aiMessages: { role: string; content: string }[] = [];
+      if (cfg.systemPrompt) {
+        aiMessages.push({ role: "system", content: cfg.systemPrompt });
+      }
+      for (const msg of messages) {
+        aiMessages.push({
+          role: msg.direction === "inbound" ? "user" : "assistant",
+          content: msg.content,
+        });
+      }
+      const response = await generateResponse(configId, aiMessages);
+      if (response) {
+        const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
+        if (contact) {
+          await sendWhatsAppMessage(contact.phone, response);
+          await prisma.message.create({
+            data: { conversationId: conversation.id, direction: "outbound", type: "text", content: response },
+          });
+          io.emit("message:new", {
+            conversationId: conversation.id,
+            content: response,
+            direction: "outbound",
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
       break;
+    }
 
-    case "HTTP_REQUEST":
-      // TODO: Call HTTP endpoint
+    case "HTTP_REQUEST": {
+      const http = step.httpRoutes;
+      if (!http) break;
+      const replaceVars = (str: string) => str.replace(/\{\{(\w+)\}\}/g, (_, key: string) => contextVars[key] || "");
+      const url = replaceVars(http.url);
+      const headers: Record<string, string> = {};
+      if (http.headers) {
+        const raw = http.headers as Record<string, string>;
+        for (const key of Object.keys(raw)) {
+          headers[key] = replaceVars(String(raw[key]));
+        }
+      }
+      let body: any = undefined;
+      if (http.body) {
+        body = JSON.parse(JSON.stringify(http.body));
+        for (const key of Object.keys(body)) {
+          if (typeof body[key] === "string") body[key] = replaceVars(body[key]);
+        }
+      }
+      try {
+        const res = await axios({ method: http.method.toLowerCase(), url, headers, data: body, timeout: http.timeout || 10000 });
+        if (http.variableMap) {
+          const varMap = http.variableMap as Record<string, string>;
+          for (const [key, path] of Object.entries(varMap)) {
+            contextVars[key] = path.split(".").reduce((obj: any, p: string) => obj?.[p], res.data);
+          }
+        }
+      } catch (error: any) {
+        console.error("HTTP_REQUEST error:", error.message);
+      }
       break;
+    }
+
+    case "INTENT": {
+      const routes = step.intentRoutes;
+      if (!routes || routes.length === 0) break;
+      const aiConfig = await prisma.aIConfig.findFirst({ where: { isDefault: true, isActive: true } });
+      if (!aiConfig) break;
+      const result = await classifyIntent(aiConfig.id, userMessage, routes.map((r) => ({ label: r.label, samples: r.samples })));
+      const matched = routes.find((r) => r.label === result.label);
+      if (matched && matched.nextStepId && result.confidence >= 0.3) {
+        const idx = bot.flowSteps.findIndex((s) => s.id === matched.nextStepId);
+        if (idx !== -1) {
+          contextVars.currentStepIndex = idx;
+          await prisma.conversation.update({ where: { id: conversation.id }, data: { contextVars } });
+          return;
+        }
+      }
+      break;
+    }
+
+    case "FORWARD": {
+      const cfg = (step.config as any) || {};
+      const updateData: any = { status: "waiting_agent", contextVars };
+      if (cfg.agentId) updateData.assignedAgentId = cfg.agentId;
+      await prisma.conversation.update({ where: { id: conversation.id }, data: updateData });
+      io.emit("conversation:updated", { id: conversation.id, status: "waiting_agent", assignedAgentId: cfg.agentId || null });
+      return;
+    }
   }
 
   const nextIndex = currentStepIndex + 1;

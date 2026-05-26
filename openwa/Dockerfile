@@ -18,10 +18,9 @@ COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/tsconfig.build.json ./
 COPY --from=builder /app/nest-cli.json ./
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/plugins ./plugins
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-RUN mkdir -p /app/data/sessions /app/data/media /app/data/plugins
+RUN mkdir -p /app/data/sessions /app/data/media
 EXPOSE 2785
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD wget -qO- http://localhost:2785/api/health || exit 1
 ENTRYPOINT ["/entrypoint.sh"]

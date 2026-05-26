@@ -23,6 +23,10 @@ import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { PrismaClient } from "@prisma/client";
 import { execSync } from "child_process";
 
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = "postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel";
+  console.warn("DATABASE_URL no definida, usando fallback interno");
+}
 const prisma = new PrismaClient();
 
 async function seedDatabase() {

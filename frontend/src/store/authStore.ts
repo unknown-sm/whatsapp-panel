@@ -21,8 +21,8 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: localStorage.getItem("token"),
-  isAuthenticated: !!localStorage.getItem("token"),
-  isLoading: false,
+  isAuthenticated: false,
+  isLoading: true,
   login: async (email: string, password: string) => {
     set({ isLoading: true });
     try {
@@ -42,15 +42,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   fetchMe: async () => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) { set({ isLoading: false }); return; }
     axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     try {
       const { data } = await axios.get("/api/auth/me");
-      set({ user: data.user, token, isAuthenticated: true });
+      set({ user: data.user, token, isAuthenticated: true, isLoading: false });
     } catch {
       localStorage.removeItem("token");
       delete axios.defaults.headers.common["Authorization"];
-      set({ user: null, token: null, isAuthenticated: false });
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
     }
   },
 }));

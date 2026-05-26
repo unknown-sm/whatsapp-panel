@@ -21,7 +21,15 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   const fetchMe = useAuthStore((s) => s.fetchMe);
+  const isLoading = useAuthStore((s) => s.isLoading);
   useEffect(() => { fetchMe(); }, [fetchMe]);
+  if (isLoading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#1a202c", color: "#e2e8f0", fontSize: 18 }}>
+        Cargando...
+      </div>
+    );
+  }
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

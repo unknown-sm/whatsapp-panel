@@ -36,6 +36,12 @@ services:
       API_MASTER_KEY: openwa-dev-master-key-2024
     volumes:
       - openwa-data:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openwa.rule=Host(`openwa.zwpkae.easypanel.host`)"
+      - "traefik.http.routers.openwa.entrypoints=websecure"
+      - "traefik.http.routers.openwa.tls.certresolver=leresolver"
+      - "traefik.http.services.openwa.loadbalancer.server.port=2785"
 
   whatsapp-panel:
     build:
@@ -55,6 +61,12 @@ services:
       OPENWA_SESSION_ID: 762a97bc-421e-4765-b04b-4bde7dd45608
       MEDIA_STORAGE_PATH: ./uploads
       MAX_UPLOAD_SIZE_MB: "50"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-panel.zwpkae.easypanel.host`)"
+      - "traefik.http.routers.whatsapp-panel.entrypoints=websecure"
+      - "traefik.http.routers.whatsapp-panel.tls.certresolver=leresolver"
+      - "traefik.http.services.whatsapp-panel.loadbalancer.server.port=4000"
     depends_on:
       - whatsapp-db
 

@@ -61,18 +61,6 @@ services:
       OPENWA_SESSION_ID: 762a97bc-421e-4765-b04b-4bde7dd45608
       MEDIA_STORAGE_PATH: ./uploads
       MAX_UPLOAD_SIZE_MB: "50"
-    command: >
-      sh -c "cd /app/backend &&
-      for i in 1 2 3 4 5 6 7 8 9 10; do
-        echo 'Attempt' $$i 'of prisma db push...' &&
-        npx prisma db push --accept-data-loss &&
-        echo 'Schema pushed!' &&
-        break;
-        echo 'Retrying in 3s...';
-        sleep 3;
-      done &&
-      npx tsx prisma/seed.ts &&
-      node dist/index.js"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-panel.zwpkae.easypanel.host`)"

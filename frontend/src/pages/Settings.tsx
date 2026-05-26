@@ -5,10 +5,11 @@ import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff } from 
 
 export default function Settings() {
   const user = useAuthStore((s) => s.user);
-  const [activeTab, setActiveTab] = useState<"whatsapp" | "ai" | "users" | "customfields">("whatsapp");
+  const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "users" | "customfields">("whatsapp");
 
   const tabs = [
     { id: "whatsapp" as const, label: "WhatsApp" },
+    { id: "openwa" as const, label: "OpenWA" },
     { id: "ai" as const, label: "Inteligencia Artificial" },
     ...(user?.role === "ADMIN" ? [{ id: "users" as const, label: "Usuarios" }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "customfields" as const, label: "Campos Personalizados" }] : []),
@@ -38,6 +39,7 @@ export default function Settings() {
       </div>
 
       {activeTab === "whatsapp" && <WhatsappSettings />}
+      {activeTab === "openwa" && <OpenwaSettings />}
       {activeTab === "ai" && <AISettings />}
       {activeTab === "users" && user?.role === "ADMIN" && <UserSettings />}
       {activeTab === "customfields" && user?.role === "ADMIN" && <CustomFieldsSettings />}
@@ -116,6 +118,145 @@ function WhatsappSettings() {
           <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>
             Configura esta URL en tu app de Meta Developers &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL
           </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OpenwaSettings() {
+  const [config, setConfig] = useState({ baseUrl: "http://openwa:2785", apiKey: "", sessionId: "" });
+  const [status, setStatus] = useState<{ status: string; session: any; sessions: any[] } | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [webhookMsg, setWebhookMsg] = useState("");
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const { data } = await api.get("/api/openwa/config");
+      if (data.config) setConfig({ baseUrl: data.config.baseUrl, apiKey: data.config.apiKey, sessionId: data.config.sessionId || "" });
+    } catch {}
+  }
+
+  async function fetchStatus() {
+    try {
+      const { data } = await api.get("/api/openwa/status");
+      setStatus(data);
+      if (data.session?.status === "initializing" || data.session?.status === "SCAN_QR") {
+        const qr = await api.get("/api/openwa/qr");
+        setQrCode(qr.data.qrCode || null);
+      } else {
+        setQrCode(null);
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try { await api.put("/api/openwa/config", config); fetchConfig(); } finally { setSaving(false); }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    try {
+      const { data } = await api.post("/api/openwa/test", config);
+      alert(`Conexion exitosa! Sesiones: ${data.sessions?.length || 0}`);
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error de conexion");
+    } finally { setTesting(false); }
+  }
+
+  async function handleStart() {
+    setStarting(true);
+    try {
+      await api.post("/api/openwa/session/start");
+      fetchStatus();
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al iniciar sesion");
+    } finally { setStarting(false); }
+  }
+
+  async function handleWebhook() {
+    try {
+      const { data } = await api.post("/api/openwa/webhook/setup");
+      setWebhookMsg(data.message);
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al configurar webhook");
+    }
+  }
+
+  const statusColor = status?.status === "connected" ? "var(--accent)" : status?.status === "initializing" || status?.status === "SCAN_QR" ? "#F59E0B" : "var(--danger)";
+  const statusLabel = status?.status === "connected" ? "Conectado" : status?.status === "initializing" ? "Inicializando" : status?.status === "SCAN_QR" ? "Esperando QR" : status?.status === "error" ? "Error" : "Desconectado";
+
+  return (
+    <div className="max-w-2xl">
+      <div className="card mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: statusColor }} />
+            <div>
+              <p className="font-medium" style={{ color: "var(--text-primary)" }}>{statusLabel}</p>
+              {status?.session && (
+                <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                  {status.session.name}{status.session.phone ? ` - ${status.session.phone}` : ""}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleWebhook} className="btn-secondary text-xs px-2 py-1">Webhook</button>
+            <button onClick={handleStart} disabled={starting} className="btn-primary text-xs px-2 py-1 disabled:opacity-50">
+              {starting ? "Iniciando..." : "Conectar"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {qrCode && (
+        <div className="card mb-6 text-center">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Escanear QR</h3>
+          <p className="text-sm mb-4" style={{ color: "var(--text-tertiary)" }}>
+            Abre WhatsApp en tu telefono &rarr; Men &rarr; Dispositivos vinculados &rarr; Vincular dispositivo
+          </p>
+          <img src={qrCode} alt="QR Code" className="inline-block" style={{ width: 256, height: 256 }} />
+        </div>
+      )}
+
+      {webhookMsg && (
+        <div className="card mb-6 text-sm" style={{ borderColor: "var(--accent-muted)" }}>
+          <p style={{ color: "var(--accent)" }}>{webhookMsg}</p>
+        </div>
+      )}
+
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Conexion OpenWA</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Base URL</label>
+            <input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} className="input" placeholder="http://openwa:2785" />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>API Key</label>
+            <input type="password" value={config.apiKey} onChange={(e) => setConfig({ ...config, apiKey: e.target.value })} className="input" placeholder="owa_k1_..." />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Session ID</label>
+            <input value={config.sessionId} onChange={(e) => setConfig({ ...config, sessionId: e.target.value })} className="input" placeholder="UUID de sesion (dejar vacio para crear nueva)" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50"><Save size={16} /> {saving ? "Guardando..." : "Guardar"}</button>
+            <button onClick={handleTest} disabled={testing || !config.apiKey} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexion"}</button>
+          </div>
         </div>
       </div>
     </div>

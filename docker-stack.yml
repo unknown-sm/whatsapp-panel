@@ -21,21 +21,66 @@ services:
       placement:
         constraints: [node.role == manager]
 
+  openwa:
+    build:
+      context: ./openwa
+      dockerfile: Dockerfile
+    image: whatsapp-panel-openwa:latest
+    environment:
+      NODE_ENV: production
+      API_PORT: 2785
+      LOG_LEVEL: warn
+      CORS_ORIGINS: "*"
+      DASHBOARD_ENABLED: "false"
+      ENGINE_TYPE: whatsapp-web.js
+      SESSION_DATA_PATH: /app/data/sessions
+      PUPPETEER_HEADLESS: "true"
+      PUPPETEER_ARGS: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+      DATABASE_TYPE: sqlite
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/data/media
+      WEBHOOK_TIMEOUT: "10000"
+      WEBHOOK_MAX_RETRIES: "3"
+      WEBHOOK_RETRY_DELAY: "5000"
+      DATABASE_SYNCHRONIZE: "true"
+      ENABLE_SWAGGER: "false"
+      API_MASTER_KEY: ${OPENWA_MASTER_KEY:-change-this-in-production}
+    volumes:
+      - openwa-data:/app/data
+    networks:
+      - easypanel
+      - easypanel-server
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.openwa.rule=Host(`openwa.{{DOMAIN}}`)"
+        - "traefik.http.routers.openwa.entrypoints=websecure"
+        - "traefik.http.routers.openwa.tls.certresolver=leresolver"
+        - "traefik.http.services.openwa.loadbalancer.server.port=2785"
+
   whatsapp-panel:
-    image: ghcr.io/unknown-sm/whatsapp-panel:latest
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "4000:4000"
     environment:
       NODE_ENV: production
-      PORT: 4000
+      SERVE_FRONTEND: "true"
+      PORT: "4000"
       DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
-      JWT_SECRET: luis20762937-whatsapp-panel-jwt-secret-2026
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
       JWT_EXPIRES_IN: 7d
-      FRONTEND_URL: http://85.239.246.177:4000
-      N8N_WEBHOOK_URL: http://server_n8n:5678/
+      FRONTEND_URL: https://whatsapp-panel.{{DOMAIN}}
+      WHATSAPP_ENGINE: openwa
+      OPENWA_URL: http://openwa:2785
+      OPENWA_API_KEY: ${OPENWA_API_KEY}
+      OPENWA_SESSION_ID: ${OPENWA_SESSION_ID}
+      MEDIA_STORAGE_PATH: ./uploads
+      MAX_UPLOAD_SIZE_MB: "50"
     depends_on:
       whatsapp-db:
         condition: service_healthy
@@ -46,9 +91,16 @@ services:
       replicas: 1
       placement:
         constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-panel.{{DOMAIN}}`)"
+        - "traefik.http.routers.whatsapp-panel.entrypoints=websecure"
+        - "traefik.http.routers.whatsapp-panel.tls.certresolver=leresolver"
+        - "traefik.http.services.whatsapp-panel.loadbalancer.server.port=4000"
 
 volumes:
   whatsapp-db-data:
+  openwa-data:
 
 networks:
   easypanel:

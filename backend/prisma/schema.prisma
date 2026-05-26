@@ -53,6 +53,7 @@ model WhatsappConfig {
 model Bot {
   id           String   @id @default(uuid())
   name         String
+  systemPrompt String?
   exactMatch   Boolean  @default(false)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())

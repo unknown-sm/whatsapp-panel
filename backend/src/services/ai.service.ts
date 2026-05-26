@@ -47,16 +47,22 @@ export async function setDefault(id: string) {
   return prisma.aIConfig.update({ where: { id }, data: { isDefault: true } });
 }
 
-export async function generateResponse(configId: string, messages: { role: string; content: string }[]): Promise<string> {
+export async function generateResponse(
+  configId: string,
+  messages: { role: string; content: string }[],
+  options?: { systemPrompt?: string; maxTokens?: number }
+): Promise<string> {
   const config = await prisma.aIConfig.findUnique({ where: { id: configId } });
   if (!config) throw new Error("AI config not found");
+
+  const maxTokens = options?.maxTokens || 1024;
 
   if (config.provider === "openai") {
     const openai = new OpenAI({ apiKey: config.apiKey });
     const response = await openai.chat.completions.create({
       model: config.model,
       messages: messages.map((m) => ({ role: m.role as any, content: m.content })),
-      max_tokens: 1024,
+      max_tokens: maxTokens,
     });
     return response.choices[0]?.message?.content || "";
   }
@@ -68,7 +74,7 @@ export async function generateResponse(configId: string, messages: { role: strin
 
     const response = await anthropic.messages.create({
       model: config.model as any,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system: systemMessage,
       messages: chatMessages.map((m) => ({ role: m.role as any, content: m.content })),
     });

@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  whatsapp-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: whatsapp
+      POSTGRES_PASSWORD: whatsapp_secret
+      POSTGRES_DB: whatsapp_panel
+    volumes:
+      - whatsapp-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whatsapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - easypanel-server
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+  whatsapp-panel:
+    image: ghcr.io/unknown-sm/whatsapp-panel:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
+      JWT_SECRET: luis20762937-whatsapp-panel-jwt-secret-2026
+      JWT_EXPIRES_IN: 7d
+      FRONTEND_URL: http://85.239.246.177:4000
+      N8N_WEBHOOK_URL: http://server_n8n:5678/
+    depends_on:
+      whatsapp-db:
+        condition: service_healthy
+    networks:
+      - easypanel
+      - easypanel-server
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+
+volumes:
+  whatsapp-db-data:
+
+networks:
+  easypanel:
+    external: true
+  easypanel-server:
+    external: true

@@ -4,6 +4,7 @@ import api from "../services/api";
 interface Bot {
   id: string;
   name: string;
+  systemPrompt: string | null;
   exactMatch: boolean;
   isActive: boolean;
   createdAt: string;
@@ -16,8 +17,8 @@ interface BotState {
   selectedBot: Bot | null;
   isLoading: boolean;
   fetchBots: () => Promise<void>;
-  createBot: (data: { name: string; exactMatch?: boolean; keywords?: string[] }) => Promise<Bot>;
-  updateBot: (id: string, data: { name?: string; exactMatch?: boolean; isActive?: boolean }) => Promise<Bot>;
+  createBot: (data: { name: string; systemPrompt?: string; exactMatch?: boolean; keywords?: string[] }) => Promise<Bot>;
+  updateBot: (id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean }) => Promise<Bot>;
   deleteBot: (id: string) => Promise<void>;
   addKeyword: (botId: string, keyword: string) => Promise<void>;
   removeKeyword: (botId: string, keywordId: string) => Promise<void>;

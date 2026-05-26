@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBotStore } from "../store/botStore";
-import { Plus, Search, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Bot as BotIcon } from "lucide-react";
 
 export default function BotGrid() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newKeywords, setNewKeywords] = useState("");
+  const [newSystemPrompt, setNewSystemPrompt] = useState("");
   const [creating, setCreating] = useState(false);
   const { bots, isLoading, fetchBots, createBot, deleteBot, updateBot, addKeyword, removeKeyword } = useBotStore();
   const navigate = useNavigate();
@@ -24,9 +25,10 @@ export default function BotGrid() {
     setCreating(true);
     try {
       const keywords = newKeywords.split(",").map((k) => k.trim()).filter(Boolean);
-      await createBot({ name: newName.trim(), keywords });
+      await createBot({ name: newName.trim(), keywords, systemPrompt: newSystemPrompt.trim() || undefined });
       setNewName("");
       setNewKeywords("");
+      setNewSystemPrompt("");
       setShowCreate(false);
     } finally {
       setCreating(false);
@@ -38,7 +40,7 @@ export default function BotGrid() {
   }
 
   async function handleDelete(id: string) {
-    if (confirm("¿Eliminar este bot?")) await deleteBot(id);
+    if (confirm("Eliminar este bot?")) await deleteBot(id);
   }
 
   async function handleAddKeyword(botId: string, keyword: string) {
@@ -51,21 +53,19 @@ export default function BotGrid() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div>
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Bots</h1>
-          <p className="text-[var(--text-tertiary)] text-sm mt-1">{bots.length} bot{bots.length !== 1 ? "s" : ""} configurado{bots.length !== 1 ? "s" : ""}</p>
+          <h1>Bots</h1>
+          <p>{bots.length} bot{bots.length !== 1 ? "s" : ""} configurado{bots.length !== 1 ? "s" : ""}</p>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} className="btn-primary flex items-center gap-2">
+        <button onClick={() => setShowCreate(true)} className="btn-primary">
           <Plus size={18} /> Nuevo Bot
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" size={18} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={18} style={{ color: "var(--text-tertiary)" }} />
         <input
           type="text"
           value={search}
@@ -75,90 +75,99 @@ export default function BotGrid() {
         />
       </div>
 
-      {/* Create form */}
       {showCreate && (
-        <div className="card mb-6 border-accent-600/30">
-          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Crear nuevo bot</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm text-[var(--text-secondary)] mb-1">Nombre del bot</label>
-              <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="input w-full" placeholder="ej: Promo Oregano" />
+        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>Crear nuevo bot</h2>
+              <button onClick={() => setShowCreate(false)} className="btn-icon !w-8 !h-8">
+                <X size={16} />
+              </button>
             </div>
-            <div>
-              <label className="block text-sm text-[var(--text-secondary)] mb-1">Keywords (separadas por coma)</label>
-              <input type="text" value={newKeywords} onChange={(e) => setNewKeywords(e.target.value)} className="input w-full" placeholder="ej: promo, oferta, descuento" />
+            <div className="modal-body space-y-3">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Nombre del bot</label>
+                <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="input" placeholder="ej: Promo Oregano" autoFocus />
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Keywords (separadas por coma)</label>
+                <input type="text" value={newKeywords} onChange={(e) => setNewKeywords(e.target.value)} className="input" placeholder="ej: promo, oferta, descuento" />
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>System Prompt (instrucciones para IA)</label>
+                <textarea value={newSystemPrompt} onChange={(e) => setNewSystemPrompt(e.target.value)} className="input resize-none" rows={3} placeholder="Eres un asistente de ventas amable. Responde en espanol..." />
+              </div>
             </div>
-            <div className="flex gap-2">
+            <div className="modal-footer">
+              <button onClick={() => setShowCreate(false)} className="btn-secondary">Cancelar</button>
               <button onClick={handleCreate} disabled={creating || !newName.trim()} className="btn-primary disabled:opacity-50">
                 {creating ? "Creando..." : "Crear Bot"}
               </button>
-              <button onClick={() => setShowCreate(false)} className="btn-secondary">Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bot grid */}
       {isLoading ? (
-        <div className="text-center py-12 text-[var(--text-tertiary)]">Cargando bots...</div>
+        <div className="text-center py-12" style={{ color: "var(--text-tertiary)" }}>Cargando bots...</div>
       ) : filtered.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-[var(--text-tertiary)]">{search ? "No se encontraron bots" : "No hay bots creados. ¡Crea el primero!"}</p>
+          <p style={{ color: "var(--text-tertiary)" }}>{search ? "No se encontraron bots" : "No hay bots creados. Crea el primero!"}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((bot) => (
             <div key={bot.id} className={`card ${!bot.isActive ? "opacity-60" : ""}`}>
-              {/* Header */}
               <div className="flex items-start justify-between mb-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-[var(--text-primary)] truncate">{bot.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`status-dot ${bot.isActive ? "status-online" : "status-offline"}`} />
-                    <span className="text-xs text-[var(--text-tertiary)]">{bot.isActive ? "En línea" : "Fuera de línea"}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--accent-muted)" }}>
+                    <BotIcon size={20} style={{ color: "var(--accent)" }} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold truncate" style={{ color: "var(--text-primary)" }}>{bot.name}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`status-dot ${bot.isActive ? "status-online" : "status-offline"}`} />
+                      <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{bot.isActive ? "Activo" : "Inactivo"}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => navigate(`/bots/${bot.id}`)} className="p-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]" title="Editar">
-                    <Pencil size={16} />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => navigate(`/bots/${bot.id}`)} className="btn-icon !w-8 !h-8" title="Editar">
+                    <Pencil size={14} />
                   </button>
-                  <button onClick={() => handleDelete(bot.id)} className="p-1.5 rounded hover:bg-red-500/20 text-[var(--text-tertiary)] hover:text-red-400" title="Eliminar">
-                    <Trash2 size={16} />
+                  <button onClick={() => handleDelete(bot.id)} className="btn-icon !w-8 !h-8 hover:!bg-red-500/20 hover:!text-red-400" title="Eliminar">
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
 
-              {/* Keywords */}
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {bot.keywords.map((kw) => (
-                  <span key={kw.id} className="pill">
+                  <span key={kw.id} className="pill text-xs">
                     {kw.keyword}
-                    <button onClick={() => handleRemoveKeyword(bot.id, kw.id)} className="pill-remove ml-1">
+                    <button onClick={() => handleRemoveKeyword(bot.id, kw.id)} className="ml-0.5 hover:text-[var(--danger)] transition-colors">
                       <X size={12} />
                     </button>
                   </span>
                 ))}
-                {bot.keywords.length === 0 && <span className="text-xs text-[var(--text-tertiary)]">Sin keywords</span>}
+                {bot.keywords.length === 0 && <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Sin keywords</span>}
               </div>
 
-              {/* Exact match toggle */}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-[var(--text-tertiary)]">Coincidencia exacta</span>
+                <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Coincidencia exacta</span>
                 <button
                   onClick={() => handleToggle({ ...bot, exactMatch: !bot.exactMatch })}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${bot.exactMatch ? "bg-accent-600" : "bg-[var(--bg-hover)]"}`}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${bot.exactMatch ? "bg-[var(--accent)]" : "bg-[var(--bg-active)]"}`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${bot.exactMatch ? "left-5" : "left-0.5"}`} />
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${bot.exactMatch ? "left-[18px]" : "left-0.5"}`} />
                 </button>
               </div>
 
-              {/* Stats */}
-              <div className="flex items-center gap-4 text-xs text-[var(--text-tertiary)] pt-3 border-t border-[var(--border-default)]">
+              <div className="flex items-center gap-4 text-xs pt-3 border-t" style={{ color: "var(--text-tertiary)", borderColor: "var(--border-default)" }}>
                 <span>{bot._count?.flowSteps || 0} pasos</span>
                 <span>{bot._count?.conversations || 0} conversaciones</span>
               </div>
 
-              {/* Add keyword inline */}
               <div className="mt-3 flex gap-2">
                 <input
                   type="text"

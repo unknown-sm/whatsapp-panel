@@ -4,23 +4,25 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', "system-ui", "-apple-system", "sans-serif"],
+        mono: ['"JetBrains Mono"', "monospace"],
+      },
       colors: {
-        // Keep brand colors as static Tailwind classes
         accent: {
-          50: "#e6f4ea",
-          100: "#ccebd5",
-          200: "#99d7ab", 
-          300: "#66c381",
-          400: "#33af57",
-          500: "#009b2d", // primary accent (WhatsApp green)
-          600: "#007a24",
-          700: "#005a1b",
-          800: "#003b12",
-          900: "#001d09",
+          50: "#e8faf0",
+          100: "#d1f5e0",
+          200: "#a3ebc1",
+          300: "#75e1a2",
+          400: "#47d783",
+          500: "#25d366",
+          600: "#1da851",
+          700: "#16803d",
+          800: "#0e5829",
+          900: "#073015",
         },
         whatsapp: "#25D366",
         whatsappDark: "#128C7E",
-        // CSS variable references (optional for advanced use)
         surface: {
           DEFAULT: "var(--bg-surface)",
           elevated: "var(--bg-elevated)",

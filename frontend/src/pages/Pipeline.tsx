@@ -123,14 +123,12 @@ export default function Pipeline() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>Pipeline de Ventas</h1>
-          <p style={{ color: "var(--text-tertiary)" }}>Gestiona tus oportunidades de venta</p>
+          <h1>Pipeline de Ventas</h1>
+          <p>Gestiona tus oportunidades de venta</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Pipeline selector */}
           <select
             value={selectedPipelineId}
             onChange={(e) => setSelectedPipelineId(e.target.value)}
@@ -147,7 +145,6 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
@@ -156,7 +153,7 @@ export default function Pipeline() {
             { label: "Ganados", value: `$${stats.wonValue.toLocaleString()}`, icon: BarChart3 },
             { label: "Conversion", value: `${stats.conversionRate}%`, icon: BarChart3 },
           ].map((stat) => (
-            <div key={stat.label} className="card p-3" style={{ border: "1px solid var(--border-default)" }}>
+            <div key={stat.label} className="card p-3">
               <div className="flex items-center gap-2 mb-1">
                 <stat.icon size={16} style={{ color: "var(--text-tertiary)" }} />
                 <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{stat.label}</span>
@@ -167,14 +164,13 @@ export default function Pipeline() {
         </div>
       )}
 
-      {/* Kanban Board */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin mr-2" style={{ color: "var(--text-tertiary)" }} />
           <span style={{ color: "var(--text-secondary)" }}>Cargando...</span>
         </div>
       ) : stages.length === 0 ? (
-        <div className="card p-8 text-center" style={{ border: "1px solid var(--border-default)" }}>
+        <div className="card p-8 text-center">
           <p style={{ color: "var(--text-secondary)" }}>Este pipeline no tiene etapas.</p>
         </div>
       ) : (
@@ -195,105 +191,59 @@ export default function Pipeline() {
         </div>
       )}
 
-      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="w-full max-w-md rounded-xl p-6" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}>
-            <h2 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)" }}>
-              {editingDeal ? "Editar Deal" : "Nuevo Deal"}
-            </h2>
-            <form onSubmit={handleSubmitDeal} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Nombre</label>
-                <input
-                  type="text"
-                  value={dealForm.name}
-                  onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })}
-                  className="input"
-                  placeholder="Nombre del deal"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingDeal(null); }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 style={{ color: "var(--text-primary)", fontSize: "1.125rem", fontWeight: 700 }}>
+                {editingDeal ? "Editar Deal" : "Nuevo Deal"}
+              </h2>
+              <button onClick={() => { setShowModal(false); setEditingDeal(null); }} className="btn-ghost !p-1.5" style={{ fontSize: "1.25rem", lineHeight: 1 }}>&times;</button>
+            </div>
+            <form onSubmit={handleSubmitDeal}>
+              <div className="modal-body space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Valor</label>
-                  <input
-                    type="number"
-                    value={dealForm.value}
-                    onChange={(e) => setDealForm({ ...dealForm, value: e.target.value })}
-                    className="input"
-                    placeholder="0"
-                    min="0"
-                    step="0.01"
-                  />
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Nombre</label>
+                  <input type="text" value={dealForm.name} onChange={(e) => setDealForm({ ...dealForm, name: e.target.value })} className="input" placeholder="Nombre del deal" required />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Valor</label>
+                    <input type="number" value={dealForm.value} onChange={(e) => setDealForm({ ...dealForm, value: e.target.value })} className="input" placeholder="0" min="0" step="0.01" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Etapa</label>
+                    <select value={dealForm.stageId} onChange={(e) => setDealForm({ ...dealForm, stageId: e.target.value })} className="input">
+                      {stages.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Prioridad</label>
+                    <select value={dealForm.priority} onChange={(e) => setDealForm({ ...dealForm, priority: e.target.value as Deal["priority"] })} className="input">
+                      <option value="LOW">Baja</option>
+                      <option value="MEDIUM">Media</option>
+                      <option value="HIGH">Alta</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Cierre esperado</label>
+                    <input type="date" value={dealForm.expectedCloseDate} onChange={(e) => setDealForm({ ...dealForm, expectedCloseDate: e.target.value })} className="input" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Etapa</label>
-                  <select
-                    value={dealForm.stageId}
-                    onChange={(e) => setDealForm({ ...dealForm, stageId: e.target.value })}
-                    className="input"
-                  >
-                    {stages.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Prioridad</label>
-                  <select
-                    value={dealForm.priority}
-                    onChange={(e) => setDealForm({ ...dealForm, priority: e.target.value as Deal["priority"] })}
-                    className="input"
-                  >
-                    <option value="LOW">Baja</option>
-                    <option value="MEDIUM">Media</option>
-                    <option value="HIGH">Alta</option>
-                  </select>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Tags (separados por coma)</label>
+                  <input type="text" value={dealForm.tags} onChange={(e) => setDealForm({ ...dealForm, tags: e.target.value })} className="input" placeholder="tag1, tag2" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Cierre esperado</label>
-                  <input
-                    type="date"
-                    value={dealForm.expectedCloseDate}
-                    onChange={(e) => setDealForm({ ...dealForm, expectedCloseDate: e.target.value })}
-                    className="input"
-                  />
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Notas</label>
+                  <textarea value={dealForm.notes} onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })} className="input resize-none" rows={3} placeholder="Notas adicionales..." />
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Tags (separados por coma)</label>
-                <input
-                  type="text"
-                  value={dealForm.tags}
-                  onChange={(e) => setDealForm({ ...dealForm, tags: e.target.value })}
-                  className="input"
-                  placeholder="tag1, tag2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Notas</label>
-                <textarea
-                  value={dealForm.notes}
-                  onChange={(e) => setDealForm({ ...dealForm, notes: e.target.value })}
-                  className="input resize-none"
-                  rows={3}
-                  placeholder="Notas adicionales..."
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); setEditingDeal(null); }}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-primary">
-                  {editingDeal ? "Guardar" : "Crear"}
-                </button>
+              <div className="modal-footer">
+                <button type="button" onClick={() => { setShowModal(false); setEditingDeal(null); }} className="btn-secondary">Cancelar</button>
+                <button type="submit" className="btn-primary">{editingDeal ? "Guardar" : "Crear"}</button>
               </div>
             </form>
           </div>

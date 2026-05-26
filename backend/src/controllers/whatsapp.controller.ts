@@ -21,7 +21,30 @@ export async function webhookVerify(req: Request, res: Response) {
 
 export async function webhookIncoming(req: Request, res: Response) {
   try {
-    await processIncomingMessage(req.body);
+    let payload = req.body;
+
+    // Detect and convert OpenWA webhook format
+    if (payload.event === "message.received" && payload.data) {
+      const d = payload.data;
+      payload = {
+        entry: [{
+          changes: [{
+            value: {
+              messages: [{
+                from: d.from?.replace("@c.us", "") || d.chatId?.replace("@c.us", ""),
+                text: { body: d.body || "" },
+                type: d.type || "text",
+              }],
+            },
+          }],
+        }],
+      };
+    } else if (payload.event && !payload.entry) {
+      // Ignore non-message events for now (session.status, session.qr, etc.)
+      return res.sendStatus(200);
+    }
+
+    await processIncomingMessage(payload);
     res.sendStatus(200);
   } catch (error) {
     console.error("Webhook error:", error);

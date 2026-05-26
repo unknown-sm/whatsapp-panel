@@ -12,11 +12,11 @@ export default function Analytics() {
     async function load() {
       try {
         const [ov, msg, cg, df, tb] = await Promise.all([
-          api.get("/analytics/overview"),
-          api.get("/analytics/messages-over-time"),
-          api.get("/analytics/contact-growth"),
-          api.get("/analytics/deal-funnel"),
-          api.get("/analytics/top-bots"),
+          api.get("/api/analytics/overview"),
+          api.get("/api/analytics/messages-over-time"),
+          api.get("/api/analytics/contact-growth"),
+          api.get("/api/analytics/deal-funnel"),
+          api.get("/api/analytics/top-bots"),
         ]);
         setOverview(ov.data);
         setMessagesOverTime(msg.data);
@@ -36,7 +36,12 @@ export default function Analytics() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>Analytics</h1>
+      <div className="page-header">
+        <div>
+          <h1>Analytics</h1>
+          <p>Metricas y estadisticas del sistema</p>
+        </div>
+      </div>
 
       {/* Overview Stats */}
       {overview && (
@@ -51,7 +56,7 @@ export default function Analytics() {
             { label: "Valor Total", value: `$${overview.totalValue.toLocaleString()}`, icon: DollarSign },
             { label: "Conversion", value: `${overview.conversionRate}%`, icon: TrendingUp },
           ].map((stat) => (
-            <div key={stat.label} className="card p-3" style={{ border: "1px solid var(--border-default)" }}>
+            <div key={stat.label} className="card p-3">
               <div className="flex items-center gap-2 mb-1">
                 <stat.icon size={16} style={{ color: "var(--text-tertiary)" }} />
                 <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{stat.label}</span>
@@ -65,7 +70,7 @@ export default function Analytics() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* Messages Over Time */}
-        <div className="card p-4" style={{ border: "1px solid var(--border-default)" }}>
+        <div className="card p-4">
           <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Mensajes (ultimos 30 dias)</h3>
           {messagesOverTime.length > 0 ? (
             <div className="flex items-end gap-1 h-40">
@@ -95,7 +100,7 @@ export default function Analytics() {
         </div>
 
         {/* Contact Growth */}
-        <div className="card p-4" style={{ border: "1px solid var(--border-default)" }}>
+        <div className="card p-4">
           <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Crecimiento de Contactos</h3>
           {contactGrowth.length > 0 ? (
             <div className="flex items-end gap-1 h-40">
@@ -128,7 +133,7 @@ export default function Analytics() {
       {/* Deal Funnel + Top Bots */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Deal Funnel */}
-        <div className="card p-4" style={{ border: "1px solid var(--border-default)" }}>
+        <div className="card p-4">
           <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Embudo de Ventas</h3>
           {dealFunnel.length > 0 ? (
             <div className="space-y-2">
@@ -156,7 +161,7 @@ export default function Analytics() {
         </div>
 
         {/* Top Bots */}
-        <div className="card p-4" style={{ border: "1px solid var(--border-default)" }}>
+        <div className="card p-4">
           <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Top Bots</h3>
           {topBots.length > 0 ? (
             <div className="space-y-2">

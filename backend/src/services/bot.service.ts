@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const createBotSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
+  systemPrompt: z.string().optional(),
   exactMatch: z.boolean().default(false),
   isActive: z.boolean().default(true),
   keywords: z.array(z.string().min(1)).default([]),
@@ -10,6 +11,7 @@ const createBotSchema = z.object({
 
 const updateBotSchema = z.object({
   name: z.string().min(1).optional(),
+  systemPrompt: z.string().optional().nullable(),
   exactMatch: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
@@ -28,11 +30,12 @@ export async function getBotById(id: string) {
   });
 }
 
-export async function createBot(data: { name: string; exactMatch?: boolean; isActive?: boolean; keywords?: string[] }) {
+export async function createBot(data: { name: string; systemPrompt?: string; exactMatch?: boolean; isActive?: boolean; keywords?: string[] }) {
   const parsed = createBotSchema.parse(data);
   return prisma.bot.create({
     data: {
       name: parsed.name,
+      systemPrompt: parsed.systemPrompt,
       exactMatch: parsed.exactMatch,
       isActive: parsed.isActive,
       keywords: { create: parsed.keywords.map((kw) => ({ keyword: kw })) },
@@ -41,7 +44,7 @@ export async function createBot(data: { name: string; exactMatch?: boolean; isAc
   });
 }
 
-export async function updateBot(id: string, data: { name?: string; exactMatch?: boolean; isActive?: boolean }) {
+export async function updateBot(id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean }) {
   const parsed = updateBotSchema.parse(data);
   return prisma.bot.update({ where: { id }, data: parsed, include: { keywords: true } });
 }

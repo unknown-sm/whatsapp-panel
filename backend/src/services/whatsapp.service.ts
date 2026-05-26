@@ -2,55 +2,16 @@ import axios from "axios";
 import prisma from "../lib/prisma";
 import { io } from "../index";
 import { generateResponse, classifyIntent } from "./ai.service";
+import { resolveEngine } from "./whatsapp-engine";
+
+const engine = resolveEngine();
 
 export async function sendWhatsAppMessage(phoneNumber: string, message: string): Promise<boolean> {
-  const config = await prisma.whatsappConfig.findFirst();
-  if (!config) {
-    console.error("WhatsApp config not found");
-    return false;
-  }
-
-  try {
-    const url = `https://graph.facebook.com/v21.0/${config.phoneNumberId}/messages`;
-    await axios.post(url, {
-      messaging_product: "whatsapp",
-      to: phoneNumber,
-      type: "text",
-      text: { body: message },
-    }, {
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-    return true;
-  } catch (error: any) {
-    console.error("WhatsApp send error:", error.response?.data || error.message);
-    return false;
-  }
+  return engine.sendText(phoneNumber, message);
 }
 
 export async function sendWhatsAppMedia(phoneNumber: string, mediaId: string, type: "image" | "video" | "document"): Promise<boolean> {
-  const config = await prisma.whatsappConfig.findFirst();
-  if (!config) return false;
-
-  try {
-    const url = `https://graph.facebook.com/v21.0/${config.phoneNumberId}/messages`;
-    await axios.post(url, {
-      messaging_product: "whatsapp",
-      to: phoneNumber,
-      type,
-      [type]: { id: mediaId },
-    }, {
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  return engine.sendMedia(phoneNumber, mediaId, type);
 }
 
 export async function processIncomingMessage(data: any) {
@@ -191,26 +152,32 @@ async function processBotFlow(conversation: any, userMessage: string) {
         if (!defaultConfig) break;
         configId = defaultConfig.id;
       }
+
       const messages = await prisma.message.findMany({
         where: { conversationId: conversation.id },
         orderBy: { timestamp: "asc" },
-        take: 20,
+        take: 50,
       });
+
       const aiMessages: { role: string; content: string }[] = [];
-      if (cfg.systemPrompt) {
-        aiMessages.push({ role: "system", content: cfg.systemPrompt });
+
+      const systemPrompt = bot.systemPrompt || cfg.systemPrompt;
+      if (systemPrompt) {
+        aiMessages.push({ role: "system", content: systemPrompt });
       }
+
       for (const msg of messages) {
         aiMessages.push({
           role: msg.direction === "inbound" ? "user" : "assistant",
           content: msg.content,
         });
       }
+
       const response = await generateResponse(configId, aiMessages);
       if (response) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
-          await sendWhatsAppMessage(contact.phone, response);
+          await engine.sendText(contact.phone, response);
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: response },
           });

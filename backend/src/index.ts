@@ -21,6 +21,7 @@ import customFieldRoutes from "./routes/customfield.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { PrismaClient } from "@prisma/client";
+import { execSync } from "child_process";
 
 const prisma = new PrismaClient();
 
@@ -217,6 +218,11 @@ setInterval(checkScheduledBroadcasts, 60 * 1000);
 export { io };
 
 async function start() {
+  try {
+    execSync("npx prisma db push --accept-data-loss", { cwd: __dirname + "/../", stdio: "inherit" });
+  } catch (e) {
+    console.error("Error al sincronizar schema:", e);
+  }
   await seedDatabase();
   server.listen(PORT, () => {
     console.log(`Backend corriendo en http://localhost:${PORT}`);

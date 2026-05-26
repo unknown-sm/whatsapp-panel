@@ -1,22 +1,69 @@
-﻿version: "3.8"
-
 services:
-  postgres:
+  whatsapp-db:
     image: postgres:16-alpine
-    container_name: whatsapp-panel-db
     environment:
       POSTGRES_USER: whatsapp
       POSTGRES_PASSWORD: whatsapp_secret
       POSTGRES_DB: whatsapp_panel
-    ports:
-      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - whatsapp-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U whatsapp"]
+      test: ["CMD-SHELL", "pg_isready -U whatsapp -d whatsapp_panel"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  openwa:
+    build:
+      context: ./openwa
+      dockerfile: Dockerfile
+    image: whatsapp-panel-openwa:latest
+    environment:
+      NODE_ENV: production
+      API_PORT: 2785
+      LOG_LEVEL: warn
+      CORS_ORIGINS: "*"
+      DASHBOARD_ENABLED: "false"
+      ENGINE_TYPE: whatsapp-web.js
+      SESSION_DATA_PATH: /app/data/sessions
+      PUPPETEER_HEADLESS: "true"
+      PUPPETEER_ARGS: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium-browser
+      DATABASE_TYPE: sqlite
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_PATH: /app/data/media
+      WEBHOOK_TIMEOUT: "10000"
+      WEBHOOK_MAX_RETRIES: "3"
+      WEBHOOK_RETRY_DELAY: "5000"
+      DATABASE_SYNCHRONIZE: "true"
+      ENABLE_SWAGGER: "false"
+      API_MASTER_KEY: openwa-dev-master-key-2024
+    volumes:
+      - openwa-data:/app/data
+
+  whatsapp-panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      SERVE_FRONTEND: "true"
+      PORT: "4000"
+      DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
+      JWT_SECRET: ${JWT_SECRET:-whatsapp-panel-jwt-secret-2024}
+      JWT_EXPIRES_IN: 7d
+      FRONTEND_URL: https://whatsapp-panel.zwpkae.easypanel.host
+      WHATSAPP_ENGINE: openwa
+      OPENWA_URL: http://openwa:2785
+      OPENWA_API_KEY: owa_k1_279af81f49da31fb74fac7c5f4ff1d33c64f565e0dd3dd20b40f433b23a6ce11
+      OPENWA_SESSION_ID: 762a97bc-421e-4765-b04b-4bde7dd45608
+      MEDIA_STORAGE_PATH: ./uploads
+      MAX_UPLOAD_SIZE_MB: "50"
+    depends_on:
+      whatsapp-db:
+        condition: service_healthy
+
 volumes:
-  pgdata:
+  whatsapp-db-data:
+  openwa-data:

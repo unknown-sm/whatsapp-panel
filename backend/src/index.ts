@@ -21,6 +21,7 @@ import customFieldRoutes from "./routes/customfield.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt";
 import { execSync } from "child_process";
 
 if (!process.env.DATABASE_URL) {
@@ -31,6 +32,21 @@ const prisma = new PrismaClient();
 
 async function seedDatabase() {
   console.log("=== Iniciando seed ===");
+  // Admin User
+  try {
+    const existingAdmin = await prisma.user.findUnique({ where: { email: "admin@whatsapp-panel.com" } });
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash("admin123", 12);
+      await prisma.user.create({ data: { email: "admin@whatsapp-panel.com", password: hashedPassword, name: "Administrador", role: "ADMIN" } });
+      console.log("Admin creado: admin@whatsapp-panel.com / admin123");
+    } else {
+      console.log("Admin ya existe");
+    }
+    console.log("Seed: Admin User OK");
+  } catch (e) {
+    console.error("Seed ERROR en Admin User:", e instanceof Error ? e.message : e);
+  }
+
   // Pipeline
   try {
     const existing = await prisma.pipeline.findFirst();

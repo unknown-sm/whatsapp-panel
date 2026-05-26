@@ -26,114 +26,153 @@ import { execSync } from "child_process";
 const prisma = new PrismaClient();
 
 async function seedDatabase() {
+  console.log("=== Iniciando seed ===");
   // Pipeline
-  const existing = await prisma.pipeline.findFirst();
-  if (!existing) {
-    const pipeline = await prisma.pipeline.create({
-      data: {
-        name: "Ventas WhatsApp",
-        description: "Pipeline de ventas por WhatsApp",
-        isDefault: true,
-      },
-    });
-    await prisma.pipelineStage.createMany({
-      data: [
-        { name: "Nuevo Contacto", pipelineId: pipeline.id, order: 0, color: "#3B82F6" },
-        { name: "Calificacion", pipelineId: pipeline.id, order: 1, color: "#8B5CF6" },
-        { name: "Propuesta", pipelineId: pipeline.id, order: 2, color: "#F59E0B" },
-        { name: "Negociacion", pipelineId: pipeline.id, order: 3, color: "#EF4444" },
-        { name: "Cerrado Ganado", pipelineId: pipeline.id, order: 4, color: "#10B981" },
-        { name: "Cerrado Perdido", pipelineId: pipeline.id, order: 5, color: "#6B7280" },
-      ],
-    });
-    console.log("Pipeline por defecto creado: Ventas WhatsApp");
+  try {
+    const existing = await prisma.pipeline.findFirst();
+    if (!existing) {
+      const pipeline = await prisma.pipeline.create({
+        data: {
+          name: "Ventas WhatsApp",
+          description: "Pipeline de ventas por WhatsApp",
+          isDefault: true,
+        },
+      });
+      await prisma.pipelineStage.createMany({
+        data: [
+          { name: "Nuevo Contacto", pipelineId: pipeline.id, order: 0, color: "#3B82F6" },
+          { name: "Calificacion", pipelineId: pipeline.id, order: 1, color: "#8B5CF6" },
+          { name: "Propuesta", pipelineId: pipeline.id, order: 2, color: "#F59E0B" },
+          { name: "Negociacion", pipelineId: pipeline.id, order: 3, color: "#EF4444" },
+          { name: "Cerrado Ganado", pipelineId: pipeline.id, order: 4, color: "#10B981" },
+          { name: "Cerrado Perdido", pipelineId: pipeline.id, order: 5, color: "#6B7280" },
+        ],
+      });
+      console.log("Pipeline por defecto creado: Ventas WhatsApp");
+    }
+    console.log("Seed: Pipeline OK");
+  } catch (e) {
+    console.error("Seed ERROR en Pipeline:", e instanceof Error ? e.message : e);
+    throw e;
   }
 
   // Contacts
-  const contactCount = await prisma.contact.count();
-  if (contactCount === 0) {
-    const contacts = await prisma.contact.createMany({
-      data: [
-        { phone: "595981123456", name: "Juan Perez" },
-        { phone: "595981234567", name: "Maria Lopez" },
-        { phone: "595981345678", name: "Carlos Gonzalez" },
-        { phone: "595981456789", name: "Ana Martinez" },
-        { phone: "595981567890", name: "Pedro Rodriguez" },
-        { phone: "595981678901", name: "Laura Silva" },
-        { phone: "595981789012", name: "Diego Fernandez" },
-        { phone: "595981890123", name: "Sofia Ruiz" },
-        { phone: "595981901234", name: "Andres Castro" },
-        { phone: "595982012345", name: "Carmen Vazquez" },
-      ],
-    });
-    console.log("10 contactos creados");
+  try {
+    const contactCount = await prisma.contact.count();
+    if (contactCount === 0) {
+      await prisma.contact.createMany({
+        data: [
+          { phone: "595981123456", name: "Juan Perez" },
+          { phone: "595981234567", name: "Maria Lopez" },
+          { phone: "595981345678", name: "Carlos Gonzalez" },
+          { phone: "595981456789", name: "Ana Martinez" },
+          { phone: "595981567890", name: "Pedro Rodriguez" },
+          { phone: "595981678901", name: "Laura Silva" },
+          { phone: "595981789012", name: "Diego Fernandez" },
+          { phone: "595981890123", name: "Sofia Ruiz" },
+          { phone: "595981901234", name: "Andres Castro" },
+          { phone: "595982012345", name: "Carmen Vazquez" },
+        ],
+      });
+      console.log("10 contactos creados");
+    }
+    console.log("Seed: Contacts OK");
+  } catch (e) {
+    console.error("Seed ERROR en Contacts:", e instanceof Error ? e.message : e);
+    throw e;
   }
 
   // Bots
-  const botCount = await prisma.bot.count();
-  if (botCount === 0) {
-    await prisma.bot.createMany({
-      data: [
-        { name: "Soporte General", isActive: true },
-        { name: "Ventas", isActive: true },
-        { name: "Marketing", isActive: true },
-      ],
-    });
-    console.log("3 bots creados");
+  try {
+    const botCount = await prisma.bot.count();
+    if (botCount === 0) {
+      await prisma.bot.createMany({
+        data: [
+          { name: "Soporte General", isActive: true },
+          { name: "Ventas", isActive: true },
+          { name: "Marketing", isActive: true },
+        ],
+      });
+      console.log("3 bots creados");
+    }
+    console.log("Seed: Bots OK");
+  } catch (e) {
+    console.error("Seed ERROR en Bots:", e instanceof Error ? e.message : e);
+    throw e;
   }
 
   // Conversations & Messages
-  const conversationCount = await prisma.conversation.count();
-  if (conversationCount === 0) {
-    const allContacts = await prisma.contact.findMany({ select: { id: true, name: true, phone: true }, take: 5 });
-    const allBots = await prisma.bot.findMany({ select: { id: true, name: true } });
-    if (allContacts.length > 0 && allBots.length > 0) {
-      for (let i = 0; i < Math.min(5, allContacts.length); i++) {
-        const contact = allContacts[i];
-        const bot = allBots[i % allBots.length];
-        const conversation = await prisma.conversation.create({
-          data: {
-            contactId: contact.id,
-            botId: bot.id,
-            status: "active",
-          },
-        });
-        await prisma.message.createMany({
-          data: [
-            { conversationId: conversation.id, direction: "inbound", content: `Hola, soy ${contact.name?.split(" ")[0] || "Juan"}. Tengo una consulta.`, type: "text" },
-            { conversationId: conversation.id, direction: "outbound", content: `¡Hola! Soy el bot ${bot.name}. ¿En qué puedo ayudarte?`, type: "text" },
-            { conversationId: conversation.id, direction: "inbound", content: "Quiero saber más sobre sus productos.", type: "text" },
-            { conversationId: conversation.id, direction: "outbound", content: "Claro, te envío la información en seguida.", type: "text" },
-          ],
-        });
+  try {
+    const conversationCount = await prisma.conversation.count();
+    if (conversationCount === 0) {
+      const allContacts = await prisma.contact.findMany({ select: { id: true, name: true, phone: true }, take: 5 });
+      const allBots = await prisma.bot.findMany({ select: { id: true, name: true } });
+      if (allContacts.length > 0 && allBots.length > 0) {
+        for (let i = 0; i < Math.min(5, allContacts.length); i++) {
+          const contact = allContacts[i];
+          const bot = allBots[i % allBots.length];
+          const conversation = await prisma.conversation.create({
+            data: {
+              contactId: contact.id,
+              botId: bot.id,
+              status: "active",
+            },
+          });
+          await prisma.message.createMany({
+            data: [
+              { conversationId: conversation.id, direction: "inbound", content: `Hola, soy ${contact.name?.split(" ")[0] || "Juan"}. Tengo una consulta.`, type: "text" },
+              { conversationId: conversation.id, direction: "outbound", content: `¡Hola! Soy el bot ${bot.name}. ¿En qué puedo ayudarte?`, type: "text" },
+              { conversationId: conversation.id, direction: "inbound", content: "Quiero saber más sobre sus productos.", type: "text" },
+              { conversationId: conversation.id, direction: "outbound", content: "Claro, te envío la información en seguida.", type: "text" },
+            ],
+          });
+        }
+        console.log(`${Math.min(5, allContacts.length)} conversaciones con mensajes creadas`);
       }
-      console.log(`${Math.min(5, allContacts.length)} conversaciones con mensajes creadas`);
     }
+    console.log("Seed: Conversations OK");
+  } catch (e) {
+    console.error("Seed ERROR en Conversations:", e instanceof Error ? e.message : e);
+    throw e;
   }
-  const ruleCount = await prisma.leadScoreRule.count();
-  if (ruleCount === 0) {
-    await prisma.leadScoreRule.createMany({
-      data: [
-        { name: "Mensaje Recibido", condition: "MESSAGE_RECEIVED", points: 5, isActive: true },
-        { name: "Conversacion Cerrada", condition: "CONVERSATION_CLOSED", points: 15, isActive: true },
-        { name: "Deal Ganado", condition: "DEAL_WON", points: 50, isActive: true },
-      ],
-    });
-    console.log("3 reglas de lead scoring creadas");
+
+  // Lead Score Rules
+  try {
+    const ruleCount = await prisma.leadScoreRule.count();
+    if (ruleCount === 0) {
+      await prisma.leadScoreRule.createMany({
+        data: [
+          { name: "Mensaje Recibido", condition: "MESSAGE_RECEIVED", points: 5, isActive: true },
+          { name: "Conversacion Cerrada", condition: "CONVERSATION_CLOSED", points: 15, isActive: true },
+          { name: "Deal Ganado", condition: "DEAL_WON", points: 50, isActive: true },
+        ],
+      });
+      console.log("3 reglas de lead scoring creadas");
+    }
+    console.log("Seed: LeadScore OK");
+  } catch (e) {
+    console.error("Seed ERROR en LeadScore:", e instanceof Error ? e.message : e);
+    throw e;
   }
 
   // Custom Fields
-  const fieldCount = await prisma.customField.count();
-  if (fieldCount === 0) {
-    await prisma.customField.createMany({
-      data: [
-        { name: "Empresa", fieldType: "TEXT", entityType: "CONTACT", isActive: true },
-        { name: "Ciudad", fieldType: "SELECT", entityType: "CONTACT", options: ["Asuncion", "Encarnacion", "Ciudad del Este"], isActive: true },
-        { name: "VIP", fieldType: "BOOLEAN", entityType: "CONTACT", isActive: true },
-        { name: "Notas Internas", fieldType: "TEXT", entityType: "DEAL", isActive: true },
-      ],
-    });
-    console.log("4 campos personalizados creados");
+  try {
+    const fieldCount = await prisma.customField.count();
+    if (fieldCount === 0) {
+      await prisma.customField.createMany({
+        data: [
+          { name: "Empresa", fieldType: "TEXT", entityType: "CONTACT", isActive: true },
+          { name: "Ciudad", fieldType: "SELECT", entityType: "CONTACT", options: ["Asuncion", "Encarnacion", "Ciudad del Este"], isActive: true },
+          { name: "VIP", fieldType: "BOOLEAN", entityType: "CONTACT", isActive: true },
+          { name: "Notas Internas", fieldType: "TEXT", entityType: "DEAL", isActive: true },
+        ],
+      });
+      console.log("4 campos personalizados creados");
+    }
+    console.log("Seed: CustomFields OK");
+  } catch (e) {
+    console.error("Seed ERROR en CustomFields:", e instanceof Error ? e.message : e);
+    throw e;
   }
 }
 
@@ -218,10 +257,13 @@ setInterval(checkScheduledBroadcasts, 60 * 1000);
 export { io };
 
 async function start() {
+  console.log("=== Iniciando prisma db push ===");
+  console.log("DATABASE_URL set:", !!process.env.DATABASE_URL);
   try {
     execSync("npx prisma db push --accept-data-loss", { cwd: __dirname + "/../", stdio: "inherit" });
+    console.log("=== prisma db push OK ===");
   } catch (e) {
-    console.error("Error al sincronizar schema:", e);
+    console.error("Error en prisma db push:", e instanceof Error ? e.message : e);
   }
   await seedDatabase();
   server.listen(PORT, () => {

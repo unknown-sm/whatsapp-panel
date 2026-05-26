@@ -68,7 +68,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   fetchPipelines: async () => {
     set({ isLoading: true, error: null });
     try {
-      const res = await api.get("/pipeline");
+      const res = await api.get("/api/pipeline");
       set({ pipelines: res.data, isLoading: false });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al cargar pipelines", isLoading: false });
@@ -78,7 +78,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   fetchPipeline: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await api.get(`/pipeline/${id}`);
+      const res = await api.get(`/api/pipeline/${id}`);
       set({ currentPipeline: res.data, isLoading: false });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al cargar pipeline", isLoading: false });
@@ -88,7 +88,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   createPipeline: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      await api.post("/pipeline", data);
+      await api.post("/api/pipeline", data);
       await get().fetchPipelines();
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al crear pipeline", isLoading: false });
@@ -97,7 +97,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   createStage: async (data) => {
     try {
-      await api.post("/pipeline/stages", data);
+      await api.post("/api/pipeline/stages", data);
       await get().fetchPipelines();
       if (get().currentPipeline) {
         await get().fetchPipeline(get().currentPipeline!.id);
@@ -110,7 +110,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   fetchDeals: async (filters) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await api.get("/pipeline/deals/all", { params: filters });
+      const res = await api.get("/api/pipeline/deals/all", { params: filters });
       set({ deals: res.data, isLoading: false });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al cargar deals", isLoading: false });
@@ -119,7 +119,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   createDeal: async (data) => {
     try {
-      await api.post("/pipeline/deals", data);
+      await api.post("/api/pipeline/deals", data);
       await get().fetchDeals({ pipelineId: data.pipelineId });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al crear deal" });
@@ -128,7 +128,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   updateDeal: async (id, data) => {
     try {
-      await api.patch(`/pipeline/deals/${id}`, data);
+      await api.patch(`/api/pipeline/deals/${id}`, data);
       await get().fetchDeals({ pipelineId: get().currentPipeline?.id });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al actualizar deal" });
@@ -137,7 +137,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   moveDeal: async (dealId, stageId) => {
     try {
-      await api.post("/pipeline/deals/move", { dealId, stageId });
+      await api.post("/api/pipeline/deals/move", { dealId, stageId });
       set((state) => ({
         deals: state.deals.map((d) => (d.id === dealId ? { ...d, stageId } : d)),
       }));
@@ -148,7 +148,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   deleteDeal: async (id) => {
     try {
-      await api.delete(`/pipeline/deals/${id}`);
+      await api.delete(`/api/pipeline/deals/${id}`);
       set((state) => ({ deals: state.deals.filter((d) => d.id !== id) }));
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al eliminar deal" });
@@ -157,7 +157,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   fetchStats: async (pipelineId: string) => {
     try {
-      const res = await api.get(`/pipeline/${pipelineId}/stats`);
+      const res = await api.get(`/api/pipeline/${pipelineId}/stats`);
       set({ stats: res.data });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al cargar stats" });

@@ -46,7 +46,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   fetchBroadcasts: async () => {
     set({ isLoading: true, error: null });
     try {
-      const res = await api.get("/broadcast");
+      const res = await api.get("/api/broadcast");
       set({ broadcasts: res.data, isLoading: false });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al cargar broadcasts", isLoading: false });
@@ -55,7 +55,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
 
   fetchTemplates: async () => {
     try {
-      const res = await api.get("/broadcast/templates");
+      const res = await api.get("/api/broadcast/templates");
       set({ templates: res.data });
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al cargar templates" });
@@ -64,7 +64,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
 
   createBroadcast: async (data) => {
     try {
-      await api.post("/broadcast", data);
+      await api.post("/api/broadcast", data);
       await get().fetchBroadcasts();
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al crear broadcast" });
@@ -73,7 +73,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
 
   createTemplate: async (data) => {
     try {
-      await api.post("/broadcast/templates", data);
+      await api.post("/api/broadcast/templates", data);
       await get().fetchTemplates();
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al crear template" });
@@ -82,7 +82,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
 
   sendBroadcast: async (id) => {
     try {
-      await api.post(`/broadcast/${id}/send`);
+      await api.post(`/api/broadcast/${id}/send`);
       await get().fetchBroadcasts();
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al enviar broadcast" });
@@ -91,7 +91,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
 
   deleteBroadcast: async (id) => {
     try {
-      await api.delete(`/broadcast/${id}`);
+      await api.delete(`/api/broadcast/${id}`);
       set((state) => ({ broadcasts: state.broadcasts.filter((b) => b.id !== id) }));
     } catch (err: any) {
       set({ error: err.response?.data?.error || "Error al eliminar broadcast" });

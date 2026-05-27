@@ -18,8 +18,6 @@ services:
       API_PORT: 2785
       LOG_LEVEL: warn
       CORS_ORIGINS: "*"
-      DASHBOARD_ENABLED: "true"
-      DASHBOARD_PORT: "2886"
       ENGINE_TYPE: whatsapp-web.js
       SESSION_DATA_PATH: /app/data/sessions
       PUPPETEER_HEADLESS: "true"
@@ -43,6 +41,15 @@ services:
       - "traefik.http.routers.openwa.entrypoints=websecure"
       - "traefik.http.routers.openwa.tls.certresolver=leresolver"
       - "traefik.http.services.openwa.loadbalancer.server.port=2785"
+
+  openwa-dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - openwa
 
   whatsapp-panel:
     build:

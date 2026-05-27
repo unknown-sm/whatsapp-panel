@@ -18,7 +18,8 @@ services:
       API_PORT: 2785
       LOG_LEVEL: warn
       CORS_ORIGINS: "*"
-      DASHBOARD_ENABLED: "false"
+      DASHBOARD_ENABLED: "true"
+      DASHBOARD_PORT: "2886"
       ENGINE_TYPE: whatsapp-web.js
       SESSION_DATA_PATH: /app/data/sessions
       PUPPETEER_HEADLESS: "true"

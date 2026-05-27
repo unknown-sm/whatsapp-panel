@@ -78,11 +78,35 @@ export async function startSession(req: Request, res: Response) {
   }
   try {
     if (config.sessionId) {
-      await axios.post(`${config.baseUrl}/api/sessions/${config.sessionId}/start`, {}, {
-        headers: { "X-API-Key": config.apiKey },
-        timeout: 30000,
-      });
+      const sessions: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
+        headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+      })).data;
+      const session = sessions.find((s: any) => s.id === config.sessionId);
+      if (session && (session.status === "failed" || session.status === "error")) {
+        await axios.delete(`${config.baseUrl}/api/sessions/${config.sessionId}`, {
+          headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+        });
+        config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: null } });
+        const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
+          headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
+          timeout: 15000,
+        })).data;
+        config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: created.id } });
+      } else {
+        await axios.post(`${config.baseUrl}/api/sessions/${config.sessionId}/start`, {}, {
+          headers: { "X-API-Key": config.apiKey }, timeout: 30000,
+        });
+      }
     } else {
+      const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
+        headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+      })).data;
+      const dup = existing.find((s: any) => s.name === "whatsapp-panel");
+      if (dup) {
+        await axios.delete(`${config.baseUrl}/api/sessions/${dup.id}`, {
+          headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+        });
+      }
       const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
         headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
         timeout: 15000,

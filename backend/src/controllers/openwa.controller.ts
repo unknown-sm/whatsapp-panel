@@ -76,24 +76,24 @@ export async function startSession(req: Request, res: Response) {
   if (!config || !config.apiKey) {
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
+  let sessionId = config.sessionId || "";
   try {
-    if (config.sessionId) {
+    if (sessionId) {
       const sessions: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
         headers: { "X-API-Key": config.apiKey }, timeout: 10000,
       })).data;
-      const session = sessions.find((s: any) => s.id === config.sessionId);
+      const session = sessions.find((s: any) => s.id === sessionId);
       if (session && (session.status === "failed" || session.status === "error")) {
-        await axios.delete(`${config.baseUrl}/api/sessions/${config.sessionId}`, {
+        await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
           headers: { "X-API-Key": config.apiKey }, timeout: 10000,
         });
-        config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: null } });
         const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
           headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
           timeout: 15000,
         })).data;
-        config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: created.id } });
+        sessionId = created.id;
       } else {
-        await axios.post(`${config.baseUrl}/api/sessions/${config.sessionId}/start`, {}, {
+        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
           headers: { "X-API-Key": config.apiKey }, timeout: 30000,
         });
       }
@@ -111,9 +111,10 @@ export async function startSession(req: Request, res: Response) {
         headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
         timeout: 15000,
       })).data;
-      config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: created.id } });
+      sessionId = created.id;
     }
-    res.json({ sessionId: config.sessionId, status: "started" });
+    await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
+    res.json({ sessionId, status: "started" });
   } catch (error: any) {
     const msg = error.response?.data?.message || error.message;
     res.status(400).json({ error: msg });

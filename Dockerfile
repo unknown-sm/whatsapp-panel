@@ -5,9 +5,9 @@ COPY package.json ./
 COPY backend/package.json backend/
 COPY backend/prisma backend/prisma
 COPY frontend/package.json frontend/
-RUN npm install 2>&1 | tail -5
+RUN npm install 2>&1
 COPY . .
-RUN npm run build 2>&1 | tail -10
+RUN npm run build 2>&1
 
 FROM node:22-alpine
 RUN apk add --no-cache openssl wget

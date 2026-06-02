@@ -74,7 +74,7 @@ services:
       WHATSAPP_ENGINE: openwa
       OPENWA_URL: http://openwa:2785
       OPENWA_API_KEY: owa_k1_c3bc557c051f429dccc90fb54849ae314685f1c876af4471fb1e7a56a2113e33
-      OPENWA_SESSION_ID: c9cf4bd8-dbdf-4e84-8c32-4c2f8bb9a7dd
+      OPENWA_SESSION_ID: ""
       MEDIA_STORAGE_PATH: ./uploads
       MAX_UPLOAD_SIZE_MB: "50"
     labels:

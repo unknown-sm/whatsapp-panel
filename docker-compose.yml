@@ -52,6 +52,12 @@ services:
       NODE_ENV: production
     depends_on:
       - openwa
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.openwa-dashboard.rule=Host(`openwa-dashboard.zwpkae.easypanel.host`)"
+      - "traefik.http.routers.openwa-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.openwa-dashboard.tls.certresolver=leresolver"
+      - "traefik.http.services.openwa-dashboard.loadbalancer.server.port=80"
 
   whatsapp-panel:
     build:

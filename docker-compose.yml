@@ -46,8 +46,6 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
-    ports:
-      - "2886:80"
     environment:
       NODE_ENV: production
     depends_on:

@@ -173,7 +173,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
         });
       }
 
-      const response = await generateResponse(configId, aiMessages);
+      const response = await generateResponse(configId, aiMessages, { botId: bot.id });
       if (response) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {

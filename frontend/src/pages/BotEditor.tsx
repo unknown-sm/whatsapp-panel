@@ -55,11 +55,20 @@ export default function BotEditor() {
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [aiConfigs, setAiConfigs] = useState<any[]>([]);
 
   useEffect(() => {
     fetchBotData();
     loadKnowledge();
+    loadAiConfigs();
   }, [id]);
+
+  const loadAiConfigs = async () => {
+    try {
+      const { data } = await api.get("/api/ai");
+      setAiConfigs(data.configs || []);
+    } catch {}
+  };
 
   const loadKnowledge = async () => {
     if (!id) return;
@@ -313,6 +322,7 @@ export default function BotEditor() {
                 onDelete={() => handleDeleteStep(step.id)}
                 botId={id!}
                 onRefresh={fetchBotData}
+                aiConfigs={aiConfigs}
               />
             ))}
           </div>
@@ -386,7 +396,7 @@ export default function BotEditor() {
   );
 }
 
-function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId, onRefresh }: {
+function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId, onRefresh, aiConfigs }: {
   step: FlowStep;
   index: number;
   isSelected: boolean;
@@ -395,6 +405,7 @@ function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId
   onDelete: () => void;
   botId: string;
   onRefresh: () => Promise<void>;
+  aiConfigs: any[];
 }) {
   const [expanded, setExpanded] = useState(true);
   const typeInfo = STEP_TYPES.find((t) => t.value === step.stepType);
@@ -434,6 +445,18 @@ function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId
 
           {step.stepType === "AI_AGENT" && (
             <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--text-tertiary)" }}>Modelo de IA</label>
+              <select
+                value={step.config?.configId || ""}
+                onChange={(e) => onUpdate({ config: { ...step.config, configId: e.target.value } })}
+                onClick={(e) => e.stopPropagation()}
+                className="input w-full text-sm mb-2"
+              >
+                <option value="">Usar IA por defecto</option>
+                {aiConfigs.map((cfg) => (
+                  <option key={cfg.id} value={cfg.id}>{cfg.name} ({cfg.provider} - {cfg.model})</option>
+                ))}
+              </select>
               <label className="block text-xs mb-1" style={{ color: "var(--text-tertiary)" }}>System Prompt</label>
               <textarea
                 value={step.config?.systemPrompt || ""}

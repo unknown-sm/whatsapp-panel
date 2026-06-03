@@ -67,6 +67,7 @@ services:
       PORT: "4000"
       DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
       JWT_SECRET: ${JWT_SECRET:-whatsapp-panel-jwt-secret-2024}
+      OPENAI_API_KEY: sk-mqSAn2gnDhE4qdhokR7s1PxaHzDJbScI1lB8NVN1kkX9ezerhtVq5tyIKmnkYwCe
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: https://whatsapp-panel.zwpkae.easypanel.host
       WHATSAPP_ENGINE: openwa

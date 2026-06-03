@@ -11,6 +11,27 @@ async function seed() {
   } else {
     console.log("Admin ya existe");
   }
+
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const existing = await prisma.aIConfig.findFirst({ where: { provider: "openai", isDefault: true } });
+    if (!existing) {
+      await prisma.aIConfig.create({
+        data: {
+          name: "OpenAI Default",
+          provider: "openai",
+          apiKey: openaiKey,
+          model: "gpt-4o",
+          isDefault: true,
+          isActive: true,
+        },
+      });
+      console.log("OpenAI AIConfig creada desde OPENAI_API_KEY");
+    } else {
+      console.log("AIConfig OpenAI ya existe");
+    }
+  }
+
   console.log("Seed completado");
 }
 

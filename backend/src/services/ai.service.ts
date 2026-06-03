@@ -2,6 +2,7 @@ import prisma from "../lib/prisma";
 import { z } from "zod";
 import OpenAI from "openai";
 import { Anthropic } from "@anthropic-ai/sdk";
+import { getKnowledgeContent } from "./knowledge.service";
 
 export async function getAIConfigs() {
   return prisma.aIConfig.findMany({ orderBy: { createdAt: "desc" } });
@@ -50,18 +51,33 @@ export async function setDefault(id: string) {
 export async function generateResponse(
   configId: string,
   messages: { role: string; content: string }[],
-  options?: { systemPrompt?: string; maxTokens?: number }
+  options?: { systemPrompt?: string; maxTokens?: number; botId?: string }
 ): Promise<string> {
   const config = await prisma.aIConfig.findUnique({ where: { id: configId } });
   if (!config) throw new Error("AI config not found");
 
+  let systemPrompt = options?.systemPrompt || "";
   const maxTokens = options?.maxTokens || 1024;
+
+  if (options?.botId) {
+    const knowledge = await getKnowledgeContent(options.botId);
+    if (knowledge) {
+      systemPrompt += `\n\n## Conocimiento del negocio\n${knowledge}`;
+    }
+  }
 
   if (config.provider === "openai") {
     const openai = new OpenAI({ apiKey: config.apiKey });
+    const chatMessages: any[] = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+    if (!systemPrompt) {
+      systemPrompt = messages.find((m) => m.role === "system")?.content || "";
+    }
+    if (systemPrompt) {
+      chatMessages.unshift({ role: "system", content: systemPrompt });
+    }
     const response = await openai.chat.completions.create({
       model: config.model,
-      messages: messages.map((m) => ({ role: m.role as any, content: m.content })),
+      messages: chatMessages,
       max_tokens: maxTokens,
     });
     return response.choices[0]?.message?.content || "";
@@ -69,13 +85,15 @@ export async function generateResponse(
 
   if (config.provider === "anthropic") {
     const anthropic = new Anthropic({ apiKey: config.apiKey });
-    const systemMessage = messages.find((m) => m.role === "system")?.content || "";
     const chatMessages = messages.filter((m) => m.role !== "system");
+    if (!systemPrompt) {
+      systemPrompt = messages.find((m) => m.role === "system")?.content || "";
+    }
 
     const response = await anthropic.messages.create({
       model: config.model as any,
       max_tokens: maxTokens,
-      system: systemMessage,
+      system: systemPrompt,
       messages: chatMessages.map((m) => ({ role: m.role as any, content: m.content })),
     });
     return response.content[0]?.type === "text" ? response.content[0].text : "";

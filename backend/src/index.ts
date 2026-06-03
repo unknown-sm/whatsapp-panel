@@ -19,6 +19,7 @@ import broadcastRoutes from "./routes/broadcast.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import customFieldRoutes from "./routes/customfield.routes";
 import openwaRoutes from "./routes/openwa.routes";
+import knowledgeRoutes from "./routes/knowledge.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { PrismaClient } from "@prisma/client";
@@ -229,6 +230,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/bots", botRoutes);
 app.use("/api/bots", flowRoutes);
+app.use("/api/bots/:botId/knowledge", knowledgeRoutes);
 app.use("/webhook", whatsappRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/followup", followupRoutes);

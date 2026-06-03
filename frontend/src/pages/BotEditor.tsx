@@ -5,7 +5,7 @@ import api from "../services/api";
 import {
   ArrowLeft, Trash2, GripVertical, MessageSquare, Bot, Globe,
   Brain, Volume2, Calendar, Share2, FileText, Clock, Eye, Save,
-  X, ChevronDown, Image as ImageIcon,
+  X, ChevronDown, Image as ImageIcon, Upload, File,
 } from "lucide-react";
 
 const STEP_TYPES = [
@@ -52,10 +52,48 @@ export default function BotEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newKeyword, setNewKeyword] = useState("");
+  const [knowledge, setKnowledge] = useState<any[]>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetchBotData();
+    loadKnowledge();
   }, [id]);
+
+  const loadKnowledge = async () => {
+    if (!id) return;
+    setKnowledgeLoading(true);
+    try {
+      const { data } = await api.get(`/api/bots/${id}/knowledge`);
+      setKnowledge(data.entries);
+    } finally {
+      setKnowledgeLoading(false);
+    }
+  };
+
+  async function handleUploadKnowledge(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post(`/api/bots/${id}/knowledge`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setKnowledge([data.entry, ...knowledge]);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleDeleteKnowledge(knowledgeId: string) {
+    if (!id) return;
+    await api.delete(`/api/bots/${id}/knowledge/${knowledgeId}`);
+    setKnowledge(knowledge.filter((k) => k.id !== knowledgeId));
+  }
 
   const fetchBotData = async () => {
     setLoading(true);
@@ -185,6 +223,42 @@ export default function BotEditor() {
           />
         </div>
 
+        <div className="p-4 border-b" style={{ borderColor: "var(--border-default)" }}>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Conocimiento</h4>
+            {knowledgeLoading && <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Cargando...</span>}
+          </div>
+          <div className="space-y-1.5 mb-2 max-h-[180px] overflow-y-auto">
+            {knowledge.length === 0 && !knowledgeLoading && (
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Sin archivos aún</p>
+            )}
+            {knowledge.map((k) => (
+              <div key={k.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: "var(--bg-elevated)" }}>
+                <File size={12} style={{ color: "var(--text-tertiary)" }} />
+                <span className="text-xs flex-1 truncate" style={{ color: "var(--text-primary)" }}>{k.filename}</span>
+                <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  {(k.size / 1024).toFixed(0)}KB
+                </span>
+                <button onClick={() => handleDeleteKnowledge(k.id)} className="hover:text-[var(--danger)] transition-colors">
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 btn-secondary text-xs py-1.5 cursor-pointer w-full justify-center">
+            <Upload size={14} />
+            {uploading ? "Subiendo..." : "Subir archivo"}
+            <input
+              type="file"
+              accept=".txt,.md,.csv,.pdf,.docx,.json"
+              className="hidden"
+              disabled={uploading}
+              onChange={handleUploadKnowledge}
+            />
+          </label>
+          <p className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>PDF, DOCX, TXT, MD, CSV, JSON — max 10MB</p>
+        </div>
+
         <div className="p-4 flex-1">
           <h4 className="text-sm font-medium mb-3" style={{ color: "var(--text-secondary)" }}>Agregar bloque</h4>
           <div className="space-y-1">
@@ -237,6 +311,8 @@ export default function BotEditor() {
                 onSelect={() => setSelectedStep(step)}
                 onUpdate={(updates) => handleUpdateStep(step.id, updates)}
                 onDelete={() => handleDeleteStep(step.id)}
+                botId={id!}
+                onRefresh={fetchBotData}
               />
             ))}
           </div>
@@ -310,13 +386,15 @@ export default function BotEditor() {
   );
 }
 
-function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete }: {
+function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId, onRefresh }: {
   step: FlowStep;
   index: number;
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (updates: any) => void;
   onDelete: () => void;
+  botId: string;
+  onRefresh: () => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(true);
   const typeInfo = STEP_TYPES.find((t) => t.value === step.stepType);
@@ -421,7 +499,7 @@ function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete }: {
           {step.stepType === "INTENT" && (
             <div>
               <p className="text-xs mb-2" style={{ color: "var(--text-tertiary)" }}>Define las intenciones posibles</p>
-              {<IntentRoutesEditor botId={id!} stepId={step.id} routes={step.intentRoutes} onRefresh={fetchBotData} />}
+              {<IntentRoutesEditor botId={botId} stepId={step.id} routes={step.intentRoutes} onRefresh={onRefresh} />}
             </div>
           )}
 

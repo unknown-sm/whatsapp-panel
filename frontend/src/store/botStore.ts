@@ -12,6 +12,15 @@ interface Bot {
   _count?: { flowSteps: number; conversations: number };
 }
 
+interface KnowledgeEntry {
+  id: string;
+  botId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
 interface BotState {
   bots: Bot[];
   selectedBot: Bot | null;
@@ -23,6 +32,9 @@ interface BotState {
   addKeyword: (botId: string, keyword: string) => Promise<void>;
   removeKeyword: (botId: string, keywordId: string) => Promise<void>;
   selectBot: (bot: Bot | null) => void;
+  getKnowledge: (botId: string) => Promise<KnowledgeEntry[]>;
+  uploadKnowledge: (botId: string, file: File) => Promise<KnowledgeEntry>;
+  deleteKnowledge: (botId: string, id: string) => Promise<void>;
 }
 
 export const useBotStore = create<BotState>((set, get) => ({
@@ -74,4 +86,22 @@ export const useBotStore = create<BotState>((set, get) => ({
   },
 
   selectBot: (bot) => set({ selectedBot: bot }),
+
+  getKnowledge: async (botId) => {
+    const { data } = await api.get(`/api/bots/${botId}/knowledge`);
+    return data.entries;
+  },
+
+  uploadKnowledge: async (botId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post(`/api/bots/${botId}/knowledge`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data.entry;
+  },
+
+  deleteKnowledge: async (botId, id) => {
+    await api.delete(`/api/bots/${botId}/knowledge/${id}`);
+  },
 }));

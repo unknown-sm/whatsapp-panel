@@ -45,7 +45,7 @@ export async function createBot(data: { name: string; systemPrompt?: string; exa
   });
 }
 
-export async function updateBot(id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean }) {
+export async function updateBot(id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean; isDefault?: boolean }) {
   const parsed = updateBotSchema.parse(data);
   return prisma.bot.update({ where: { id }, data: parsed, include: { keywords: true } });
 }

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listBots, getBot, createBot, updateBot, deleteBot, addKeyword, removeKeyword } from "../controllers/bot.controller";
+import { listBots, getBot, createBot, updateBot, deleteBot, addKeyword, removeKeyword, setDefault } from "../controllers/bot.controller";
 import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
@@ -13,5 +13,6 @@ router.put("/:id", updateBot);
 router.delete("/:id", deleteBot);
 router.post("/:id/keywords", addKeyword);
 router.delete("/:id/keywords/:keywordId", removeKeyword);
+router.put("/:id/default", setDefault);
 
 export default router;

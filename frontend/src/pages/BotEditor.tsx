@@ -222,6 +222,21 @@ export default function BotEditor() {
         </div>
 
         <div className="p-4 border-b" style={{ borderColor: "var(--border-default)" }}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm" style={{ color: "var(--text-secondary)" }}>Bot por defecto</span>
+            <button
+              onClick={() => updateBot(bot.id, { isDefault: !bot.isDefault })}
+              className={`relative w-9 h-5 rounded-full transition-colors ${bot.isDefault ? "bg-[var(--accent)]" : "bg-[var(--bg-active)]"}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${bot.isDefault ? "left-[18px]" : "left-0.5"}`} />
+            </button>
+          </div>
+          <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+            {bot.isDefault ? "Responde cuando ninguna keyword coincide" : "Solo responde si matchea una keyword"}
+          </p>
+        </div>
+
+        <div className="p-4 border-b" style={{ borderColor: "var(--border-default)" }}>
           <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>System Prompt (IA)</label>
           <textarea
             value={bot.systemPrompt || ""}
@@ -522,6 +537,9 @@ function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId
           {step.stepType === "INTENT" && (
             <div>
               <p className="text-xs mb-2" style={{ color: "var(--text-tertiary)" }}>Define las intenciones posibles</p>
+              <div className="rounded-lg p-2 mb-3 text-xs" style={{ background: "var(--accent-muted)", color: "var(--accent)" }}>
+                La IA analiza el mensaje y lo rutea a la intencion mas probable. Crea una ruta por cada variante de producto o caso de uso. Ej: "citrato" / "quelado" / "cloruro".
+              </div>
               {<IntentRoutesEditor botId={botId} stepId={step.id} routes={step.intentRoutes} onRefresh={onRefresh} />}
             </div>
           )}

@@ -69,3 +69,12 @@ export async function removeKeyword(req: Request, res: Response) {
     res.status(500).json({ error: "Error al eliminar keyword" });
   }
 }
+
+export async function setDefault(req: Request, res: Response) {
+  try {
+    const bot = await botService.setDefault(req.params.id);
+    res.json({ bot });
+  } catch {
+    res.status(500).json({ error: "Error al setear default" });
+  }
+}

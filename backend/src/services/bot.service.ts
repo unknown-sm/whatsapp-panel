@@ -14,6 +14,7 @@ const updateBotSchema = z.object({
   systemPrompt: z.string().optional().nullable(),
   exactMatch: z.boolean().optional(),
   isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
 });
 
 export async function getAllBots() {
@@ -61,6 +62,11 @@ export async function removeKeyword(id: string) {
   return prisma.botKeyword.delete({ where: { id } });
 }
 
+export async function setDefault(id: string) {
+  await prisma.bot.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
+  return prisma.bot.update({ where: { id }, data: { isDefault: true }, include: { keywords: true } });
+}
+
 export async function findBotByKeyword(text: string) {
   const bots = await prisma.bot.findMany({
     where: { isActive: true },
@@ -76,5 +82,9 @@ export async function findBotByKeyword(text: string) {
       }
     }
   }
-  return null;
+
+  return prisma.bot.findFirst({
+    where: { isActive: true, isDefault: true },
+    include: { keywords: true },
+  });
 }

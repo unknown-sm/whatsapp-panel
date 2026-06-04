@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBotStore } from "../store/botStore";
-import { Plus, Search, Pencil, Trash2, X, Bot as BotIcon } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Bot as BotIcon, Star } from "lucide-react";
 
 export default function BotGrid() {
   const [search, setSearch] = useState("");
@@ -124,7 +124,10 @@ export default function BotGrid() {
                     <BotIcon size={20} style={{ color: "var(--accent)" }} />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-base font-semibold truncate" style={{ color: "var(--text-primary)" }}>{bot.name}</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-base font-semibold truncate" style={{ color: "var(--text-primary)" }}>{bot.name}</h3>
+                      {bot.isDefault && <Star size={14} fill="var(--accent)" color="var(--accent)" />}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`status-dot ${bot.isActive ? "status-online" : "status-offline"}`} />
                       <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{bot.isActive ? "Activo" : "Inactivo"}</span>

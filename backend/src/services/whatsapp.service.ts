@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import { io } from "../index";
 import { generateResponse, classifyIntent } from "./ai.service";
 import { resolveEngine } from "./whatsapp-engine";
+import { findBotByKeyword } from "./bot.service";
 
 const engine = resolveEngine();
 
@@ -42,18 +43,7 @@ export async function processIncomingMessage(data: any) {
       });
 
       if (!conversation) {
-        const bots = await prisma.bot.findMany({ where: { isActive: true }, include: { keywords: true } });
-        let matchedBot = null;
-        for (const bot of bots) {
-          for (const kw of bot.keywords) {
-            if (bot.exactMatch) {
-              if (text.toLowerCase() === kw.keyword.toLowerCase()) { matchedBot = bot; break; }
-            } else {
-              if (text.toLowerCase().includes(kw.keyword.toLowerCase())) { matchedBot = bot; break; }
-            }
-          }
-          if (matchedBot) break;
-        }
+        const matchedBot = await findBotByKeyword(text);
 
         conversation = await prisma.conversation.create({
           data: { contactId: contact.id, botId: matchedBot?.id || null, status: matchedBot ? "active" : "waiting_agent" },

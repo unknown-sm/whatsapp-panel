@@ -6,6 +6,7 @@ interface Bot {
   name: string;
   systemPrompt: string | null;
   exactMatch: boolean;
+  isDefault: boolean;
   isActive: boolean;
   createdAt: string;
   keywords: { id: string; keyword: string }[];
@@ -27,11 +28,12 @@ interface BotState {
   isLoading: boolean;
   fetchBots: () => Promise<void>;
   createBot: (data: { name: string; systemPrompt?: string; exactMatch?: boolean; keywords?: string[] }) => Promise<Bot>;
-  updateBot: (id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean }) => Promise<Bot>;
+  updateBot: (id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean; isDefault?: boolean }) => Promise<Bot>;
   deleteBot: (id: string) => Promise<void>;
   addKeyword: (botId: string, keyword: string) => Promise<void>;
   removeKeyword: (botId: string, keywordId: string) => Promise<void>;
   selectBot: (bot: Bot | null) => void;
+  setDefault: (id: string) => Promise<void>;
   getKnowledge: (botId: string) => Promise<KnowledgeEntry[]>;
   uploadKnowledge: (botId: string, file: File) => Promise<KnowledgeEntry>;
   deleteKnowledge: (botId: string, id: string) => Promise<void>;
@@ -86,6 +88,11 @@ export const useBotStore = create<BotState>((set, get) => ({
   },
 
   selectBot: (bot) => set({ selectedBot: bot }),
+
+  setDefault: async (id) => {
+    await api.put(`/api/bots/${id}/default`);
+    get().fetchBots();
+  },
 
   getKnowledge: async (botId) => {
     const { data } = await api.get(`/api/bots/${botId}/knowledge`);

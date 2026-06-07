@@ -89,9 +89,16 @@ export async function startSession(req: Request, res: Response) {
       })).data;
       const session = sessions.find((s: any) => s.id === sessionId);
       if (session && (session.status === "failed" || session.status === "error")) {
-        await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
-          headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-        }).catch(() => {});
+        try {
+          await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/stop`, {}, {
+            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+          }).catch(() => {});
+          await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
+            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+          });
+        } catch (e: any) {
+          return res.status(400).json({ error: `No se pudo eliminar sesion fallida: ${e.message}` });
+        }
         const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
           headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
           timeout: 15000,
@@ -105,17 +112,16 @@ export async function startSession(req: Request, res: Response) {
           headers: { "X-API-Key": config.apiKey }, timeout: 30000,
         });
       } else {
-        await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
-          headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-        }).catch(() => {});
-        const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
-          headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
-          timeout: 15000,
-        })).data;
-        sessionId = created.id;
-        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
-          headers: { "X-API-Key": config.apiKey }, timeout: 30000,
-        }).catch(() => {});
+        try {
+          await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/stop`, {}, {
+            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+          }).catch(() => {});
+          await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
+            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+          });
+        } catch (e: any) {
+          return res.status(400).json({ error: `No se pudo eliminar sesion obsoleta: ${e.message}` });
+        }
       }
     } else {
       const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
@@ -123,9 +129,16 @@ export async function startSession(req: Request, res: Response) {
       })).data;
       const dup = existing.find((s: any) => s.name === "whatsapp-panel");
       if (dup) {
-        await axios.delete(`${config.baseUrl}/api/sessions/${dup.id}`, {
-          headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-        }).catch(() => {});
+        try {
+          await axios.post(`${config.baseUrl}/api/sessions/${dup.id}/stop`, {}, {
+            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+          }).catch(() => {});
+          await axios.delete(`${config.baseUrl}/api/sessions/${dup.id}`, {
+            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+          });
+        } catch (e: any) {
+          return res.status(400).json({ error: `No se pudo eliminar la sesion existente: ${e.message}` });
+        }
       }
       const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
         headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },

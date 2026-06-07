@@ -7,6 +7,7 @@ import {
   getOpenwaStatus,
   getQrCode,
   startSession,
+  resetConnection,
   setupWebhook,
 } from "../controllers/openwa.controller";
 
@@ -19,6 +20,7 @@ router.post("/test", testConnection);
 router.get("/status", getOpenwaStatus);
 router.get("/qr", getQrCode);
 router.post("/session/start", startSession);
+router.post("/session/reset", resetConnection);
 router.post("/webhook/setup", setupWebhook);
 
 export default router;

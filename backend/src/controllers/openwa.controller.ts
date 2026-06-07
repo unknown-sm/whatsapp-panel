@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
 
+const WEBHOOK_EVENTS = ["message.received", "message.sent", "session.status", "session.disconnected"];
+
 export async function getConfig(_req: Request, res: Response) {
   let config = await prisma.openwaConfig.findFirst();
   res.json({ config: config || { baseUrl: "http://openwa:2785", apiKey: "", sessionId: "", status: "disconnected" } });
@@ -11,9 +13,9 @@ export async function saveConfig(req: Request, res: Response) {
   const { baseUrl, apiKey, sessionId } = req.body;
   let config = await prisma.openwaConfig.findFirst();
   if (config) {
-    config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { baseUrl, apiKey, sessionId } });
+    config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { baseUrl, apiKey, sessionId: sessionId || "" } });
   } else {
-    config = await prisma.openwaConfig.create({ data: { baseUrl, apiKey, sessionId } });
+    config = await prisma.openwaConfig.create({ data: { baseUrl, apiKey, sessionId: sessionId || "" } });
   }
   res.json({ config });
 }
@@ -27,7 +29,10 @@ export async function testConnection(req: Request, res: Response) {
     });
     res.json({ status: "ok", sessions: result.data });
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.message;
+    if (error.response?.status === 401) {
+      return res.status(401).json({ error: "API Key inválida" });
+    }
+    const msg = error.response?.data?.message || error.message || "Error de conexion";
     res.status(400).json({ error: msg });
   }
 }
@@ -35,7 +40,7 @@ export async function testConnection(req: Request, res: Response) {
 export async function getOpenwaStatus(req: Request, res: Response) {
   let config = await prisma.openwaConfig.findFirst();
   if (!config || !config.apiKey) {
-    return res.json({ status: "not_configured", session: null });
+    return res.json({ status: "not_configured", session: null, sessions: [] });
   }
   try {
     const sessions: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
@@ -43,19 +48,16 @@ export async function getOpenwaStatus(req: Request, res: Response) {
       timeout: 10000,
     })).data;
     const session = config.sessionId
-      ? sessions.find((s: any) => s.id === config.sessionId)
+      ? sessions.find((s: any) => s.id === config.sessionId) || null
       : sessions[0] || null;
     const status = session?.status || "disconnected";
-    if (config) {
-      await prisma.openwaConfig.update({ where: { id: config.id }, data: { status } });
-    }
+    await prisma.openwaConfig.update({ where: { id: config.id }, data: { status } });
     res.json({ status, session, sessions });
   } catch (e: any) {
-    const errMsg = e.response?.data?.message || e.message || "error";
     if (config) {
       await prisma.openwaConfig.update({ where: { id: config.id }, data: { status: "error" } });
     }
-    res.json({ status: "error", session: null, error: errMsg });
+    res.json({ status: "error", session: null, sessions: [], error: e.message });
   }
 }
 
@@ -76,85 +78,93 @@ export async function getQrCode(req: Request, res: Response) {
   }
 }
 
+async function cleanupAllDuplicates(cfg: { baseUrl: string; apiKey: string }) {
+  try {
+    const sessions: any[] = (await axios.get(`${cfg.baseUrl}/api/sessions`, {
+      headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
+    })).data;
+    const dups = sessions.filter((s: any) => s.name === "whatsapp-panel");
+    for (const dup of dups) {
+      try {
+        await axios.post(`${cfg.baseUrl}/api/sessions/${dup.id}/stop`, {}, {
+          headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
+        });
+      } catch {}
+      try {
+        await axios.delete(`${cfg.baseUrl}/api/sessions/${dup.id}`, {
+          headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
+        });
+      } catch {}
+    }
+  } catch (e: any) {
+    console.error("cleanupAllDuplicates error:", e.message);
+  }
+}
+
+async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise<string> {
+  const created: any = (await axios.post(`${cfg.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
+    headers: { "X-API-Key": cfg.apiKey, "Content-Type": "application/json" },
+    timeout: 15000,
+  })).data;
+  const newId = created.id;
+  try {
+    await axios.post(`${cfg.baseUrl}/api/sessions/${newId}/start`, {}, {
+      headers: { "X-API-Key": cfg.apiKey }, timeout: 30000,
+    });
+  } catch (e: any) {
+    console.error("start session error:", e.response?.data || e.message);
+  }
+  return newId;
+}
+
 export async function startSession(req: Request, res: Response) {
   let config = await prisma.openwaConfig.findFirst();
   if (!config || !config.apiKey) {
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
-  let sessionId = config.sessionId || "";
   try {
-    if (sessionId) {
-      const sessions: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
-        headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-      })).data;
-      const session = sessions.find((s: any) => s.id === sessionId);
-      if (session && (session.status === "failed" || session.status === "error")) {
-        try {
-          await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/stop`, {}, {
-            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-          }).catch(() => {});
-          await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
-            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-          });
-        } catch (e: any) {
-          return res.status(400).json({ error: `No se pudo eliminar sesion fallida: ${e.message}` });
-        }
-        const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
-          headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
-          timeout: 15000,
-        })).data;
-        sessionId = created.id;
-        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
-          headers: { "X-API-Key": config.apiKey }, timeout: 30000,
-        }).catch(() => {});
-      } else if (session) {
-        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
-          headers: { "X-API-Key": config.apiKey }, timeout: 30000,
-        });
-      } else {
-        try {
-          await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/stop`, {}, {
-            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-          }).catch(() => {});
-          await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
-            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-          });
-        } catch (e: any) {
-          return res.status(400).json({ error: `No se pudo eliminar sesion obsoleta: ${e.message}` });
-        }
-      }
-    } else {
-      const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
-        headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-      })).data;
-      const dup = existing.find((s: any) => s.name === "whatsapp-panel");
-      if (dup) {
-        try {
-          await axios.post(`${config.baseUrl}/api/sessions/${dup.id}/stop`, {}, {
-            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-          }).catch(() => {});
-          await axios.delete(`${config.baseUrl}/api/sessions/${dup.id}`, {
-            headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-          });
-        } catch (e: any) {
-          return res.status(400).json({ error: `No se pudo eliminar la sesion existente: ${e.message}` });
-        }
-      }
-      const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
-        headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
-        timeout: 15000,
-      })).data;
-      sessionId = created.id;
-      await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
-        headers: { "X-API-Key": config.apiKey }, timeout: 30000,
-      }).catch(() => {});
-    }
+    await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+    const sessionId = await createAndStart({ baseUrl: config.baseUrl, apiKey: config.apiKey });
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
+
+    const webhookUrl = `${req.protocol}://${req.get("host")}/webhook/incoming`;
+    try {
+      const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions/${sessionId}/webhooks`, {
+        headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+      })).data;
+      if (!Array.isArray(existing) || !existing.some((w: any) => w.url === webhookUrl)) {
+        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/webhooks`, {
+          url: webhookUrl,
+          events: WEBHOOK_EVENTS,
+          secret: "whatsapp-panel-webhook-secret",
+        }, {
+          headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
+          timeout: 10000,
+        });
+      }
+    } catch (e: any) {
+      console.error("auto-webhook setup failed:", e.response?.data || e.message);
+    }
+
     res.json({ sessionId, status: "started" });
   } catch (error: any) {
     const msg = error.response?.data?.message || error.message || "Unknown error";
     console.error("startSession error:", msg);
     res.status(400).json({ error: msg });
+  }
+}
+
+export async function resetConnection(req: Request, res: Response) {
+  let config = await prisma.openwaConfig.findFirst();
+  if (!config || !config.apiKey) {
+    return res.status(400).json({ error: "OpenWA no configurado" });
+  }
+  try {
+    await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+    await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: "" } });
+    res.json({ message: "Conexion reseteada. Click Conectar para nueva sesion." });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
   }
 }
 
@@ -174,7 +184,7 @@ export async function setupWebhook(req: Request, res: Response) {
     }
     await axios.post(`${config.baseUrl}/api/sessions/${config.sessionId}/webhooks`, {
       url: webhookUrl,
-      events: ["message.received", "message.sent", "session.status"],
+      events: WEBHOOK_EVENTS,
       secret: "whatsapp-panel-webhook-secret",
     }, {
       headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },

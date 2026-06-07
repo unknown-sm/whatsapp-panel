@@ -159,9 +159,9 @@ function OpenwaSettings() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    const interval = setInterval(fetchStatus, status?.status === "ready" ? 5000 : 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [status?.status]);
 
   async function handleSave() {
     setSaving(true);
@@ -193,6 +193,18 @@ function OpenwaSettings() {
     } finally { setStarting(false); }
   }
 
+  async function handleReset() {
+    if (!confirm("Esto eliminara TODAS las sesiones whatsapp-panel en OpenWA. Continuar?")) return;
+    try {
+      const { data } = await api.post("/api/openwa/session/reset");
+      alert(data.message || "Conexion reseteada");
+      setQrCode(null);
+      fetchStatus();
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al resetear");
+    }
+  }
+
   async function handleWebhook() {
     try {
       const { data } = await api.post("/api/openwa/webhook/setup");
@@ -202,8 +214,19 @@ function OpenwaSettings() {
     }
   }
 
-  const statusColor = status?.status === "ready" ? "var(--accent)" : status?.status === "initializing" || status?.status === "qr_ready" ? "#F59E0B" : status?.status === "failed" ? "var(--danger)" : "var(--danger)";
-  const statusLabel = status?.status === "ready" ? "Conectado" : status?.status === "initializing" ? "Inicializando" : status?.status === "qr_ready" ? "Escanear QR" : status?.status === "failed" ? "Error" : "Desconectado";
+  const statusColor =
+    status?.status === "ready" ? "var(--accent)" :
+    status?.status === "authenticating" ? "#3B82F6" :
+    status?.status === "initializing" || status?.status === "qr_ready" || status?.status === "created" ? "#F59E0B" :
+    "var(--danger)";
+  const statusLabel =
+    status?.status === "ready" ? "Conectado" :
+    status?.status === "created" ? "Creando sesion..." :
+    status?.status === "initializing" ? "Inicializando..." :
+    status?.status === "qr_ready" ? "Escanear QR" :
+    status?.status === "authenticating" ? "Autenticando..." :
+    status?.status === "failed" ? "Error" :
+    "Desconectado";
 
   return (
     <div className="max-w-2xl">
@@ -221,6 +244,7 @@ function OpenwaSettings() {
             </div>
           </div>
           <div className="flex gap-2">
+            <button onClick={handleReset} className="btn-secondary text-xs px-2 py-1">Reset</button>
             <button onClick={handleWebhook} className="btn-secondary text-xs px-2 py-1">Webhook</button>
             <button onClick={handleStart} disabled={starting} className="btn-primary text-xs px-2 py-1 disabled:opacity-50">
               {starting ? "Iniciando..." : "Conectar"}

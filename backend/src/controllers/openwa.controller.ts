@@ -91,16 +91,25 @@ export async function startSession(req: Request, res: Response) {
       if (session && (session.status === "failed" || session.status === "error")) {
         await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
           headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-        });
+        }).catch(() => {});
         const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
           headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
           timeout: 15000,
         })).data;
         sessionId = created.id;
-      } else {
+      } else if (session) {
         await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
           headers: { "X-API-Key": config.apiKey }, timeout: 30000,
         });
+      } else {
+        await axios.delete(`${config.baseUrl}/api/sessions/${sessionId}`, {
+          headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+        }).catch(() => {});
+        const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
+          headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
+          timeout: 15000,
+        })).data;
+        sessionId = created.id;
       }
     } else {
       const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
@@ -110,7 +119,7 @@ export async function startSession(req: Request, res: Response) {
       if (dup) {
         await axios.delete(`${config.baseUrl}/api/sessions/${dup.id}`, {
           headers: { "X-API-Key": config.apiKey }, timeout: 10000,
-        });
+        }).catch(() => {});
       }
       const created: any = (await axios.post(`${config.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
         headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },

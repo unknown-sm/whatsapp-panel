@@ -146,9 +146,11 @@ function OpenwaSettings() {
     try {
       const { data } = await api.get("/api/openwa/status");
       setStatus(data);
-      if (data.session?.status === "initializing" || data.session?.status === "SCAN_QR") {
-        const qr = await api.get("/api/openwa/qr");
-        setQrCode(qr.data.qrCode || null);
+      if (data.session?.status === "qr_ready") {
+        try {
+          const qr = await api.get("/api/openwa/qr");
+          setQrCode(qr.data.qrCode || null);
+        } catch {} // QR not ready yet, next poll will retry
       } else {
         setQrCode(null);
       }
@@ -200,8 +202,8 @@ function OpenwaSettings() {
     }
   }
 
-  const statusColor = status?.status === "connected" ? "var(--accent)" : status?.status === "initializing" || status?.status === "SCAN_QR" ? "#F59E0B" : "var(--danger)";
-  const statusLabel = status?.status === "connected" ? "Conectado" : status?.status === "initializing" ? "Inicializando" : status?.status === "SCAN_QR" ? "Esperando QR" : status?.status === "error" ? "Error" : "Desconectado";
+  const statusColor = status?.status === "ready" ? "var(--accent)" : status?.status === "initializing" || status?.status === "qr_ready" ? "#F59E0B" : status?.status === "failed" ? "var(--danger)" : "var(--danger)";
+  const statusLabel = status?.status === "ready" ? "Conectado" : status?.status === "initializing" ? "Inicializando" : status?.status === "qr_ready" ? "Escanear QR" : status?.status === "failed" ? "Error" : "Desconectado";
 
   return (
     <div className="max-w-2xl">

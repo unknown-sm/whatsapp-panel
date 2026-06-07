@@ -97,6 +97,9 @@ export async function startSession(req: Request, res: Response) {
           timeout: 15000,
         })).data;
         sessionId = created.id;
+        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
+          headers: { "X-API-Key": config.apiKey }, timeout: 30000,
+        }).catch(() => {});
       } else if (session) {
         await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
           headers: { "X-API-Key": config.apiKey }, timeout: 30000,
@@ -110,6 +113,9 @@ export async function startSession(req: Request, res: Response) {
           timeout: 15000,
         })).data;
         sessionId = created.id;
+        await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
+          headers: { "X-API-Key": config.apiKey }, timeout: 30000,
+        }).catch(() => {});
       }
     } else {
       const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
@@ -126,6 +132,9 @@ export async function startSession(req: Request, res: Response) {
         timeout: 15000,
       })).data;
       sessionId = created.id;
+      await axios.post(`${config.baseUrl}/api/sessions/${sessionId}/start`, {}, {
+        headers: { "X-API-Key": config.apiKey }, timeout: 30000,
+      }).catch(() => {});
     }
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
     res.json({ sessionId, status: "started" });

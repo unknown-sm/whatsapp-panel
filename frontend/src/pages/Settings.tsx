@@ -163,7 +163,12 @@ function OpenwaSettings() {
 
   async function handleSave() {
     setSaving(true);
-    try { await api.put("/api/openwa/config", config); fetchConfig(); } finally { setSaving(false); }
+    try {
+      await api.put("/api/openwa/config", config);
+      fetchConfig();
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al guardar config");
+    } finally { setSaving(false); }
   }
 
   async function handleTest() {

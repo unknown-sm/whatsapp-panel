@@ -46,11 +46,16 @@ export async function getOpenwaStatus(req: Request, res: Response) {
       ? sessions.find((s: any) => s.id === config.sessionId)
       : sessions[0] || null;
     const status = session?.status || "disconnected";
-    await prisma.openwaConfig.update({ where: { id: config.id }, data: { status } });
+    if (config) {
+      await prisma.openwaConfig.update({ where: { id: config.id }, data: { status } });
+    }
     res.json({ status, session, sessions });
-  } catch {
-    await prisma.openwaConfig.updateMany({ data: { status: "error" } });
-    res.json({ status: "error", session: null });
+  } catch (e: any) {
+    const errMsg = e.response?.data?.message || e.message || "error";
+    if (config) {
+      await prisma.openwaConfig.update({ where: { id: config.id }, data: { status: "error" } });
+    }
+    res.json({ status: "error", session: null, error: errMsg });
   }
 }
 
@@ -116,7 +121,8 @@ export async function startSession(req: Request, res: Response) {
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
     res.json({ sessionId, status: "started" });
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.message;
+    const msg = error.response?.data?.message || error.message || "Unknown error";
+    console.error("startSession error:", msg);
     res.status(400).json({ error: msg });
   }
 }

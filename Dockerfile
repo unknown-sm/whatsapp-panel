@@ -21,4 +21,5 @@ COPY --from=builder /app/package.json ./
 EXPOSE 4000
 ENV NODE_ENV=production
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD wget -qO- http://localhost:4000/api/health || exit 1
+USER root
 CMD ["node", "backend/dist/index.js"]

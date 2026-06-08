@@ -60,7 +60,6 @@ class OpenWAEngine implements IWhatsAppEngine {
   private apiKey = process.env.OPENWA_API_KEY || "";
 
   private async getSessionId(): Promise<string> {
-    const { prisma } = await import("../lib/prisma");
     const config = await prisma.openwaConfig.findFirst();
     return config?.sessionId || "";
   }

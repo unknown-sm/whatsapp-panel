@@ -142,14 +142,6 @@ function OpenwaSettings() {
     return () => clearInterval(t);
   }, [isWaiting]);
 
-  useEffect(() => {
-    if (qrCode && elapsed >= 120) {
-      setQrCode(null);
-      setElapsed(0);
-      api.post("/api/openwa/session/start").catch(() => {}).finally(() => fetchStatus());
-    }
-  }, [elapsed, qrCode]);
-
   useEffect(() => { fetchConfig(); }, []);
 
   async function fetchConfig() {
@@ -310,9 +302,14 @@ function OpenwaSettings() {
           )}
           <img src={qrCode} alt="QR Code" className="inline-block" style={{ width: 256, height: 256 }} />
           {elapsed >= 120 && (
-            <p className="text-sm mt-3" style={{ color: "var(--danger)" }}>
-              QR expirado. Reintentando...
-            </p>
+            <div className="mt-3">
+              <p className="text-sm mb-3" style={{ color: "var(--danger)" }}>
+                QR expirado
+              </p>
+              <button onClick={handleStart} className="btn-primary">
+                Generar nuevo QR
+              </button>
+            </div>
           )}
         </div>
       )}

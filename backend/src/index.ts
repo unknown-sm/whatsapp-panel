@@ -7,6 +7,7 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.routes";
+import { errorHandler, notFoundHandler } from "./middleware/error-handler";
 import botRoutes from "./routes/bot.routes";
 import flowRoutes from "./routes/flow.routes";
 import whatsappRoutes from "./routes/whatsapp.routes";
@@ -250,6 +251,12 @@ if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "tru
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
+
+// 404 handler (must come after all routes)
+app.use(notFoundHandler);
+
+// Global error handler (must be LAST)
+app.use(errorHandler);
 
 // Socket.io
 io.on("connection", (socket) => {

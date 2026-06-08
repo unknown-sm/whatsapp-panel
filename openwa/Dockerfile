@@ -18,23 +18,23 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     dumb-init \
-    # Chromium runtime deps for whatsapp-web.js
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups \
+    # Chromium runtime deps for whatsapp-web.js (Alpine package names)
+    nss \
+    atk \
+    at-spi2-atk \
+    cups-libs \
     libdrm \
     libxkbcommon \
     libxcomposite \
     libxdamage \
     libxrandr \
-    libgbm \
-    libpango-1.0 \
-    libcairo \
-    libasound2 \
+    mesa-libgbm \
+    pango \
+    cairo \
+    alsa-lib \
     libxshmfence
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=builder /app/dist ./dist

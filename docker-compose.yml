@@ -7,6 +7,11 @@ services:
       POSTGRES_DB: whatsapp_panel
     volumes:
       - whatsapp-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whatsapp -d whatsapp_panel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   openwa:
     build:
@@ -84,7 +89,10 @@ services:
       - "traefik.http.routers.whatsapp-panel.tls.certresolver=leresolver"
       - "traefik.http.services.whatsapp-panel.loadbalancer.server.port=4000"
     depends_on:
-      - whatsapp-db
+      whatsapp-db:
+        condition: service_healthy
+      openwa:
+        condition: service_healthy
 
 volumes:
   whatsapp-db-data:

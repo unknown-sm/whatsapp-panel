@@ -122,12 +122,19 @@ async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise
   const newId = created.id;
   await writeLog("info", "openwa", "create", `Sesion creada: ${newId}`, { id: newId });
   try {
-    await axios.post(`${cfg.baseUrl}/api/sessions/${newId}/start`, {}, {
-      headers: { "X-API-Key": cfg.apiKey }, timeout: 30000,
+    const startRes = await axios.post(`${cfg.baseUrl}/api/sessions/${newId}/start`, {}, {
+      headers: { "X-API-Key": cfg.apiKey }, timeout: 60000,
     });
-    await writeLog("info", "openwa", "start", `Sesion iniciada: ${newId}`);
+    await writeLog("info", "openwa", "start", `Sesion iniciada OK: ${newId}`, { status: startRes.data?.status });
   } catch (e: any) {
-    await writeLog("error", "openwa", "start", `Start fallo: ${e.response?.data?.message || e.message}`, { id: newId });
+    const statusCode = e.response?.status;
+    const data = e.response?.data;
+    await writeLog("error", "openwa", "start", `Start fallo: status=${statusCode} msg=${data?.message || e.message}`, {
+      id: newId,
+      httpStatus: statusCode,
+      responseData: data,
+      stack: e.stack,
+    });
   }
   return newId;
 }

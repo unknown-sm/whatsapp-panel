@@ -12,6 +12,7 @@ function cleanChromeLocks() {
   const lockFiles = ["SingletonLock", "SingletonCookie", "SingletonSocket", "LOCK"];
   
   if (!fs.existsSync(sessionsPath)) {
+    console.log(`[cleanChromeLocks] Path does not exist: ${sessionsPath}`);
     return;
   }
 
@@ -19,14 +20,17 @@ function cleanChromeLocks() {
     .filter(d => d.isDirectory())
     .map(d => path.join(sessionsPath, d.name));
 
+  console.log(`[cleanChromeLocks] Found ${sessionDirs.length} session directories`);
+
   for (const sessionDir of sessionDirs) {
     for (const lockFile of lockFiles) {
       const lockPath = path.join(sessionDir, lockFile);
       if (fs.existsSync(lockPath)) {
         try {
           fs.unlinkSync(lockPath);
+          console.log(`[cleanChromeLocks] Deleted: ${lockPath}`);
         } catch (e) {
-          // ignore
+          console.log(`[cleanChromeLocks] Failed to delete ${lockPath}: ${e.message}`);
         }
       }
     }

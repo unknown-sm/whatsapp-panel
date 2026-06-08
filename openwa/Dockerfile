@@ -10,7 +10,29 @@ COPY patch-auth.js /app/patch-auth.js
 RUN node /app/patch-auth.js || echo "WARN: patch-auth.js failed, continuing"
 
 FROM node:22-alpine
-RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    dumb-init \
+    # Chromium runtime deps for whatsapp-web.js
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups \
+    libdrm \
+    libxkbcommon \
+    libxcomposite \
+    libxdamage \
+    libxrandr \
+    libgbm \
+    libpango-1.0 \
+    libcairo \
+    libasound2 \
+    libxshmfence
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV NODE_ENV=production

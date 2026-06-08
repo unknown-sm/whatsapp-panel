@@ -1,8 +1,8 @@
 FROM node:22-alpine AS builder
-RUN apk add --no-cache git
+RUN apk add --no-cache git python3 make g++
 WORKDIR /app
 RUN git clone --depth 1 https://github.com/rmyndharis/OpenWA.git .
-RUN npm install archiver@6 --save
+RUN npm install archiver@6 sqlite3 better-sqlite3 --save
 RUN npm install
 RUN npm run build
 

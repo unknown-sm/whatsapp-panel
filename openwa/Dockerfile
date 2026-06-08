@@ -1,5 +1,5 @@
-FROM node:22-alpine AS builder
-RUN apk add --no-cache git python3 make g++
+FROM ghcr.io/puppeteer/puppeteer:22 AS builder
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 WORKDIR /app
 RUN git clone --depth 1 https://github.com/rmyndharis/OpenWA.git .
 RUN npm install archiver@6 sqlite3 better-sqlite3 --save

@@ -1,9 +1,8 @@
 FROM ghcr.io/puppeteer/puppeteer:22 AS builder
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 https://github.com/rmyndharis/OpenWA.git .
-RUN npm install archiver@6 sqlite3 better-sqlite3 --save
+RUN npm install archiver@6 --save
 RUN npm install
 RUN npm run build
 
@@ -17,6 +16,8 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV NODE_ENV=production
 WORKDIR /app
 USER root
+# Install sqlite3 in runtime stage so it compiles for this exact environment
+RUN npm install sqlite3 better-sqlite3 --save
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./

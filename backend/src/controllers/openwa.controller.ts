@@ -44,24 +44,45 @@ export async function testConnection(req: Request, res: Response) {
 export async function getOpenwaStatus(req: Request, res: Response) {
   let config = await prisma.openwaConfig.findFirst();
   if (!config || !config.apiKey) {
-    return res.json({ status: "not_configured", session: null, sessions: [] });
+    return res.json({ status: "not_configured", session: null, sessions: [], diagnostics: { hint: "Configurar API Key en el formulario" } });
   }
   try {
-    const sessions: any[] = (await axios.get(`${config.baseUrl}/api/sessions`, {
-      headers: { "X-API-Key": config.apiKey },
-      timeout: 10000,
-    })).data;
+    const [sessionsRes, healthRes] = await Promise.all([
+      axios.get(`${config.baseUrl}/api/sessions`, { headers: { "X-API-Key": config.apiKey }, timeout: 10000 }),
+      axios.get(`${config.baseUrl}/api/health`, { headers: { "X-API-Key": config.apiKey }, timeout: 5000 }).catch(() => null),
+    ]);
+    const sessions: any[] = sessionsRes.data;
     const session = config.sessionId
       ? sessions.find((s: any) => s.id === config.sessionId) || null
       : sessions[0] || null;
     const status = session?.status || "disconnected";
+    const diagnostics: any = { health: healthRes?.data || null };
+    if (session?.status === "failed" || session?.status === "error") {
+      diagnostics.hint = "La sesion fallo al iniciar. Probable problema con Chromium/Puppeteer. Hacé click Reset para reintentar.";
+    } else if (status === "created" || status === "initializing") {
+      diagnostics.hint = "Inicializando motor de WhatsApp. Espera unos segundos o resetea si lleva mas de 2 minutos.";
+    } else if (status === "qr_ready") {
+      diagnostics.hint = "QR listo, escanealo desde tu telefono.";
+    } else if (status === "authenticating") {
+      diagnostics.hint = "Autenticando con WhatsApp. Espera unos segundos.";
+    } else if (status === "ready") {
+      diagnostics.hint = "Conectado. Los mensajes llegaran automaticamente.";
+    }
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { status } });
-    res.json({ status, session, sessions });
+    res.json({ status, session, sessions, diagnostics, lastCheckedAt: new Date().toISOString() });
   } catch (e: any) {
+    await writeLog("error", "openwa", "status_check", e.message);
     if (config) {
       await prisma.openwaConfig.update({ where: { id: config.id }, data: { status: "error" } });
     }
-    res.json({ status: "error", session: null, sessions: [], error: e.message });
+    res.json({
+      status: "error",
+      session: null,
+      sessions: [],
+      error: e.message,
+      diagnostics: { hint: "No se puede conectar con OpenWA. Verificar que el container este corriendo." },
+      lastCheckedAt: new Date().toISOString(),
+    });
   }
 }
 
@@ -114,6 +135,17 @@ async function cleanupAllDuplicates(cfg: { baseUrl: string; apiKey: string }) {
   }
 }
 
+async function checkSessionStatus(cfg: { baseUrl: string; apiKey: string; sessionId: string }): Promise<string> {
+  try {
+    const res = await axios.get(`${cfg.baseUrl}/api/sessions/${cfg.sessionId}`, {
+      headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
+    });
+    return res.data?.status || "unknown";
+  } catch (e: any) {
+    return "not_found";
+  }
+}
+
 async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise<string> {
   const created: any = (await axios.post(`${cfg.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
     headers: { "X-API-Key": cfg.apiKey, "Content-Type": "application/json" },
@@ -151,7 +183,18 @@ export async function startSession(req: Request, res: Response) {
     await writeLog("info", "openwa", "start_session", "Creando nueva sesion");
     const sessionId = await createAndStart({ baseUrl: config.baseUrl, apiKey: config.apiKey });
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
-    await writeLog("info", "openwa", "start_session", `Sesion creada e iniciada: ${sessionId}`, { sessionId });
+
+    const startStatus = await checkSessionStatus({ baseUrl: config.baseUrl, apiKey: config.apiKey, sessionId });
+    await writeLog("info", "openwa", "start_session", `Sesion creada: ${sessionId}, status actual: ${startStatus}`, { sessionId, status: startStatus });
+
+    if (startStatus === "failed" || startStatus === "error") {
+      await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+      await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: "" } });
+      return res.status(500).json({
+        error: `OpenWA no pudo iniciar la sesion (status: ${startStatus}). Esto indica un problema con Chromium/Puppeteer en el container. Click Reset y reintentar. Si persiste, revisar logs del container.`,
+        hint: "Posible falta de memoria, permisos o dependencias Chromium",
+      });
+    }
 
     const webhookUrl = `${req.protocol}://${req.get("host")}/webhook/incoming`;
     try {
@@ -175,7 +218,7 @@ export async function startSession(req: Request, res: Response) {
       await writeLog("error", "openwa", "webhook_setup", `auto-webhook setup failed: ${e.response?.data?.message || e.message}`, { sessionId });
     }
 
-    res.json({ sessionId, status: "started" });
+    res.json({ sessionId, status: startStatus });
   } catch (error: any) {
     const msg = error.response?.data?.message || error.message || "Unknown error";
     await writeLog("error", "openwa", "start_session", msg, { status: error.response?.status });

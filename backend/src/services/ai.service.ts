@@ -4,6 +4,8 @@ import OpenAI from "openai";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { getKnowledgeContent } from "./knowledge.service";
 
+const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+
 export async function getAIConfigs() {
   return prisma.aIConfig.findMany({ orderBy: { createdAt: "desc" } });
 }
@@ -11,14 +13,14 @@ export async function getAIConfigs() {
 export async function createAIConfig(data: any) {
   const parsed = z.object({
     name: z.string().min(1),
-    provider: z.enum(["openai", "anthropic", "custom"]),
+    provider: z.enum(["openai", "anthropic", "nvidia", "custom"]),
     apiKey: z.string().min(1),
     model: z.string().min(1),
     endpoint: z.string().optional(),
   }).parse(data);
 
   // If setting as default, unset others
-  if (parsed.provider === "openai" || parsed.provider === "anthropic") {
+  if (["openai", "anthropic", "nvidia"].includes(parsed.provider)) {
     await prisma.aIConfig.updateMany({
       where: { provider: parsed.provider, isDefault: true },
       data: { isDefault: false },
@@ -99,6 +101,23 @@ export async function generateResponse(
     return response.content[0]?.type === "text" ? response.content[0].text : "";
   }
 
+  if (config.provider === "nvidia") {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: NVIDIA_BASE_URL });
+    const chatMessages: any[] = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+    if (!systemPrompt) {
+      systemPrompt = messages.find((m) => m.role === "system")?.content || "";
+    }
+    if (systemPrompt) {
+      chatMessages.unshift({ role: "system", content: systemPrompt });
+    }
+    const response = await openai.chat.completions.create({
+      model: config.model,
+      messages: chatMessages,
+      max_tokens: maxTokens,
+    });
+    return response.choices[0]?.message?.content || "";
+  }
+
   // Custom endpoint
   if (config.endpoint) {
     const axios = await import("axios");
@@ -147,6 +166,14 @@ Formato: label|confidence`;
       messages: [{ role: "user", content: prompt }],
     });
     response = res.content[0]?.type === "text" ? res.content[0].text : "";
+  } else if (config.provider === "nvidia") {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: NVIDIA_BASE_URL });
+    const res = await openai.chat.completions.create({
+      model: config.model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 50,
+    });
+    response = res.choices[0]?.message?.content || "";
   }
 
   const [label, confidenceStr] = response.split("|");

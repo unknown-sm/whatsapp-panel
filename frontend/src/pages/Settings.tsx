@@ -370,10 +370,11 @@ function AISettings() {
   async function handleSetDefault(id: string) { await api.put(`/api/ai/${id}/default`); fetchConfigs(); }
   async function handleDelete(id: string) { if (confirm("Eliminar esta config?")) { await api.delete(`/api/ai/${id}`); fetchConfigs(); } }
 
-  const providerLabels: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic", custom: "Custom" };
+  const providerLabels: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic", nvidia: "NVIDIA", custom: "Custom Endpoint" };
   const modelSuggestions: Record<string, string[]> = {
     openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
     anthropic: ["claude-sonnet-4-6", "claude-3-5-sonnet-latest", "claude-3-haiku-latest"],
+    nvidia: ["nvidia/nemotron-3-ultra", "nvidia/llama-3.1-nemotron-70b-instruct", "meta/llama-3.1-70b-instruct", "mistralai/mixtral-8x7b-instruct-v0.1"],
     custom: [],
   };
 
@@ -398,6 +399,7 @@ function AISettings() {
                 <select value={newConfig.provider} onChange={(e) => setNewConfig({ ...newConfig, provider: e.target.value })} className="input">
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
+                  <option value="nvidia">NVIDIA</option>
                   <option value="custom">Custom Endpoint</option>
                 </select>
               </div>
@@ -408,7 +410,7 @@ function AISettings() {
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Modelo</label>
-              <input value={newConfig.model} onChange={(e) => setNewConfig({ ...newConfig, model: e.target.value })} className="input" placeholder={newConfig.provider === "openai" ? "gpt-4o" : "claude-sonnet-4-6"} />
+              <input value={newConfig.model} onChange={(e) => setNewConfig({ ...newConfig, model: e.target.value })} className="input" placeholder={newConfig.provider === "openai" ? "gpt-4o" : newConfig.provider === "anthropic" ? "claude-sonnet-4-6" : newConfig.provider === "nvidia" ? "nvidia/nemotron-3-ultra" : "https://tu-api.com/v1/chat"} />
               {modelSuggestions[newConfig.provider]?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {modelSuggestions[newConfig.provider].map((m) => (

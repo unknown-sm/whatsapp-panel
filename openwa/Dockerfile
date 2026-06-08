@@ -1,6 +1,7 @@
 FROM ghcr.io/puppeteer/puppeteer:22 AS builder
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 https://github.com/rmyndharis/OpenWA.git .
 RUN npm install archiver@6 sqlite3 better-sqlite3 --save
 RUN npm install

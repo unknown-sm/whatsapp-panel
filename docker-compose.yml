@@ -82,6 +82,9 @@ services:
       OPENWA_SESSION_ID: ""
       MEDIA_STORAGE_PATH: ./uploads
       MAX_UPLOAD_SIZE_MB: "50"
+      OPENWA_SESSIONS_PATH: /openwa-data/sessions
+    volumes:
+      - openwa-data:/openwa-data:rw
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-panel.zwpkae.easypanel.host`)"

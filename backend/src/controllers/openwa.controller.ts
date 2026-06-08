@@ -2,8 +2,36 @@ import { Request, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
 import { writeLog } from "../services/logs.service";
+import * as fs from "fs";
+import * as path from "path";
 
 const WEBHOOK_EVENTS = ["message.received", "message.sent", "session.status", "session.disconnected"];
+
+function cleanChromeLocks() {
+  const sessionsPath = process.env.OPENWA_SESSIONS_PATH || "/openwa-data/sessions";
+  const lockFiles = ["SingletonLock", "SingletonCookie", "SingletonSocket", "LOCK"];
+  
+  if (!fs.existsSync(sessionsPath)) {
+    return;
+  }
+
+  const sessionDirs = fs.readdirSync(sessionsPath, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => path.join(sessionsPath, d.name));
+
+  for (const sessionDir of sessionDirs) {
+    for (const lockFile of lockFiles) {
+      const lockPath = path.join(sessionDir, lockFile);
+      if (fs.existsSync(lockPath)) {
+        try {
+          fs.unlinkSync(lockPath);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+  }
+}
 
 export async function getConfig(_req: Request, res: Response) {
   let config = await prisma.openwaConfig.findFirst();
@@ -185,6 +213,10 @@ export async function startSession(req: Request, res: Response) {
   try {
     await writeLog("info", "openwa", "start_session", "Limpiando sesiones duplicadas");
     await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+    
+    await writeLog("info", "openwa", "start_session", "Limpiando Chrome locks del filesystem");
+    cleanChromeLocks();
+    
     await writeLog("info", "openwa", "start_session", "Creando nueva sesion");
     const { id: sessionId, startOk } = await createAndStart({ baseUrl: config.baseUrl, apiKey: config.apiKey });
 
@@ -250,6 +282,10 @@ export async function resetConnection(req: Request, res: Response) {
   try {
     await writeLog("warn", "openwa", "reset_connection", "Reset manual solicitado");
     await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+    
+    await writeLog("info", "openwa", "reset_connection", "Limpiando Chrome locks del filesystem");
+    cleanChromeLocks();
+    
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: "" } });
     await writeLog("info", "openwa", "reset_connection", "Reset completo, sessionId limpiado");
     res.json({ message: "Conexion reseteada. Click Conectar para nueva sesion." });

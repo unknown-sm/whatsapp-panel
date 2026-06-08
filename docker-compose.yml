@@ -12,6 +12,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - app-network
 
   openwa:
     build:
@@ -38,15 +40,23 @@ services:
       WEBHOOK_RETRY_DELAY: "5000"
       DATABASE_SYNCHRONIZE: "true"
       ENABLE_SWAGGER: "false"
-      API_MASTER_KEY: openwa-dev-master-key-2024
+      API_MASTER_KEY: ${API_MASTER_KEY:-openwa-dev-master-key-2024}
     volumes:
       - openwa-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:2785/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.openwa.rule=Host(`openwa.zwpkae.easypanel.host`)"
       - "traefik.http.routers.openwa.entrypoints=websecure"
       - "traefik.http.routers.openwa.tls.certresolver=leresolver"
       - "traefik.http.services.openwa.loadbalancer.server.port=2785"
+    networks:
+      - app-network
 
   openwa-dashboard:
     build:
@@ -62,6 +72,8 @@ services:
       - "traefik.http.routers.openwa-dashboard.entrypoints=websecure"
       - "traefik.http.routers.openwa-dashboard.tls.certresolver=leresolver"
       - "traefik.http.services.openwa-dashboard.loadbalancer.server.port=80"
+    networks:
+      - app-network
 
   whatsapp-panel:
     build:
@@ -73,16 +85,13 @@ services:
       PORT: "4000"
       DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
       JWT_SECRET: ${JWT_SECRET:-whatsapp-panel-jwt-secret-2024}
-      OPENAI_API_KEY: sk-mqSAn2gnDhE4qdhokR7s1PxaHzDJbScI1lB8NVN1kkX9ezerhtVq5tyIKmnkYwCe
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: https://whatsapp-panel.zwpkae.easypanel.host
       WHATSAPP_ENGINE: openwa
       WEBHOOK_BASE_URL: https://whatsapp-panel.zwpkae.easypanel.host
       OPENWA_URL: http://openwa:2785
-      OPENWA_API_KEY: owa_k1_c3bc557c051f429dccc90fb54849ae314685f1c876af4471fb1e7a56a2113e33
-      OPENWA_SESSION_ID: ""
-      MEDIA_STORAGE_PATH: ./uploads
-      MAX_UPLOAD_SIZE_MB: "50"
+      OPENWA_API_KEY: ${API_MASTER_KEY:-openwa-dev-master-key-2024}
       OPENWA_SESSIONS_PATH: /openwa-data/sessions
     volumes:
       - openwa-data:/openwa-data:rw
@@ -97,7 +106,13 @@ services:
         condition: service_healthy
       openwa:
         condition: service_healthy
+    networks:
+      - app-network
 
 volumes:
   whatsapp-db-data:
   openwa-data:
+
+networks:
+  app-network:
+    driver: bridge

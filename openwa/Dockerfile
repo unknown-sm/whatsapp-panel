@@ -28,5 +28,5 @@ COPY --from=builder /app/src ./src
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && mkdir -p /app/data/sessions /app/data/media
 EXPOSE 2785
-HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD wget -qO- http://localhost:2785/api/health || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD curl -fsS http://localhost:2785/api/health || exit 1
 ENTRYPOINT ["/entrypoint.sh"]

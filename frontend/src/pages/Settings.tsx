@@ -294,7 +294,7 @@ function OpenwaSettings() {
           <p className="text-sm mb-2" style={{ color: "var(--text-tertiary)" }}>
             Abre WhatsApp en tu telefono &rarr; Men &rarr; Dispositivos vinculados &rarr; Vincular dispositivo
           </p>
-          {elapsed >= 60 && (
+          {elapsed >= 60 && elapsed < 120 && (
             <p className="text-xs mb-2 font-medium" style={{ color: "var(--danger)" }}>
               El QR expirar&aacute; en {120 - elapsed}s
             </p>

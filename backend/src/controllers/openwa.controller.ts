@@ -9,7 +9,6 @@ const WEBHOOK_EVENTS = ["message.received", "message.sent", "session.status", "s
 
 function cleanChromeLocks() {
   const sessionsPath = process.env.OPENWA_SESSIONS_PATH || "/openwa-data/sessions";
-  const lockFiles = ["SingletonLock", "SingletonCookie", "SingletonSocket", "LOCK"];
   
   if (!fs.existsSync(sessionsPath)) {
     console.log(`[cleanChromeLocks] Path does not exist: ${sessionsPath}`);
@@ -23,16 +22,12 @@ function cleanChromeLocks() {
   console.log(`[cleanChromeLocks] Found ${sessionDirs.length} session directories`);
 
   for (const sessionDir of sessionDirs) {
-    for (const lockFile of lockFiles) {
-      const lockPath = path.join(sessionDir, lockFile);
-      if (fs.existsSync(lockPath)) {
-        try {
-          fs.unlinkSync(lockPath);
-          console.log(`[cleanChromeLocks] Deleted: ${lockPath}`);
-        } catch (e) {
-          console.log(`[cleanChromeLocks] Failed to delete ${lockPath}: ${e.message}`);
-        }
-      }
+    try {
+      console.log(`[cleanChromeLocks] Deleting entire session directory: ${sessionDir}`);
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+      console.log(`[cleanChromeLocks] Deleted: ${sessionDir}`);
+    } catch (e) {
+      console.log(`[cleanChromeLocks] Failed to delete ${sessionDir}: ${e.message}`);
     }
   }
 }

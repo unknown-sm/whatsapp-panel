@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
+import { writeLog } from "../services/logs.service";
 
 const WEBHOOK_EVENTS = ["message.received", "message.sent", "session.status", "session.disconnected"];
 
@@ -27,12 +28,15 @@ export async function testConnection(req: Request, res: Response) {
       headers: { "X-API-Key": apiKey },
       timeout: 10000,
     });
+    await writeLog("info", "openwa", "test_connection", `Test OK - ${result.data?.length || 0} sesiones`, { baseUrl });
     res.json({ status: "ok", sessions: result.data });
   } catch (error: any) {
+    const msg = error.response?.data?.message || error.message || "Error de conexion";
     if (error.response?.status === 401) {
+      await writeLog("error", "openwa", "test_connection", `API Key inválida: ${msg}`, { baseUrl });
       return res.status(401).json({ error: "API Key inválida" });
     }
-    const msg = error.response?.data?.message || error.message || "Error de conexion";
+    await writeLog("error", "openwa", "test_connection", msg, { baseUrl, status: error.response?.status });
     res.status(400).json({ error: msg });
   }
 }
@@ -84,20 +88,29 @@ async function cleanupAllDuplicates(cfg: { baseUrl: string; apiKey: string }) {
       headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
     })).data;
     const dups = sessions.filter((s: any) => s.name === "whatsapp-panel");
+    if (dups.length > 0) {
+      await writeLog("info", "openwa", "cleanup", `Limpiando ${dups.length} sesion(es) duplicada(s)`, { count: dups.length });
+    }
     for (const dup of dups) {
       try {
         await axios.post(`${cfg.baseUrl}/api/sessions/${dup.id}/stop`, {}, {
           headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
         });
-      } catch {}
+        await writeLog("info", "openwa", "cleanup", `Sesion detenida: ${dup.id} (status: ${dup.status})`, { id: dup.id });
+      } catch (e: any) {
+        await writeLog("warn", "openwa", "cleanup", `Stop fallo (ignorado): ${e.message}`, { id: dup.id });
+      }
       try {
         await axios.delete(`${cfg.baseUrl}/api/sessions/${dup.id}`, {
           headers: { "X-API-Key": cfg.apiKey }, timeout: 10000,
         });
-      } catch {}
+        await writeLog("info", "openwa", "cleanup", `Sesion eliminada: ${dup.id}`, { id: dup.id });
+      } catch (e: any) {
+        await writeLog("warn", "openwa", "cleanup", `Delete fallo (ignorado): ${e.message}`, { id: dup.id });
+      }
     }
   } catch (e: any) {
-    console.error("cleanupAllDuplicates error:", e.message);
+    await writeLog("error", "openwa", "cleanup", `cleanupAllDuplicates error: ${e.message}`);
   }
 }
 
@@ -107,12 +120,14 @@ async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise
     timeout: 15000,
   })).data;
   const newId = created.id;
+  await writeLog("info", "openwa", "create", `Sesion creada: ${newId}`, { id: newId });
   try {
     await axios.post(`${cfg.baseUrl}/api/sessions/${newId}/start`, {}, {
       headers: { "X-API-Key": cfg.apiKey }, timeout: 30000,
     });
+    await writeLog("info", "openwa", "start", `Sesion iniciada: ${newId}`);
   } catch (e: any) {
-    console.error("start session error:", e.response?.data || e.message);
+    await writeLog("error", "openwa", "start", `Start fallo: ${e.response?.data?.message || e.message}`, { id: newId });
   }
   return newId;
 }
@@ -120,12 +135,16 @@ async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise
 export async function startSession(req: Request, res: Response) {
   let config = await prisma.openwaConfig.findFirst();
   if (!config || !config.apiKey) {
+    await writeLog("warn", "openwa", "start_session", "OpenWA no configurado");
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
   try {
+    await writeLog("info", "openwa", "start_session", "Limpiando sesiones duplicadas");
     await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+    await writeLog("info", "openwa", "start_session", "Creando nueva sesion");
     const sessionId = await createAndStart({ baseUrl: config.baseUrl, apiKey: config.apiKey });
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
+    await writeLog("info", "openwa", "start_session", `Sesion creada e iniciada: ${sessionId}`, { sessionId });
 
     const webhookUrl = `${req.protocol}://${req.get("host")}/webhook/incoming`;
     try {
@@ -141,15 +160,18 @@ export async function startSession(req: Request, res: Response) {
           headers: { "X-API-Key": config.apiKey, "Content-Type": "application/json" },
           timeout: 10000,
         });
+        await writeLog("info", "openwa", "webhook_setup", `Webhook configurado: ${webhookUrl}`);
+      } else {
+        await writeLog("info", "openwa", "webhook_setup", "Webhook ya configurado");
       }
     } catch (e: any) {
-      console.error("auto-webhook setup failed:", e.response?.data || e.message);
+      await writeLog("error", "openwa", "webhook_setup", `auto-webhook setup failed: ${e.response?.data?.message || e.message}`, { sessionId });
     }
 
     res.json({ sessionId, status: "started" });
   } catch (error: any) {
     const msg = error.response?.data?.message || error.message || "Unknown error";
-    console.error("startSession error:", msg);
+    await writeLog("error", "openwa", "start_session", msg, { status: error.response?.status });
     res.status(400).json({ error: msg });
   }
 }
@@ -160,10 +182,13 @@ export async function resetConnection(req: Request, res: Response) {
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
   try {
+    await writeLog("warn", "openwa", "reset_connection", "Reset manual solicitado");
     await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: "" } });
+    await writeLog("info", "openwa", "reset_connection", "Reset completo, sessionId limpiado");
     res.json({ message: "Conexion reseteada. Click Conectar para nueva sesion." });
   } catch (error: any) {
+    await writeLog("error", "openwa", "reset_connection", error.message);
     res.status(400).json({ error: error.message });
   }
 }

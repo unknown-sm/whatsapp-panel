@@ -20,6 +20,7 @@ import analyticsRoutes from "./routes/analytics.routes";
 import customFieldRoutes from "./routes/customfield.routes";
 import openwaRoutes from "./routes/openwa.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
+import logsRoutes from "./routes/logs.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { PrismaClient } from "@prisma/client";
@@ -241,6 +242,7 @@ app.use("/api/broadcast", broadcastRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/customfields", customFieldRoutes);
 app.use("/api/openwa", openwaRoutes);
+app.use("/api/logs", logsRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {

@@ -4,7 +4,7 @@ import { useAuthStore } from "../store/authStore";
 import ThemeToggle from "./ThemeToggle";
 import {
   LayoutDashboard, Bot, MessageSquare, Clock, Settings, LogOut,
-  Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3,
+  Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3, FileText,
 } from "lucide-react";
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   { to: "/leadscoring", icon: Target, label: "Lead Scoring" },
   { to: "/broadcasts", icon: Megaphone, label: "Broadcasts" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/logs", icon: FileText, label: "Logs" },
   { to: "/settings", icon: Settings, label: "Configuracion" },
 ];
 

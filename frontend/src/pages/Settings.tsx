@@ -189,7 +189,8 @@ function OpenwaSettings() {
       await api.post("/api/openwa/session/start");
       fetchStatus();
     } catch (e: any) {
-      alert(e.response?.data?.error || "Error al iniciar sesion");
+      const err = e.response?.data?.error || "Error al iniciar sesion";
+      alert(err + "\n\nRevisa la sección Logs para mas detalles.");
     } finally { setStarting(false); }
   }
 

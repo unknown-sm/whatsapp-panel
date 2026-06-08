@@ -82,6 +82,20 @@ model BotKnowledge {
   @@index([botId])
 }
 
+model CrmLog {
+  id        String   @id @default(uuid())
+  level     String   @default("info")
+  source    String
+  action    String
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([level])
+  @@index([source])
+}
+
 model BotKeyword {
   id      String @id @default(uuid())
   keyword String

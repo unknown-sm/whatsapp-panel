@@ -12,6 +12,7 @@ import Pipeline from "./pages/Pipeline";
 import LeadScoring from "./pages/LeadScoring";
 import Broadcasts from "./pages/Broadcasts";
 import Analytics from "./pages/Analytics";
+import Logs from "./pages/Logs";
 import AppLayout from "./components/AppLayout";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ function App() {
         <Route path="leadscoring" element={<LeadScoring />} />
         <Route path="broadcasts" element={<Broadcasts />} />
         <Route path="analytics" element={<Analytics />} />
+        <Route path="logs" element={<Logs />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

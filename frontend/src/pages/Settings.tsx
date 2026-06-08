@@ -281,10 +281,9 @@ function OpenwaSettings() {
             }} />
           </div>
           <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>
-            {elapsed < 10 ? "Iniciando motor..." :
-             elapsed < 20 ? "Lanzando Chromium..." :
-             elapsed < 30 ? "Cargando WhatsApp Web..." :
-             "Preparando QR (puede tardar hasta 2min en containers)"}
+            {elapsed < 10 ? "Iniciando motor WhatsApp..." :
+             elapsed < 20 ? "Cargando WhatsApp Web..." :
+             "Generando QR para escanear"}
           </p>
         </div>
       )}

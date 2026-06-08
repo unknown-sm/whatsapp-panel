@@ -2,6 +2,7 @@ FROM node:22-alpine AS builder
 RUN apk add --no-cache git
 WORKDIR /app
 RUN git clone --depth 1 https://github.com/rmyndharis/OpenWA.git .
+RUN npm install archiver@6 --save
 RUN npm install
 RUN npm run build
 

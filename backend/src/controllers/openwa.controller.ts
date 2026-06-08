@@ -243,7 +243,8 @@ export async function startSession(req: Request, res: Response) {
       });
     }
 
-    const webhookUrl = `${req.protocol}://${req.get("host")}/webhook/incoming`;
+    const webhookBaseUrl = process.env.WEBHOOK_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const webhookUrl = `${webhookBaseUrl}/webhook/incoming`;
     try {
       const existing: any[] = (await axios.get(`${config.baseUrl}/api/sessions/${sessionId}/webhooks`, {
         headers: { "X-API-Key": config.apiKey }, timeout: 10000,

@@ -56,9 +56,14 @@ class MetaEngine implements IWhatsAppEngine {
 }
 
 class OpenWAEngine implements IWhatsAppEngine {
-  private baseUrl = process.env.OPENWA_URL || "http://localhost:2785";
+  private baseUrl = process.env.OPENWA_URL || "http://openwa:2785";
   private apiKey = process.env.OPENWA_API_KEY || "";
-  private sessionId = process.env.OPENWA_SESSION_ID || "";
+
+  private async getSessionId(): Promise<string> {
+    const { prisma } = await import("../lib/prisma");
+    const config = await prisma.openwaConfig.findFirst();
+    return config?.sessionId || "";
+  }
 
   private async api(method: string, path: string, data?: any) {
     try {
@@ -77,25 +82,28 @@ class OpenWAEngine implements IWhatsAppEngine {
   }
 
   async sendText(phone: string, message: string): Promise<boolean> {
-    if (!this.sessionId) { console.error("OpenWA: OPENWA_SESSION_ID not set"); return false; }
+    const sessionId = await this.getSessionId();
+    if (!sessionId) { console.error("OpenWA: no active session"); return false; }
     const chatId = `${phone}@c.us`;
-    const result = await this.api("post", `/sessions/${this.sessionId}/messages/send-text`, { chatId, text: message });
+    const result = await this.api("post", `/sessions/${sessionId}/messages/send-text`, { chatId, text: message });
     return !!result?.messageId;
   }
 
   async sendMedia(phone: string, url: string, type: "image" | "video" | "document"): Promise<boolean> {
-    if (!this.sessionId) return false;
+    const sessionId = await this.getSessionId();
+    if (!sessionId) return false;
     const chatId = `${phone}@c.us`;
     const typeMap: Record<string, string> = { image: "send-image", video: "send-video", document: "send-document" };
     const endpoint = typeMap[type] || "send-document";
-    const result = await this.api("post", `/sessions/${this.sessionId}/messages/${endpoint}`, { chatId, url });
+    const result = await this.api("post", `/sessions/${sessionId}/messages/${endpoint}`, { chatId, url });
     return !!result?.messageId;
   }
 
   async getStatus() {
+    const sessionId = await this.getSessionId();
     try {
-      const res = await this.api("get", `/sessions/${this.sessionId}`);
-      return { status: res?.status || "disconnected", lastPing: res?.lastActiveAt || null, configured: !!this.sessionId };
+      const res = await this.api("get", `/sessions/${sessionId}`);
+      return { status: res?.status || "disconnected", lastPing: res?.lastActiveAt || null, configured: !!sessionId };
     } catch { return { status: "disconnected", lastPing: null, configured: false }; }
   }
 }

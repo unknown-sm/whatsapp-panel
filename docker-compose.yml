@@ -13,6 +13,7 @@ services:
       context: ./openwa
       dockerfile: Dockerfile
     image: whatsapp-panel-openwa:latest
+    shm_size: '2gb'
     environment:
       NODE_ENV: production
       API_PORT: 2785

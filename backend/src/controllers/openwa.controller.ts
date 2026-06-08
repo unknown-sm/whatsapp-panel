@@ -31,12 +31,13 @@ export async function testConnection(req: Request, res: Response) {
     await writeLog("info", "openwa", "test_connection", `Test OK - ${result.data?.length || 0} sesiones`, { baseUrl });
     res.json({ status: "ok", sessions: result.data });
   } catch (error: any) {
-    const msg = error.response?.data?.message || error.message || "Error de conexion";
+    const data = error.response?.data;
+    const msg = data?.error?.message || data?.message || error.message || "Error de conexion";
     if (error.response?.status === 401) {
       await writeLog("error", "openwa", "test_connection", `API Key inválida: ${msg}`, { baseUrl });
       return res.status(401).json({ error: "API Key inválida" });
     }
-    await writeLog("error", "openwa", "test_connection", msg, { baseUrl, status: error.response?.status });
+    await writeLog("error", "openwa", "test_connection", msg, { baseUrl, status: error.response?.status, responseData: data });
     res.status(400).json({ error: msg });
   }
 }
@@ -161,11 +162,13 @@ async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise
   } catch (e: any) {
     const statusCode = e.response?.status;
     const data = e.response?.data;
-    await writeLog("error", "openwa", "start", `Start fallo: status=${statusCode} msg=${data?.message || e.message}`, {
+    const errorMsg = data?.error?.message || data?.message || e.message;
+    const errorCode = data?.error?.code;
+    await writeLog("error", "openwa", "start", `Start fallo: status=${statusCode} code=${errorCode} msg=${errorMsg}`, {
       id: newId,
       httpStatus: statusCode,
+      errorCode,
       responseData: data,
-      stack: e.stack,
     });
   }
   return newId;

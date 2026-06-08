@@ -7,7 +7,7 @@ RUN npm run build
 
 # Patch: add API_MASTER_KEY support to auth service
 COPY patch-auth.js /app/patch-auth.js
-RUN node /app/patch-auth.js
+RUN node /app/patch-auth.js || echo "WARN: patch-auth.js failed, continuing"
 
 FROM node:22-alpine
 RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont

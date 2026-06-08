@@ -147,18 +147,20 @@ async function checkSessionStatus(cfg: { baseUrl: string; apiKey: string; sessio
   }
 }
 
-async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise<string> {
+async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise<{ id: string; startOk: boolean }> {
   const created: any = (await axios.post(`${cfg.baseUrl}/api/sessions`, { name: "whatsapp-panel" }, {
     headers: { "X-API-Key": cfg.apiKey, "Content-Type": "application/json" },
     timeout: 15000,
   })).data;
   const newId = created.id;
   await writeLog("info", "openwa", "create", `Sesion creada: ${newId}`, { id: newId });
+  let startOk = false;
   try {
     const startRes = await axios.post(`${cfg.baseUrl}/api/sessions/${newId}/start`, {}, {
       headers: { "X-API-Key": cfg.apiKey }, timeout: 60000,
     });
     await writeLog("info", "openwa", "start", `Sesion iniciada OK: ${newId}`, { status: startRes.data?.status });
+    startOk = true;
   } catch (e: any) {
     const statusCode = e.response?.status;
     const data = e.response?.data;
@@ -171,7 +173,7 @@ async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise
       responseData: data,
     });
   }
-  return newId;
+  return { id: newId, startOk };
 }
 
 export async function startSession(req: Request, res: Response) {
@@ -184,7 +186,18 @@ export async function startSession(req: Request, res: Response) {
     await writeLog("info", "openwa", "start_session", "Limpiando sesiones duplicadas");
     await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
     await writeLog("info", "openwa", "start_session", "Creando nueva sesion");
-    const sessionId = await createAndStart({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+    const { id: sessionId, startOk } = await createAndStart({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+
+    if (!startOk) {
+      await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+      await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId: "" } });
+      return res.status(500).json({
+        error: `OpenWA devolvio 500 al iniciar sesion. Problema probable con Chromium/Puppeteer (memoria, permisos, dependencias). Resetea y reintenta.`,
+        hint: "Revisa logs del container openwa en EasyPanel para mas detalles",
+        sessionId,
+      });
+    }
+
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
 
     const startStatus = await checkSessionStatus({ baseUrl: config.baseUrl, apiKey: config.apiKey, sessionId });

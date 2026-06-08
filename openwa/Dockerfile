@@ -9,32 +9,9 @@ RUN npm run build
 COPY patch-auth.js /app/patch-auth.js
 RUN node /app/patch-auth.js || echo "WARN: patch-auth.js failed, continuing"
 
-FROM node:22-alpine
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
-    dumb-init \
-    # Chromium runtime deps for whatsapp-web.js (Alpine package names)
-    nss \
-    atk \
-    at-spi2-atk \
-    cups-libs \
-    libdrm \
-    libxkbcommon \
-    libxcomposite \
-    libxdamage \
-    libxrandr \
-    mesa-libgbm \
-    pango \
-    cairo \
-    alsa-lib \
-    libxshmfence
+FROM ghcr.io/puppeteer/puppeteer:22
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
@@ -45,8 +22,7 @@ COPY --from=builder /app/tsconfig.build.json ./
 COPY --from=builder /app/nest-cli.json ./
 COPY --from=builder /app/src ./src
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-RUN mkdir -p /app/data/sessions /app/data/media
+RUN chmod +x /entrypoint.sh && mkdir -p /app/data/sessions /app/data/media
 EXPOSE 2785
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD wget -qO- http://localhost:2785/api/health || exit 1
 ENTRYPOINT ["/entrypoint.sh"]

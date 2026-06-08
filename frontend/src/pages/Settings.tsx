@@ -132,6 +132,15 @@ function OpenwaSettings() {
   const [testing, setTesting] = useState(false);
   const [starting, setStarting] = useState(false);
   const [webhookMsg, setWebhookMsg] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+
+  const isWaiting = status?.status === "initializing" || status?.status === "created" || status?.status === "qr_ready";
+
+  useEffect(() => {
+    if (!isWaiting) { setElapsed(0); return; }
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [isWaiting]);
 
   useEffect(() => { fetchConfig(); }, []);
 
@@ -253,6 +262,32 @@ function OpenwaSettings() {
           </div>
         </div>
       </div>
+
+      {isWaiting && !qrCode && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+              {elapsed < 60
+                ? `Esperando QR... ${elapsed}s`
+                : `Esperando QR... ${Math.floor(elapsed / 60)}m ${elapsed % 60}s`}
+            </span>
+            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Inicializando Chromium</span>
+          </div>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-muted)" }}>
+            <div className="h-full rounded-full" style={{
+              width: `${Math.min((elapsed / 30) * 100, 95)}%`,
+              background: "linear-gradient(90deg, var(--accent), var(--accent-hover))",
+              transition: "width 1s ease-in-out",
+            }} />
+          </div>
+          <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>
+            {elapsed < 10 ? "Iniciando motor..." :
+             elapsed < 20 ? "Lanzando Chromium..." :
+             elapsed < 30 ? "Cargando WhatsApp Web..." :
+             "Preparando QR (puede tardar hasta 2min en containers)"}
+          </p>
+        </div>
+      )}
 
       {qrCode && (
         <div className="card mb-6 text-center">

@@ -142,6 +142,14 @@ function OpenwaSettings() {
     return () => clearInterval(t);
   }, [isWaiting]);
 
+  useEffect(() => {
+    if (qrCode && elapsed >= 120) {
+      setQrCode(null);
+      setElapsed(0);
+      api.post("/api/openwa/session/start").catch(() => {}).finally(() => fetchStatus());
+    }
+  }, [elapsed, qrCode]);
+
   useEffect(() => { fetchConfig(); }, []);
 
   async function fetchConfig() {
@@ -292,10 +300,20 @@ function OpenwaSettings() {
       {qrCode && (
         <div className="card mb-6 text-center">
           <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Escanear QR</h3>
-          <p className="text-sm mb-4" style={{ color: "var(--text-tertiary)" }}>
+          <p className="text-sm mb-2" style={{ color: "var(--text-tertiary)" }}>
             Abre WhatsApp en tu telefono &rarr; Men &rarr; Dispositivos vinculados &rarr; Vincular dispositivo
           </p>
+          {elapsed >= 60 && (
+            <p className="text-xs mb-2 font-medium" style={{ color: "var(--danger)" }}>
+              El QR expirar&aacute; en {120 - elapsed}s
+            </p>
+          )}
           <img src={qrCode} alt="QR Code" className="inline-block" style={{ width: 256, height: 256 }} />
+          {elapsed >= 120 && (
+            <p className="text-sm mt-3" style={{ color: "var(--danger)" }}>
+              QR expirado. Reintentando...
+            </p>
+          )}
         </div>
       )}
 

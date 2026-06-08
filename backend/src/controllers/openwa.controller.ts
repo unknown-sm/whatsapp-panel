@@ -26,8 +26,8 @@ function cleanChromeLocks() {
       console.log(`[cleanChromeLocks] Deleting entire session directory: ${sessionDir}`);
       fs.rmSync(sessionDir, { recursive: true, force: true });
       console.log(`[cleanChromeLocks] Deleted: ${sessionDir}`);
-    } catch (e) {
-      console.log(`[cleanChromeLocks] Failed to delete ${sessionDir}: ${e.message}`);
+    } catch {
+      console.log(`[cleanChromeLocks] Failed to delete session directory: ${sessionDir}`);
     }
   }
 }

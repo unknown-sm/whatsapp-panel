@@ -7,6 +7,10 @@ import * as path from "path";
 
 const WEBHOOK_EVENTS = ["message.received", "message.sent", "session.status", "session.disconnected"];
 
+// Cooldown: 60 segundos entre intentos de crear sesión
+const SESSION_START_COOLDOWN_MS = 60_000;
+const COOLDOWN_KEY = "last_session_start_attempt";
+
 function cleanChromeLocks() {
   const sessionsPath = process.env.OPENWA_SESSIONS_PATH || "/openwa-data/sessions";
   
@@ -209,6 +213,36 @@ export async function startSession(req: Request, res: Response) {
     await writeLog("warn", "openwa", "start_session", "OpenWA no configurado");
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
+
+  // Verificar cooldown
+  const lastAttempt = await prisma.setting.findUnique({ where: { key: COOLDOWN_KEY } });
+  if (lastAttempt) {
+    const elapsed = Date.now() - new Date(lastAttempt.value).getTime();
+    if (elapsed < SESSION_START_COOLDOWN_MS) {
+      const remaining = Math.ceil((SESSION_START_COOLDOWN_MS - elapsed) / 1000);
+      return res.status(429).json({ 
+        error: `Esperá ${remaining}s antes de intentar otra vez. WhatsApp banea por intentos rápidos.`,
+        cooldown: remaining 
+      });
+    }
+  }
+
+  // Verificar si ya hay sesión usable (qr_ready o ready)
+  if (config.sessionId) {
+    try {
+      const statusRes = await axios.get(`${config.baseUrl}/api/sessions/${config.sessionId}`, {
+        headers: { "X-API-Key": config.apiKey }, timeout: 10000,
+      });
+      const currentStatus = statusRes.data?.status;
+      if (currentStatus === "qr_ready" || currentStatus === "ready") {
+        return res.status(400).json({ 
+          error: `Ya tenés una sesión ${currentStatus === "qr_ready" ? "con QR listo" : "conectada"}. Usá esa o hacé Reset primero.`,
+          sessionId: config.sessionId,
+          status: currentStatus
+        });
+      }
+    } catch {}
+  }
   try {
     await writeLog("info", "openwa", "start_session", "Limpiando sesiones duplicadas");
     await cleanupAllDuplicates({ baseUrl: config.baseUrl, apiKey: config.apiKey });
@@ -230,6 +264,13 @@ export async function startSession(req: Request, res: Response) {
     }
 
     await prisma.openwaConfig.update({ where: { id: config.id }, data: { sessionId } });
+
+    // Guardar timestamp del intento para cooldown
+    await prisma.setting.upsert({
+      where: { key: COOLDOWN_KEY },
+      update: { value: new Date().toISOString() },
+      create: { key: COOLDOWN_KEY, value: new Date().toISOString() },
+    });
 
     const startStatus = await checkSessionStatus({ baseUrl: config.baseUrl, apiKey: config.apiKey, sessionId });
     await writeLog("info", "openwa", "start_session", `Sesion creada: ${sessionId}, status actual: ${startStatus}`, { sessionId, status: startStatus });

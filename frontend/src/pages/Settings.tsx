@@ -131,6 +131,7 @@ function OpenwaSettings() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [webhookMsg, setWebhookMsg] = useState("");
   const [elapsed, setElapsed] = useState(0);
 
@@ -141,6 +142,12 @@ function OpenwaSettings() {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
   }, [isWaiting]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [cooldown]);
 
   useEffect(() => { fetchConfig(); }, []);
 
@@ -202,8 +209,14 @@ function OpenwaSettings() {
       await api.post("/api/openwa/session/start");
       fetchStatus();
     } catch (e: any) {
-      const err = e.response?.data?.error || "Error al iniciar sesion";
-      alert(err + "\n\nRevisa la sección Logs para mas detalles.");
+      if (e.response?.status === 429) {
+        const cd = e.response.data.cooldown || 60;
+        setCooldown(cd);
+        alert(`Cooldown activo: esperá ${cd}s. ${e.response.data.error}`);
+      } else {
+        const err = e.response?.data?.error || "Error al iniciar sesion";
+        alert(err + "\n\nRevisa la sección Logs para mas detalles.");
+      }
     } finally { setStarting(false); }
   }
 
@@ -257,17 +270,27 @@ function OpenwaSettings() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleReset} className="btn-secondary text-xs px-2 py-1">Reset</button>
-            <button onClick={handleWebhook} className="btn-secondary text-xs px-2 py-1">Webhook</button>
-            <button onClick={handleStart} disabled={starting} className="btn-primary text-xs px-2 py-1 disabled:opacity-50">
-              {starting ? "Iniciando..." : "Conectar"}
-            </button>
-          </div>
-        </div>
+      <div className="flex gap-2">
+        <button onClick={handleReset} className="btn-secondary text-xs px-2 py-1">Reset</button>
+        <button onClick={handleWebhook} className="btn-secondary text-xs px-2 py-1">Webhook</button>
+        <button onClick={handleStart} disabled={starting || cooldown > 0} className="btn-primary text-xs px-2 py-1 disabled:opacity-50">
+          {starting ? "Iniciando..." : cooldown > 0 ? `Esperá ${cooldown}s` : "Conectar"}
+        </button>
       </div>
+    </div>
 
-      {isWaiting && !qrCode && (
+    {cooldown > 0 && (
+      <div className="card mb-4 text-center" style={{ borderColor: "var(--warning-muted)", background: "var(--warning-muted)" }}>
+        <p className="text-sm font-medium" style={{ color: "var(--warning)" }}>
+          ⏳ Cooldown anti-ban: {cooldown}s restantes
+        </p>
+        <p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>
+          WhatsApp banea cuentas que crean sesiones muy rápido. No insistás.
+        </p>
+      </div>
+    )}
+
+    {isWaiting && !qrCode && (
         <div className="card mb-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>

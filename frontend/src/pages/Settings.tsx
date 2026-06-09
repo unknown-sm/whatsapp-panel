@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
-import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff } from "lucide-react";
+import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Zap } from "lucide-react";
 
 export default function Settings() {
   const user = useAuthStore((s) => s.user);
@@ -349,6 +349,8 @@ function AISettings() {
   const [showCreate, setShowCreate] = useState(false);
   const [newConfig, setNewConfig] = useState({ name: "", provider: "openai", apiKey: "", model: "", endpoint: "" });
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   useEffect(() => { fetchConfigs(); }, []);
 
@@ -369,6 +371,22 @@ function AISettings() {
 
   async function handleSetDefault(id: string) { await api.put(`/api/ai/${id}/default`); fetchConfigs(); }
   async function handleDelete(id: string) { if (confirm("Eliminar esta config?")) { await api.delete(`/api/ai/${id}`); fetchConfigs(); } }
+
+  async function handleTestGenerate(cfg: any) {
+    setTesting(cfg.id);
+    setTestResult(null);
+    try {
+      const { data } = await api.post("/api/ai/test-generate", {
+        configId: cfg.id,
+        messages: [{ role: "user", content: "Hola, respondeme en una frase corta." }],
+        systemPrompt: "Sos un asistente de prueba. Respondé breve.",
+        maxTokens: 100,
+      });
+      setTestResult(data.response);
+    } catch (e: any) {
+      setTestResult("Error: " + (e.response?.data?.error || e.message));
+    } finally { setTesting(null); }
+  }
 
   const providerLabels: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic", nvidia: "NVIDIA", custom: "Custom Endpoint" };
   const modelSuggestions: Record<string, string[]> = {
@@ -457,6 +475,9 @@ function AISettings() {
                   {cfg.endpoint && <p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>{cfg.endpoint}</p>}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={() => handleTestGenerate(cfg)} disabled={testing === cfg.id || saving} className="btn-secondary text-xs px-2 py-1 disabled:opacity-50">
+                    {testing === cfg.id ? <Zap size={14} className="animate-spin" /> : <Play size={14} />} Test
+                  </button>
                   {!cfg.isDefault && (
                     <button onClick={() => handleSetDefault(cfg.id)} className="text-xs px-2 py-1 rounded" style={{ background: "var(--bg-muted)", color: "var(--text-tertiary)" }}>
                       Setear default
@@ -467,6 +488,15 @@ function AISettings() {
                   </button>
                 </div>
               </div>
+              {testResult && testing !== cfg.id && (
+                <div className="mt-3 p-3 rounded text-sm" style={{ background: "var(--bg-muted)", border: "1px solid var(--border-subtle)" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>Resultado test:</span>
+                    <button onClick={() => setTestResult(null)} className="text-xs" style={{ color: "var(--text-tertiary)" }}>cerrar</button>
+                  </div>
+                  <pre className="whitespace-pre-wrap text-xs" style={{ color: "var(--text-primary)" }}>{testResult}</pre>
+                </div>
+              )}
             </div>
           ))}
         </div>

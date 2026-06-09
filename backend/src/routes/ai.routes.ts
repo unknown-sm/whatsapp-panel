@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listConfigs, createConfig, updateConfig, deleteConfig, setDefault } from "../controllers/ai.controller";
+import { listConfigs, createConfig, updateConfig, deleteConfig, setDefault, testGenerate } from "../controllers/ai.controller";
 import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
@@ -10,5 +10,6 @@ router.post("/", createConfig);
 router.put("/:id", updateConfig);
 router.delete("/:id", deleteConfig);
 router.put("/:id/default", setDefault);
+router.post("/test-generate", testGenerate);
 
 export default router;

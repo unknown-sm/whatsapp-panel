@@ -47,3 +47,16 @@ export async function setDefault(req: Request, res: Response) {
     res.status(500).json({ error: "Error al setear default" });
   }
 }
+
+export async function testGenerate(req: Request, res: Response) {
+  try {
+    const { configId, messages, systemPrompt, maxTokens } = req.body;
+    if (!configId || !messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "configId y messages[] requeridos" });
+    }
+    const response = await aiService.generateResponse(configId, messages, { systemPrompt, maxTokens });
+    res.json({ response });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Error generando respuesta" });
+  }
+}

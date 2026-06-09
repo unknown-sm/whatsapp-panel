@@ -154,13 +154,17 @@ function OpenwaSettings() {
   async function fetchStatus() {
     try {
       const { data } = await api.get("/api/openwa/status");
+      const prevStatus = status?.session?.status;
+      const newStatus = data.session?.status;
       setStatus(data);
-      if (data.session?.status === "qr_ready") {
+      
+      // Solo buscar QR si: no tenemos QR Y (es primera vez qr_ready O recien cambió a qr_ready)
+      if (!qrCode && newStatus === "qr_ready") {
         try {
           const qr = await api.get("/api/openwa/qr");
           setQrCode(qr.data.qrCode || null);
-        } catch {} // QR not ready yet, next poll will retry
-      } else {
+        } catch {}
+      } else if (newStatus !== "qr_ready") {
         setQrCode(null);
       }
     } catch {}

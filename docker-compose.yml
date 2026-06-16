@@ -15,66 +15,6 @@ services:
     networks:
       - app-network
 
-  openwa:
-    build:
-      context: ./openwa
-      dockerfile: Dockerfile
-    image: whatsapp-panel-openwa:latest
-    shm_size: '2gb'
-    environment:
-      NODE_ENV: production
-      API_PORT: 2785
-      LOG_LEVEL: warn
-      CORS_ORIGINS: "*"
-      ENGINE_TYPE: whatsapp-web.js
-      SESSION_DATA_PATH: /app/data/sessions
-      PUPPETEER_HEADLESS: "true"
-      PUPPETEER_ARGS: --no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu,--disable-features=LockProfileDirectory,--disable-background-networking,--disable-background-timer-throttling,--disable-backgrounding-occluded-windows,--disable-breakpad,--disable-component-extensions-with-background-pages,--disable-component-update,--disable-default-apps,--disable-dev-shm-usage,--disable-domain-reliability,--disable-extensions,--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process,--disable-gpu,--disable-hang-monitor,--disable-ipc-flooding-protection,--disable-notifications,--disable-offer-store-unmasked-wallet-cards,--disable-popup-blocking,--disable-print-preview,--disable-prompt-on-repost,--disable-renderer-backgrounding,--disable-setuid-sandbox,--disable-speech-api,--disable-sync,--disable-translate,--disable-web-security,--disable-webgl,--hide-scrollbars,--ignore-gpu-blacklist,--metrics-recording-only,--mute-audio,--no-default-browser-check,--no-first-run,--no-pings,--no-sandbox,--no-zygote
-      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome-stable
-      DATABASE_TYPE: sqlite
-      STORAGE_TYPE: local
-      STORAGE_LOCAL_PATH: /app/data/media
-      WEBHOOK_TIMEOUT: "10000"
-      WEBHOOK_MAX_RETRIES: "3"
-      WEBHOOK_RETRY_DELAY: "5000"
-      DATABASE_SYNCHRONIZE: "true"
-      ENABLE_SWAGGER: "false"
-      API_MASTER_KEY: ${API_MASTER_KEY:-openwa-dev-master-key-2024}
-    volumes:
-      - openwa-data:/app/data
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:2785/api/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.openwa.rule=Host(`openwa.zwpkae.easypanel.host`)"
-      - "traefik.http.routers.openwa.entrypoints=websecure"
-      - "traefik.http.routers.openwa.tls.certresolver=leresolver"
-      - "traefik.http.services.openwa.loadbalancer.server.port=2785"
-    networks:
-      - app-network
-
-  openwa-dashboard:
-    build:
-      context: ./dashboard
-      dockerfile: Dockerfile
-    environment:
-      NODE_ENV: production
-    depends_on:
-      - openwa
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.openwa-dashboard.rule=Host(`openwa-dashboard.zwpkae.easypanel.host`)"
-      - "traefik.http.routers.openwa-dashboard.entrypoints=websecure"
-      - "traefik.http.routers.openwa-dashboard.tls.certresolver=leresolver"
-      - "traefik.http.services.openwa-dashboard.loadbalancer.server.port=80"
-    networks:
-      - app-network
-
   whatsapp-panel:
     build:
       context: .
@@ -88,13 +28,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: https://whatsapp-panel.zwpkae.easypanel.host
-      WHATSAPP_ENGINE: openwa
+      WHATSAPP_ENGINE: meta
       WEBHOOK_BASE_URL: https://whatsapp-panel.zwpkae.easypanel.host
-      OPENWA_URL: http://openwa:2785
-      OPENWA_API_KEY: ${API_MASTER_KEY:-openwa-dev-master-key-2024}
-      OPENWA_SESSIONS_PATH: /openwa-data/sessions
-    volumes:
-      - openwa-data:/openwa-data:rw
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-whatsapp-panel-verify}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-panel.zwpkae.easypanel.host`)"
@@ -104,14 +42,11 @@ services:
     depends_on:
       whatsapp-db:
         condition: service_healthy
-      openwa:
-        condition: service_healthy
     networks:
       - app-network
 
 volumes:
   whatsapp-db-data:
-  openwa-data:
 
 networks:
   app-network:

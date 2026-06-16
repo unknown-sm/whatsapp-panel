@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as botService from "../services/bot.service";
 import * as flowService from "../services/flow.service";
 import * as aiService from "../services/ai.service";
+import prisma from "../lib/prisma";
 import { z } from "zod";
 
 export async function listBots(req: Request, res: Response) {
@@ -115,7 +116,7 @@ export async function testBot(req: Request, res: Response) {
       { role: "user" as const, content: message || "Hola" },
     ];
 
-    const response = await aiService.generateResponse(configId, messages, { botId });
+    const response = await aiService.generateResponse(configId!, messages, { botId });
     res.json({ response, botId, botName: bot.name, configId });
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Error probando bot" });

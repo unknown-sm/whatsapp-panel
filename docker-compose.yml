@@ -16,7 +16,7 @@ services:
       - app-network
 
   openwa:
-    image: rmyndharis/openwa:latest
+    image: ghcr.io/rmyndharis/openwa:latest
     container_name: openwa
     restart: unless-stopped
     environment:

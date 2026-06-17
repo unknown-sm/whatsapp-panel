@@ -5,10 +5,11 @@ import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, 
 
 export default function Settings() {
   const user = useAuthStore((s) => s.user);
-const [activeTab, setActiveTab] = useState<"whatsapp" | "ai" | "bots" | "users" | "customfields">("whatsapp");
+const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots" | "users" | "customfields">("whatsapp");
 
   const tabs = [
     { id: "whatsapp" as const, label: "WhatsApp" },
+    { id: "openwa" as const, label: "WhatsApp Personal" },
     { id: "ai" as const, label: "Inteligencia Artificial" },
     { id: "bots" as const, label: "Bots" },
     ...(user?.role === "ADMIN" ? [{ id: "users" as const, label: "Usuarios" }] : []),
@@ -39,6 +40,7 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "ai" | "bots" | "users" 
       </div>
 
       {activeTab === "whatsapp" && <WhatsappSettings />}
+      {activeTab === "openwa" && <OpenwaSettings />}
       {activeTab === "ai" && <AISettings />}
       {activeTab === "bots" && <BotSettings />}
       {activeTab === "users" && user?.role === "ADMIN" && <UserSettings />}
@@ -117,6 +119,256 @@ function WhatsappSettings() {
           <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>
             Configura esta URL en tu app de Meta Developers &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL
           </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+function OpenwaSettings() {
+  const [config, setConfig] = useState({ baseUrl: "http://openwa:2785", apiKey: "", sessionId: "" });
+  const [status, setStatus] = useState<{ status: string; session: any; sessions: any[] } | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [webhookMsg, setWebhookMsg] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+
+  const isWaiting = status?.status === "initializing" || status?.status === "created" || status?.status === "qr_ready";
+
+  useEffect(() => {
+    if (!isWaiting) { setElapsed(0); return; }
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [isWaiting]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setInterval(() => setCooldown((c) => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [cooldown]);
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    try {
+      const { data } = await api.get("/api/openwa/config");
+      if (data.config) setConfig({ baseUrl: data.config.baseUrl, apiKey: data.config.apiKey, sessionId: data.config.sessionId || "" });
+    } catch {}
+  }
+
+  async function fetchStatus() {
+    try {
+      const { data } = await api.get("/api/openwa/status");
+      const newStatus = data.session?.status;
+      setStatus(data);
+      if (!qrCode && newStatus === "qr_ready") {
+        try {
+          const qr: any = await api.get("/api/openwa/qr");
+          setQrCode(qr.data.qrCode || null);
+        } catch {}
+      } else if (newStatus !== "qr_ready") {
+        setQrCode(null);
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, status?.status === "ready" ? 5000 : 3000);
+    return () => clearInterval(interval);
+  }, [status?.status]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.put("/api/openwa/config", config);
+      fetchConfig();
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al guardar config");
+    } finally { setSaving(false); }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    try {
+      const { data }: any = await api.post("/api/openwa/test", config);
+      alert(`Conexion exitosa! Sesiones: ${data.sessions?.length || 0}`);
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error de conexion");
+    } finally { setTesting(false); }
+  }
+
+  async function handleStart() {
+    setStarting(true);
+    try {
+      await api.post("/api/openwa/session/start");
+      fetchStatus();
+    } catch (e: any) {
+      if (e.response?.status === 429) {
+        const cd = e.response.data.cooldown || 60;
+        setCooldown(cd);
+        alert(`Cooldown activo: esperá ${cd}s. ${e.response.data.error}`);
+      } else {
+        const err = e.response?.data?.error || "Error al iniciar sesion";
+        alert(err + "\n\nRevisa la sección Logs para mas detalles.");
+      }
+    } finally { setStarting(false); }
+  }
+
+  async function handleReset() {
+    if (!confirm("Esto eliminará TODAS las sesiones whatsapp-panel en OpenWA. Continuar?")) return;
+    try {
+      const { data }: any = await api.post("/api/openwa/session/reset");
+      alert(data.message || "Conexion reseteada");
+      setQrCode(null);
+      fetchStatus();
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al resetear");
+    }
+  }
+
+  async function handleWebhook() {
+    try {
+      const { data }: any = await api.post("/api/openwa/webhook/setup");
+      setWebhookMsg(data.message);
+    } catch (e: any) {
+      alert(e.response?.data?.error || "Error al configurar webhook");
+    }
+  }
+
+  const statusColor =
+    status?.status === "ready" ? "var(--accent)" :
+    status?.status === "authenticating" ? "#3B82F6" :
+    status?.status === "initializing" || status?.status === "qr_ready" || status?.status === "created" ? "#F59E0B" :
+    "var(--danger)";
+  const statusLabel =
+    status?.status === "ready" ? "Conectado" :
+    status?.status === "created" ? "Creando sesion..." :
+    status?.status === "initializing" ? "Inicializando..." :
+    status?.status === "qr_ready" ? "Escanear QR" :
+    status?.status === "authenticating" ? "Autenticando..." :
+    status?.status === "failed" ? "Error" :
+    "Desconectado";
+
+  return (
+    <div className="max-w-2xl">
+      <div className="card mb-4" style={{ borderColor: "#F59E0B", background: "#FEF3C7" }}>
+        <p className="text-sm font-medium" style={{ color: "#92400E" }}>
+          ⚠ Solo para WhatsApp personal. No usar con WhatsApp Business API. Meta detecta y banea cuentas Business que usan clientes no oficiales.
+        </p>
+      </div>
+
+      <div className="card mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div style={{ width: 12, height: 12, borderRadius: "50%", background: statusColor }} />
+            <div>
+              <p className="font-medium" style={{ color: "var(--text-primary)" }}>{statusLabel}</p>
+              {status?.session && (
+                <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                  {status.session.name}{status.session.phone ? ` - ${status.session.phone}` : ""}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleReset} className="btn-secondary text-xs px-2 py-1">Reset</button>
+            <button onClick={handleWebhook} className="btn-secondary text-xs px-2 py-1">Webhook</button>
+            <button onClick={handleStart} disabled={starting || cooldown > 0} className="btn-primary text-xs px-2 py-1 disabled:opacity-50">
+              {starting ? "Iniciando..." : cooldown > 0 ? `Esperá ${cooldown}s` : "Conectar"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {cooldown > 0 && (
+        <div className="card mb-4 text-center" style={{ borderColor: "var(--warning-muted)", background: "var(--warning-muted)" }}>
+          <p className="text-sm font-medium" style={{ color: "var(--warning)" }}>
+            ⏳ Cooldown anti-ban: {cooldown}s restantes
+          </p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-tertiary)" }}>
+            WhatsApp banea cuentas que crean sesiones muy rápido. No insistas.
+          </p>
+        </div>
+      )}
+
+      {isWaiting && !qrCode && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+              {elapsed < 60
+                ? `Esperando QR... ${elapsed}s`
+                : `Esperando QR... ${Math.floor(elapsed / 60)}m ${elapsed % 60}s`}
+            </span>
+            <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>Inicializando Chromium</span>
+          </div>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-muted)" }}>
+            <div className="h-full rounded-full" style={{
+              width: `${Math.min((elapsed / 30) * 100, 95)}%`,
+              background: "linear-gradient(90deg, var(--accent), var(--accent-hover))",
+              transition: "width 1s ease-in-out",
+            }} />
+          </div>
+          <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>
+            {elapsed < 10 ? "Iniciando motor WhatsApp..." :
+             elapsed < 20 ? "Cargando WhatsApp Web..." :
+             "Generando QR para escanear"}
+          </p>
+        </div>
+      )}
+
+      {qrCode && (
+        <div className="card mb-6 text-center">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Escanear QR</h3>
+          <p className="text-sm mb-2" style={{ color: "var(--text-tertiary)" }}>
+            Abrí WhatsApp en tu teléfono → Menú → Dispositivos vinculados → Vincular dispositivo
+          </p>
+          {elapsed >= 60 && elapsed < 120 && (
+            <p className="text-xs mb-2 font-medium" style={{ color: "var(--danger)" }}>
+              El QR expirará en {120 - elapsed}s
+            </p>
+          )}
+          <img src={qrCode} alt="QR Code" className="inline-block" style={{ width: 256, height: 256 }} />
+          {elapsed >= 120 && (
+            <div className="mt-3">
+              <p className="text-sm mb-3" style={{ color: "var(--danger)" }}>
+                QR expirado
+              </p>
+              <button onClick={handleStart} className="btn-primary">
+                Generar nuevo QR
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {webhookMsg && (
+        <div className="card mb-6 text-sm" style={{ borderColor: "var(--accent-muted)" }}>
+          <p style={{ color: "var(--accent)" }}>{webhookMsg}</p>
+        </div>
+      )}
+
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Conexión OpenWA</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Base URL</label>
+            <input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} className="input" placeholder="http://openwa:2785" />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>API Key</label>
+            <input type="password" value={config.apiKey} onChange={(e) => setConfig({ ...config, apiKey: e.target.value })} className="input" placeholder="owa_k1_..." />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Session ID</label>
+            <input value={config.sessionId} onChange={(e) => setConfig({ ...config, sessionId: e.target.value })} className="input" placeholder="UUID de sesión (dejar vacío para crear nueva)" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50"><Save size={16} /> {saving ? "Guardando..." : "Guardar"}</button>
+            <button onClick={handleTest} disabled={testing || !config.apiKey} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexión"}</button>
+          </div>
         </div>
       </div>
     </div>

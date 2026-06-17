@@ -8,6 +8,8 @@ export interface IWhatsAppEngine {
 }
 
 export function resolveEngine(): IWhatsAppEngine {
+  const engine = process.env.WHATSAPP_ENGINE || "meta";
+  if (engine === "openwa") return new OpenWAEngine();
   return new MetaEngine();
 }
 
@@ -50,5 +52,44 @@ class MetaEngine implements IWhatsAppEngine {
   async getStatus() {
     const config = await prisma.whatsappConfig.findFirst();
     return { status: config?.status || "offline", lastPing: config?.lastPing?.toISOString() || null, configured: !!config?.phoneNumberId };
+  }
+}
+
+class OpenWAEngine implements IWhatsAppEngine {
+  private baseUrl = process.env.OPENWA_BASE_URL || "http://openwa:2785";
+  private apiKey = process.env.OPENWA_API_KEY || "";
+
+  private getHeaders() {
+    return { "x-api-key": this.apiKey, "Content-Type": "application/json" };
+  }
+
+  async sendText(phone: string, message: string): Promise<boolean> {
+    try {
+      await axios.post(`${this.baseUrl}/sendText`, { phone, message }, { headers: this.getHeaders() });
+      return true;
+    } catch (error: any) {
+      console.error("OpenWA sendText error:", error.response?.data || error.message);
+      return false;
+    }
+  }
+
+  async sendMedia(phone: string, mediaId: string, type: "image" | "video" | "document"): Promise<boolean> {
+    try {
+      const mediaUrl = `https://graph.facebook.com/v21.0/${mediaId}`;
+      await axios.post(`${this.baseUrl}/sendImage`, { phone, mediaUrl }, { headers: this.getHeaders() });
+      return true;
+    } catch (error: any) {
+      console.error("OpenWA sendMedia error:", error.response?.data || error.message);
+      return false;
+    }
+  }
+
+  async getStatus() {
+    try {
+      const { data } = await axios.get(`${this.baseUrl}/session/status`, { headers: this.getHeaders() });
+      return { status: data.status || "unknown", lastPing: null, configured: !!this.apiKey };
+    } catch {
+      return { status: "offline", lastPing: null, configured: !!this.apiKey };
+    }
   }
 }

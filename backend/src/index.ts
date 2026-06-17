@@ -18,7 +18,7 @@ import leadScoreRoutes from "./routes/leadscore.routes";
 import broadcastRoutes from "./routes/broadcast.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import customFieldRoutes from "./routes/customfield.routes";
-
+import openwaRoutes from "./routes/openwa.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
 import logsRoutes from "./routes/logs.routes";
 import { checkFollowUps } from "./services/followup.service";
@@ -241,6 +241,7 @@ app.use("/api/leadscore", leadScoreRoutes);
 app.use("/api/broadcast", broadcastRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/customfields", customFieldRoutes);
+app.use("/api/openwa", openwaRoutes);
 app.use("/api/logs", logsRoutes);
 
 // SPA fallback: send index.html for any non-API route

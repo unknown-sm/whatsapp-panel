@@ -15,6 +15,25 @@ services:
     networks:
       - app-network
 
+  openwa:
+    image: rmyndharis/openwa:latest
+    container_name: openwa
+    restart: unless-stopped
+    environment:
+      - OA_BASE_URL=http://localhost:2785
+      - OA_CONFIG_PATH=/config
+      - OA_HEADLESS=true
+      - OA_RECONNECTION=true
+      - OA_RECONNECTION_INTERVAL=5000
+      - OA_RECOVERY_TOKEN=false
+      - OA_QRCODE_LOG=true
+      - WA_BROWSER_PATH=/usr/bin/chromium-browser
+      - WA_CHROMIUM_REVISION=119
+    volumes:
+      - openwa-data:/config
+    networks:
+      - app-network
+
   whatsapp-panel:
     build:
       context: .
@@ -33,6 +52,8 @@ services:
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-whatsapp-panel-verify}
+      OPENWA_BASE_URL: ${OPENWA_BASE_URL:-http://openwa:2785}
+      OPENWA_API_KEY: ${OPENWA_API_KEY}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-panel.zwpkae.easypanel.host`)"
@@ -47,6 +68,7 @@ services:
 
 volumes:
   whatsapp-db-data:
+  openwa-data:
 
 networks:
   app-network:

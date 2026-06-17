@@ -1,0 +1,9 @@
+node_modules
+.git
+.opencode
+OpenWA
+graphify-out
+.gstack
+AGENTS.md
+*.md
+test.txt

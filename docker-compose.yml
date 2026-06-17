@@ -47,7 +47,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: https://whatsapp-panel.zwpkae.easypanel.host
-      WHATSAPP_ENGINE: meta
+      WHATSAPP_ENGINE: ${WHATSAPP_ENGINE:-openwa}
       WEBHOOK_BASE_URL: https://whatsapp-panel.zwpkae.easypanel.host
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}

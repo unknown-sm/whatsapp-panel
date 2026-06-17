@@ -367,7 +367,7 @@ function OpenwaSettings() {
           </div>
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50"><Save size={16} /> {saving ? "Guardando..." : "Guardar"}</button>
-            <button onClick={handleTest} disabled={testing || !config.apiKey} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexión"}</button>
+            <button onClick={handleTest} disabled={testing} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexión"}</button>
           </div>
         </div>
       </div>

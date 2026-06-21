@@ -12,8 +12,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks:
-      - app-network
 
   openwa:
     image: ghcr.io/rmyndharis/openwa:latest
@@ -31,8 +29,6 @@ services:
       - WA_CHROMIUM_REVISION=119
     volumes:
       - openwa-data:/config
-    networks:
-      - app-network
 
   whatsapp-panel:
     build:
@@ -63,13 +59,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - app-network
 
 volumes:
   whatsapp-db-data:
   openwa-data:
-
-networks:
-  app-network:
-    driver: bridge

@@ -18,7 +18,7 @@ COPY --from=builder /app/backend/prisma backend/prisma
 COPY --from=builder /app/frontend/dist frontend/dist
 COPY --from=builder /app/backend/package.json backend/
 COPY --from=builder /app/package.json ./
-EXPOSE 4000
+EXPOSE 80
 ENV NODE_ENV=production
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD wget -qO- http://localhost:4000/api/health || exit 1
 USER root

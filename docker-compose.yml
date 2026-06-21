@@ -55,6 +55,12 @@ services:
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-whatsapp-panel-verify}
       OPENWA_BASE_URL: ${OPENWA_BASE_URL:-http://openwa:2785}
       OPENWA_API_KEY: ${OPENWA_API_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whatsapp-panel.rule=Host(`whatsapp-cmr-crm-whatsapp.zwpkae.easypanel.host`)"
+      - "traefik.http.routers.whatsapp-panel.entrypoints=websecure"
+      - "traefik.http.routers.whatsapp-panel.tls.certresolver=leresolver"
+      - "traefik.http.services.whatsapp-panel.loadbalancer.server.port=4000"
     depends_on:
       whatsapp-db:
         condition: service_healthy

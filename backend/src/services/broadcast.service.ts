@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../lib/prisma";
 import { sendWhatsAppMessage } from "./whatsapp.service";
-
-const prisma = new PrismaClient();
 
 // ─── Templates ─────────────────────────────────────
 

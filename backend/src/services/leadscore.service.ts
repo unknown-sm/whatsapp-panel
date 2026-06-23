@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../lib/prisma";
 
 // ─── Rules ─────────────────────────────────────────
 
@@ -54,6 +52,14 @@ export async function addScore(data: {
     },
     include: { contact: true, rule: true },
   });
+}
+
+export async function addScoreByCondition(contactId: string, condition: string, reason: string) {
+  const rule = await prisma.leadScoreRule.findFirst({
+    where: { condition: condition as any, isActive: true },
+  });
+  if (!rule) return null;
+  return addScore({ contactId, ruleId: rule.id, points: rule.points, reason });
 }
 
 export async function getContactScores(contactId: string) {

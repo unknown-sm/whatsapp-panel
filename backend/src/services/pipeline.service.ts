@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../lib/prisma";
 
 export async function createPipeline(data: { name: string; description?: string }) {
   return prisma.pipeline.create({

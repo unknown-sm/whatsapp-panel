@@ -4,6 +4,9 @@ import { io } from "../index";
 import { generateResponse, classifyIntent } from "./ai.service";
 import { resolveEngine } from "./whatsapp-engine";
 import { findBotByKeyword } from "./bot.service";
+import { addScoreByCondition } from "./leadscore.service";
+import * as sessionService from "./session.service";
+import * as attributionService from "./attribution.service";
 
 const engine = resolveEngine();
 
@@ -37,6 +40,15 @@ export async function processIncomingMessage(data: any) {
 
       await prisma.contact.update({ where: { id: contact.id }, data: { lastActivity: new Date() } });
 
+      // Session Manager: track 24h window
+      sessionService.trackInbound(contact.id).catch(() => {});
+
+      // Attribution: parse ref parameter from CTWA ads
+      const ref = data.ref || data.entry?.[0]?.changes?.[0]?.value?.ref;
+      if (ref) {
+        attributionService.parseRefAndTrack(contact.id, ref, data.metadata).catch(() => {});
+      }
+
       let conversation = await prisma.conversation.findFirst({
         where: { contactId: contact.id, status: "active" },
         orderBy: { updatedAt: "desc" },
@@ -53,6 +65,14 @@ export async function processIncomingMessage(data: any) {
       await prisma.message.create({
         data: { conversationId: conversation.id, direction: "inbound", type: "text", content: text },
       });
+
+      // Lead scoring: MESSAGE_RECEIVED
+      addScoreByCondition(contact.id, "MESSAGE_RECEIVED", "Mensaje recibido por WhatsApp").catch(() => {});
+
+      // Lead scoring: KEYWORD_MATCHED if bot matched
+      if (conversation.botId) {
+        addScoreByCondition(contact.id, "KEYWORD_MATCHED", `Keyword detectada: "${text.substring(0, 50)}"`).catch(() => {});
+      }
 
       io.emit("message:new", {
         conversationId: conversation.id,

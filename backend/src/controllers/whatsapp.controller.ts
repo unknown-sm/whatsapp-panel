@@ -44,6 +44,16 @@ export async function webhookIncoming(req: Request, res: Response) {
       return res.sendStatus(200);
     }
 
+    // Extract CTWA ref parameter and metadata from Meta webhook
+    const change = payload.entry?.[0]?.changes?.[0];
+    const msg = change?.value?.messages?.[0];
+    if (msg?.ref) {
+      payload.ref = msg.ref;
+    }
+    if (change?.value?.metadata) {
+      payload.metadata = change.value.metadata;
+    }
+
     await processIncomingMessage(payload);
     res.sendStatus(200);
   } catch (error) {

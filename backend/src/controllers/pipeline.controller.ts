@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as pipelineService from "../services/pipeline.service";
+import { addScoreByCondition } from "../services/leadscore.service";
 
 // ─── Pipelines ─────────────────────────────────────
 
@@ -83,6 +84,12 @@ export async function deleteStage(req: Request, res: Response) {
 export async function createDeal(req: Request, res: Response) {
   try {
     const deal = await pipelineService.createDeal(req.body);
+
+    // Lead scoring: DEAL_CREATED
+    if (deal.contactId) {
+      addScoreByCondition(deal.contactId, "DEAL_CREATED", `Deal creado: ${deal.name}`).catch(() => {});
+    }
+
     res.status(201).json(deal);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -121,6 +128,12 @@ export async function moveDeal(req: Request, res: Response) {
   try {
     const { dealId, stageId } = req.body;
     const deal = await pipelineService.moveDeal(dealId, stageId);
+
+    // Lead scoring: DEAL_WON
+    if (deal.status === "WON" && deal.contactId) {
+      addScoreByCondition(deal.contactId, "DEAL_WON", `Deal ganado: ${deal.name}`).catch(() => {});
+    }
+
     res.json(deal);
   } catch (err: any) {
     res.status(400).json({ error: err.message });

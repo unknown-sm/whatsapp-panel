@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as convService from "../services/conversation.service";
+import { addScoreByCondition } from "../services/leadscore.service";
 import { io } from "../index";
 import { z } from "zod";
 
@@ -57,6 +58,12 @@ export async function updateStatus(req: Request, res: Response) {
     const { status } = z.object({ status: z.string() }).parse(req.body);
     const conv = await convService.updateStatus(req.params.id, status);
     io.emit("conversation:updated", { id: req.params.id, status });
+
+    // Lead scoring: CONVERSATION_CLOSED
+    if (status === "closed" && conv?.contactId) {
+      addScoreByCondition(conv.contactId, "CONVERSATION_CLOSED", "Conversacion cerrada").catch(() => {});
+    }
+
     res.json({ conversation: conv });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
@@ -80,6 +87,10 @@ export async function addTag(req: Request, res: Response) {
   try {
     const { tagId } = z.object({ tagId: z.string().uuid() }).parse(req.body);
     await convService.addTag(req.params.contactId, tagId);
+
+    // Lead scoring: TAG_ADDED
+    addScoreByCondition(req.params.contactId, "TAG_ADDED", "Tag agregado al contacto").catch(() => {});
+
     res.json({ message: "Tag agregado" });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });

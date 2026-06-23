@@ -23,7 +23,7 @@ import knowledgeRoutes from "./routes/knowledge.routes";
 import logsRoutes from "./routes/logs.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
-import { PrismaClient } from "@prisma/client";
+import prisma from "./lib/prisma";
 import bcrypt from "bcrypt";
 import { execSync } from "child_process";
 
@@ -31,10 +31,18 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = "postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel";
   console.warn("DATABASE_URL no definida, usando fallback interno");
 }
-const prisma = new PrismaClient();
 
 async function seedDatabase() {
   console.log("=== Iniciando seed ===");
+
+  // Apply schema changes
+  try {
+    execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
+    console.log("Schema aplicado correctamente");
+  } catch (e) {
+    console.error("Schema push error (continuing):", e instanceof Error ? e.message : e);
+  }
+
   // Admin User
   try {
     const existingAdmin = await prisma.user.findUnique({ where: { email: "admin@whatsapp-panel.com" } });

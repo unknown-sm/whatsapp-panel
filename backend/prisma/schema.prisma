@@ -223,6 +223,9 @@ model Contact {
   deals        Deal[]
   broadcastRecipients BroadcastRecipient[]
   customFieldValues   CustomFieldValue[]
+  conversationWindow  ConversationWindow?
+  adAttributions      AdAttribution[]
+  abTestAssignments   PlaybookABTestAssignment[]
 }
 
 model ContactTags {
@@ -593,4 +596,152 @@ model CustomFieldValue {
   @@index([customFieldId])
   @@index([contactId])
   @@index([dealId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// SESSION MANAGER — 24h Window Tracking (Meta API compliance)
+// ═══════════════════════════════════════════════════════════
+
+model ConversationWindow {
+  id              String    @id @default(uuid())
+  contactId       String    @unique
+  lastInboundAt   DateTime
+  windowExpiresAt DateTime
+  isOpen          Boolean   @default(true)
+  lastCategory    String?   // "service", "marketing", "utility"
+  totalCost       Float     @default(0)
+  messageCount    Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([contactId])
+  @@index([windowExpiresAt])
+}
+
+// ═══════════════════════════════════════════════════════════
+// AD ATTRIBUTION — CTWA Tracking
+// ═══════════════════════════════════════════════════════════
+
+model AdAttribution {
+  id              String    @id @default(uuid())
+  contactId       String
+  adId            String?
+  campaignId      String?
+  adSetId         String?
+  creativeId      String?
+  source          String    @default("whatsapp") // "facebook", "instagram", "google", "whatsapp"
+  medium          String    @default("paid_social") // "paid_social", "organic", "referral"
+  campaign        String?
+  adSetName       String?
+  adName          String?
+  refParameter    String?
+  utmSource       String?
+  utmCampaign     String?
+  utmContent      String?
+  utmTerm         String?
+  firstMessageAt  DateTime  @default(now())
+  conversionAt    DateTime?
+  conversionValue Float?
+  createdAt       DateTime  @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([contactId])
+  @@index([campaignId])
+  @@index([source])
+}
+
+// ═══════════════════════════════════════════════════════════
+// SALES PLAYBOOKS — Metodologias de venta
+// ═══════════════════════════════════════════════════════════
+
+model SalesPlaybook {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  methodology String   // "SPIN", "BANT", "AIDA", "CHALLENGER", "CONSULTATIVE"
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stages  PlaybookStage[]
+  abTests PlaybookABTest[] @relation("PlaybookA")
+  abTestsB PlaybookABTest[] @relation("PlaybookB")
+}
+
+model PlaybookStage {
+  id             String @id @default(uuid())
+  playbookId     String
+  order          Int
+  name           String
+  prompt         String // El script que el bot/agente sigue
+  questionType   String @default("open") // "open", "multiple_choice", "scale"
+  options        String[] @default([])
+  nextStageLogic Json?  // Condiciones para avanzar
+  exitConditions Json?  // Condiciones para salir
+
+  playbook SalesPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  @@index([playbookId])
+}
+
+model PlaybookABTest {
+  id           String   @id @default(uuid())
+  playbookAId  String
+  playbookBId  String
+  trafficSplit Int      @default(50) // % para A
+  status       String   @default("draft") // "draft", "running", "completed", "paused"
+  metric       String   @default("conversion_rate")
+  resultsA     Json?
+  resultsB     Json?
+  winnerId     String?
+  confidence   Float?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime @default(now())
+
+  playbookA SalesPlaybook @relation("PlaybookA", fields: [playbookAId], references: [id])
+  playbookB SalesPlaybook @relation("PlaybookB", fields: [playbookBId], references: [id])
+  assignments PlaybookABTestAssignment[]
+  @@index([status])
+}
+
+model PlaybookABTestAssignment {
+  id              String   @id @default(uuid())
+  testId          String
+  contactId       String
+  variant         String   // "A" o "B"
+  converted       Boolean  @default(false)
+  conversionValue Float?
+  assignedAt      DateTime @default(now())
+
+  test    PlaybookABTest @relation(fields: [testId], references: [id], onDelete: Cascade)
+  contact Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([testId])
+  @@index([contactId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// MESSAGE TEMPLATES — Meta WhatsApp Templates
+// ═══════════════════════════════════════════════════════════
+
+model MessageTemplate {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  category          String   // "MARKETING", "UTILITY", "AUTHENTICATION"
+  language          String   @default("es")
+  status            String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "PAUSED", "DISABLED"
+  headerType        String?  // "TEXT", "IMAGE", "VIDEO", "DOCUMENT"
+  headerText        String?
+  bodyText          String
+  footerText        String?
+  buttons           Json?
+  variables         Json?
+  metaTemplateId    String?
+  qualityRating     String?
+  lastQualityUpdate DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
 }

@@ -38,7 +38,7 @@ services:
     environment:
       NODE_ENV: production
       SERVE_FRONTEND: "true"
-      PORT: "80"
+      PORT: "4000"
       DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
       JWT_SECRET: ${JWT_SECRET:-whatsapp-panel-jwt-secret-2024}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -55,7 +55,7 @@ services:
       whatsapp-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:80/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

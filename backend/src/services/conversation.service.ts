@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma";
 import { z } from "zod";
 
-export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string }) {
+export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string; page?: number; pageSize?: number }) {
   const where: any = {};
   if (filters.status) where.status = filters.status;
   if (filters.botId) where.botId = filters.botId;
@@ -10,16 +10,35 @@ export async function getConversations(filters: { status?: string; botId?: strin
     where.contact = { phone: { contains: filters.search } };
   }
 
-  return prisma.conversation.findMany({
-    where,
-    include: {
-      contact: true,
-      bot: { select: { name: true } },
-      assignedAgent: { select: { name: true, email: true } },
-      messages: { orderBy: { timestamp: "desc" }, take: 1 },
+  const page = Math.max(1, filters.page || 1);
+  const pageSize = Math.min(100, Math.max(1, filters.pageSize || 20));
+  const skip = (page - 1) * pageSize;
+
+  const [conversations, total] = await Promise.all([
+    prisma.conversation.findMany({
+      where,
+      include: {
+        contact: true,
+        bot: { select: { name: true } },
+        assignedAgent: { select: { name: true, email: true } },
+        messages: { orderBy: { timestamp: "desc" }, take: 1 },
+      },
+      orderBy: { updatedAt: "desc" },
+      skip,
+      take: pageSize,
+    }),
+    prisma.conversation.count({ where }),
+  ]);
+
+  return {
+    conversations,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
     },
-    orderBy: { updatedAt: "desc" },
-  });
+  };
 }
 
 export async function getConversation(id: string) {
@@ -77,7 +96,7 @@ export async function removeTag(contactId: string, tagId: string) {
   return prisma.contactTags.delete({ where: { contactId_tagId: { contactId, tagId } } });
 }
 
-export async function getContacts(search?: string) {
+export async function getContacts(search?: string, page?: number, pageSize?: number) {
   const where: any = {};
   if (search) {
     where.OR = [
@@ -86,14 +105,28 @@ export async function getContacts(search?: string) {
     ];
   }
 
-  return prisma.contact.findMany({
-    where,
-    include: {
-      tags: { include: { tag: true } },
-      _count: { select: { conversations: true } },
-    },
-    orderBy: { lastActivity: "desc" },
-  });
+  const p = Math.max(1, page || 1);
+  const ps = Math.min(100, Math.max(1, pageSize || 50));
+  const skip = (p - 1) * ps;
+
+  const [contacts, total] = await Promise.all([
+    prisma.contact.findMany({
+      where,
+      include: {
+        tags: { include: { tag: true } },
+        _count: { select: { conversations: true } },
+      },
+      orderBy: { lastActivity: "desc" },
+      skip,
+      take: ps,
+    }),
+    prisma.contact.count({ where }),
+  ]);
+
+  return {
+    contacts,
+    pagination: { page: p, pageSize: ps, total, totalPages: Math.ceil(total / ps) },
+  };
 }
 
 export async function exportContacts() {

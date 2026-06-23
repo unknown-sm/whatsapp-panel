@@ -745,3 +745,22 @@ model MessageTemplate {
 
   @@index([status])
 }
+
+// ═══════════════════════════════════════════════════════════
+// SMART ROUTING — Asignacion inteligente de agentes
+// ═══════════════════════════════════════════════════════════
+
+model RoutingRule {
+  id            String   @id @default(uuid())
+  name          String
+  priority      Int      @default(0)
+  condition     Json     // { minScore?: number, tags?: string[], source?: string }
+  targetAgentId String?
+  targetTeam    String?  // "ventas", "soporte", "cobranza"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([priority])
+}

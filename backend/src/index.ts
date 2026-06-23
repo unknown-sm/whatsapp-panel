@@ -21,8 +21,13 @@ import customFieldRoutes from "./routes/customfield.routes";
 import openwaRoutes from "./routes/openwa.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
 import logsRoutes from "./routes/logs.routes";
+import playbookRoutes from "./routes/playbook.routes";
+import pushRoutes from "./routes/push.routes";
+import routingRoutes from "./routes/routing.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
+import { seedPlaybooks } from "./services/playbook.service";
+import { seedRoutingRules } from "./services/routing.service";
 import prisma from "./lib/prisma";
 import bcrypt from "bcrypt";
 import { execSync } from "child_process";
@@ -205,6 +210,22 @@ async function seedDatabase() {
     console.error("Seed ERROR en CustomFields:", e instanceof Error ? e.message : e);
     throw e;
   }
+
+  // Sales Playbooks
+  try {
+    await seedPlaybooks();
+    console.log("Seed: Playbooks OK");
+  } catch (e) {
+    console.error("Seed ERROR en Playbooks:", e instanceof Error ? e.message : e);
+  }
+
+  // Routing Rules
+  try {
+    await seedRoutingRules();
+    console.log("Seed: Routing OK");
+  } catch (e) {
+    console.error("Seed ERROR en Routing:", e instanceof Error ? e.message : e);
+  }
 }
 
 dotenv.config();
@@ -251,6 +272,9 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/customfields", customFieldRoutes);
 app.use("/api/openwa", openwaRoutes);
 app.use("/api/logs", logsRoutes);
+app.use("/api/playbooks", playbookRoutes);
+app.use("/api/push", pushRoutes);
+app.use("/api/routing", routingRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {

@@ -6,14 +6,16 @@ import { z } from "zod";
 
 export async function listConversations(req: Request, res: Response) {
   try {
-    const { status, botId, agentId, search } = req.query;
-    const conversations = await convService.getConversations({
+    const { status, botId, agentId, search, page, pageSize } = req.query;
+    const result = await convService.getConversations({
       status: status as string,
       botId: botId as string,
       agentId: agentId as string,
       search: search as string,
+      page: page ? parseInt(page as string) : undefined,
+      pageSize: pageSize ? parseInt(pageSize as string) : undefined,
     });
-    res.json({ conversations });
+    res.json(result);
   } catch {
     res.status(500).json({ error: "Error al obtener conversaciones" });
   }
@@ -109,8 +111,13 @@ export async function removeTag(req: Request, res: Response) {
 
 export async function listContacts(req: Request, res: Response) {
   try {
-    const contacts = await convService.getContacts(req.query.search as string);
-    res.json({ contacts });
+    const { search, page, pageSize } = req.query;
+    const result = await convService.getContacts(
+      search as string,
+      page ? parseInt(page as string) : undefined,
+      pageSize ? parseInt(pageSize as string) : undefined,
+    );
+    res.json(result);
   } catch {
     res.status(500).json({ error: "Error al obtener contactos" });
   }

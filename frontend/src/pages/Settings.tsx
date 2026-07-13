@@ -430,16 +430,19 @@ function AISettings() {
   }
 
   const providers = [
+    { value: "opencode", label: "OpenCode Zen" },
     { value: "deepseek", label: "DeepSeek" },
-    { value: "custom", label: "Custom (Mimo, Groq, OpenRouter, etc.)" },
+    { value: "custom", label: "Custom Endpoint" },
   ];
 
   const modelSuggestions: Record<string, string[]> = {
+    opencode: ["mimo-2.5-flash", "deepseek-v4-flash", "qwen3-coder-480b", "llama-3.1-70b"],
     deepseek: ["deepseek-chat", "deepseek-reasoner"],
     custom: ["mimo-2.5-flash", "deepseek-v4-flash", "llama-3.1-70b", "gemini-2.0-flash"],
   };
 
   const endpointSuggestions: Record<string, string> = {
+    opencode: "https://api.opencode.ai/v1",
     deepseek: "https://api.deepseek.com/v1",
     custom: "",
   };

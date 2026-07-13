@@ -5,6 +5,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { getKnowledgeContent } from "./knowledge.service";
 
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 
 export async function getAIConfigs() {
   return prisma.aIConfig.findMany({ orderBy: { createdAt: "desc" } });
@@ -13,7 +14,7 @@ export async function getAIConfigs() {
 export async function createAIConfig(data: any) {
   const parsed = z.object({
     name: z.string().min(1),
-    provider: z.enum(["openai", "anthropic", "nvidia", "custom"]),
+    provider: z.enum(["openai", "anthropic", "nvidia", "deepseek", "custom"]),
     apiKey: z.string().min(1),
     model: z.string().min(1),
     endpoint: z.string().optional(),
@@ -118,15 +119,40 @@ export async function generateResponse(
     return response.choices[0]?.message?.content || "";
   }
 
-  // Custom endpoint
-  if (config.endpoint) {
-    const axios = await import("axios");
-    const response = await axios.default.post(config.endpoint, {
+  // DeepSeek (OpenAI-compatible API)
+  if (config.provider === "deepseek") {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: DEEPSEEK_BASE_URL });
+    const chatMessages: any[] = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+    if (!systemPrompt) {
+      systemPrompt = messages.find((m) => m.role === "system")?.content || "";
+    }
+    if (systemPrompt) {
+      chatMessages.unshift({ role: "system", content: systemPrompt });
+    }
+    const response = await openai.chat.completions.create({
       model: config.model,
-      messages,
-      api_key: config.apiKey,
+      messages: chatMessages,
+      max_tokens: maxTokens,
     });
-    return response.data.choices?.[0]?.message?.content || response.data.response || "";
+    return response.choices[0]?.message?.content || "";
+  }
+
+  // Custom endpoint (OpenAI-compatible)
+  if (config.endpoint) {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: config.endpoint });
+    const chatMessages: any[] = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+    if (!systemPrompt) {
+      systemPrompt = messages.find((m) => m.role === "system")?.content || "";
+    }
+    if (systemPrompt) {
+      chatMessages.unshift({ role: "system", content: systemPrompt });
+    }
+    const response = await openai.chat.completions.create({
+      model: config.model,
+      messages: chatMessages,
+      max_tokens: maxTokens,
+    });
+    return response.choices[0]?.message?.content || "";
   }
 
   throw new Error("Unsupported AI provider");
@@ -168,6 +194,22 @@ Formato: label|confidence`;
     response = res.content[0]?.type === "text" ? res.content[0].text : "";
   } else if (config.provider === "nvidia") {
     const openai = new OpenAI({ apiKey: config.apiKey, baseURL: NVIDIA_BASE_URL });
+    const res = await openai.chat.completions.create({
+      model: config.model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 50,
+    });
+    response = res.choices[0]?.message?.content || "";
+  } else if (config.provider === "deepseek") {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: DEEPSEEK_BASE_URL });
+    const res = await openai.chat.completions.create({
+      model: config.model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 50,
+    });
+    response = res.choices[0]?.message?.content || "";
+  } else if (config.endpoint) {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: config.endpoint });
     const res = await openai.chat.completions.create({
       model: config.model,
       messages: [{ role: "user", content: prompt }],

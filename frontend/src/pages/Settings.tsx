@@ -430,11 +430,19 @@ function AISettings() {
   }
 
   const providers = [
-    { value: "openai", label: "OpenAI" },
-    { value: "anthropic", label: "Anthropic" },
-    { value: "nvidia", label: "NVIDIA" },
-    { value: "custom", label: "Custom Endpoint" },
+    { value: "deepseek", label: "DeepSeek" },
+    { value: "custom", label: "Custom (Mimo, Groq, OpenRouter, etc.)" },
   ];
+
+  const modelSuggestions: Record<string, string[]> = {
+    deepseek: ["deepseek-chat", "deepseek-reasoner"],
+    custom: ["mimo-2.5-flash", "deepseek-v4-flash", "llama-3.1-70b", "gemini-2.0-flash"],
+  };
+
+  const endpointSuggestions: Record<string, string> = {
+    deepseek: "https://api.deepseek.com/v1",
+    custom: "",
+  };
 
   return (
     <div className="max-w-2xl">
@@ -447,7 +455,10 @@ function AISettings() {
           </div>
           <div>
             <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Proveedor</label>
-            <select value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}
+            <select value={form.provider} onChange={(e) => {
+              const p = e.target.value;
+              setForm({ ...form, provider: p, endpoint: endpointSuggestions[p] || "", model: "" });
+            }}
               className="input" style={{ color: "var(--text-primary)", background: "var(--bg-card)" }}>
               {providers.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
             </select>
@@ -456,21 +467,36 @@ function AISettings() {
             <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>API Key</label>
             <input value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} className="input" placeholder="sk-..." type="password" />
           </div>
-          <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Modelo</label>
-            <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} className="input" placeholder="gpt-4o / claude-sonnet-4 / meta/llama-3.1-8b" />
-          </div>
-          {form.provider === "custom" && (
+          {(form.provider === "custom" || form.provider === "deepseek") && (
             <div>
               <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Endpoint URL</label>
-              <input value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} className="input" placeholder="https://..." />
+              <input value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} className="input" placeholder="https://api.deepseek.com/v1" />
             </div>
           )}
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Modelo</label>
+            <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} className="input" placeholder="deepseek-chat" />
+            {modelSuggestions[form.provider]?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {modelSuggestions[form.provider].map((m) => (
+                  <button key={m} type="button" onClick={() => setForm({ ...form, model: m })}
+                    className="text-xs px-2 py-1 rounded-full transition-colors"
+                    style={{
+                      background: form.model === m ? "var(--accent-muted)" : "var(--bg-muted)",
+                      color: form.model === m ? "var(--accent)" : "var(--text-secondary)",
+                      border: `1px solid ${form.model === m ? "var(--accent)" : "var(--border-default)"}`,
+                    }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={saving || !form.name || !form.apiKey || !form.model} className="btn-primary disabled:opacity-50">
               <Save size={16} /> {saving ? "Guardando..." : editingId ? "Actualizar" : "Crear"}
             </button>
-            {editingId && <button onClick={() => { setForm({ name: "", provider: "openai", apiKey: "", model: "", endpoint: "" }); setEditingId(null); }} className="btn-secondary">Cancelar</button>}
+            {editingId && <button onClick={() => { setForm({ name: "", provider: "deepseek", apiKey: "", model: "", endpoint: "" }); setEditingId(null); }} className="btn-secondary">Cancelar</button>}
           </div>
         </div>
       </div>

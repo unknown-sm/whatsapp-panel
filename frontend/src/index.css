@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   ATLAS DESIGN SYSTEM — Light-only, desaturated, one accent
+   ATLAS DESIGN SYSTEM — Light + Dark, desaturated, one accent
    ═══════════════════════════════════════════════════════════ */
 
 :root {
@@ -67,6 +67,56 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
+   ATLAS DARK — Sobrio, desaturado, mismo accent
+   ═══════════════════════════════════════════════════════════ */
+.dark {
+  /* ── Neutrals ──────────────────────────────────────── */
+  --bg:           #0e0e11;
+  --bg-subtle:    #15161a;
+  --bg-panel:     #1a1b20;
+  --bg-hover:     #222329;
+  --bg-active:    #2a2b32;
+  --bg-muted:     #1a1b20;
+
+  /* ── Text ──────────────────────────────────────────── */
+  --text:         #e4e4e7;
+  --text-2:       #a4a4ad;
+  --text-3:       #74747e;
+  --text-4:       #54545d;
+  --text-inverse: #0e0e11;
+
+  /* ── Borders ───────────────────────────────────────── */
+  --border:        #262730;
+  --border-strong: #32333d;
+
+  /* ── Chat ──────────────────────────────────────────── */
+  --chat-bg:        #15161a;
+  --bubble-out:     #1f2937;
+  --bubble-out-text:#cdd5e0;
+  --bubble-in:      #1a1b20;
+  --bubble-in-text: #e4e4e7;
+
+  /* ── Status (desaturated, slightly brighter in dark) ── */
+  --success:   #6ba889;
+  --warning:   #c9a572;
+  --danger:    #b86b67;
+
+  /* ── Warn chip (dark variant) ──────────────────────── */
+  --warn-chip-bg:      #2a2518;
+  --warn-chip-border:  #3d351f;
+  --warn-chip-text:    #c5a76a;
+
+  /* ── Shadows (more visible in dark) ───────────────── */
+  --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md:  0 4px 8px -2px rgb(0 0 0 / 0.4), 0 2px 4px -1px rgb(0 0 0 / 0.25);
+  --shadow-pop: 0 8px 24px -4px rgb(0 0 0 / 0.5), 0 4px 8px -2px rgb(0 0 0 / 0.3);
+
+  /* ── Accent-soft/tint need to be darker in dark mode ── */
+  --accent-soft: #2a3645;
+  --accent-tint: #1e2835;
+}
+
+/* ═══════════════════════════════════════════════════════════
    BACKWARD-COMPATIBLE ALIASES (existing pages use these)
    ═══════════════════════════════════════════════════════════ */
 :root {
@@ -89,12 +139,22 @@
   --danger-hover:  #8a423e;
   --danger-muted:  rgba(162, 80, 76, 0.08);
   --warning-muted: rgba(176, 139, 94, 0.08);
+  --success-muted: rgba(95, 143, 116, 0.08);
   --info:           #5a7a96;
   --info-muted:     rgba(90, 122, 150, 0.08);
   --success-muted:  rgba(95, 143, 116, 0.08);
 
   --shadow-lg: var(--shadow-md);
   --shadow-xl: var(--shadow-pop);
+}
+
+/* Dark overrides for muted backgrounds */
+.dark {
+  --danger-muted:  rgba(184, 107, 103, 0.12);
+  --warning-muted: rgba(201, 165, 114, 0.12);
+  --info:           #7a9ab8;
+  --info-muted:     rgba(122, 154, 184, 0.12);
+  --success-muted:  rgba(107, 168, 137, 0.12);
 }
 
 @layer base {

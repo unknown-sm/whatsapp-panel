@@ -119,7 +119,7 @@ export async function updateConfig(req: Request, res: Response) {
     data: {
       phoneNumberId,
       accessToken: encryptedToken,
-      verifyToken: encryptedVerify,
+      verifyToken: encryptedVerify || verifyToken,
       webhookUrl: "/webhook/incoming",
     },
   });

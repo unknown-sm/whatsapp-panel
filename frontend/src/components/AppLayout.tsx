@@ -5,16 +5,19 @@ import ThemeToggle from "./ThemeToggle";
 import {
   LayoutDashboard, Bot, MessageSquare, Clock, Settings, LogOut,
   Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3, FileText,
+  FlaskConical, Send,
 } from "lucide-react";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/bots", icon: Bot, label: "Bots" },
   { to: "/conversations", icon: MessageSquare, label: "Conversaciones" },
-  { to: "/followup", icon: Clock, label: "Seguimiento" },
+  { to: "/bots", icon: Bot, label: "Bots" },
   { to: "/pipeline", icon: KanbanSquare, label: "Pipeline" },
+  { to: "/followup", icon: Clock, label: "Seguimiento" },
   { to: "/leadscoring", icon: Target, label: "Lead Scoring" },
   { to: "/broadcasts", icon: Megaphone, label: "Broadcasts" },
+  { to: "/templates", icon: Send, label: "Templates" },
+  { to: "/lab", icon: FlaskConical, label: "Laboratorio" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/logs", icon: FileText, label: "Logs" },
   { to: "/settings", icon: Settings, label: "Configuracion" },

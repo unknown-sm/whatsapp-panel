@@ -2,8 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import api from "../services/api";
 import { io } from "socket.io-client";
 import {
-  Search, Send, Users, Download, MessageSquare, User, Phone,
+  Search, Send, Users, Download, MessageSquare, Phone, Sparkles,
+  Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
+  AlertCircle, UserCheck, ArrowRight, Hash, Plus,
 } from "lucide-react";
+import { Avatar } from "../components/ui/Avatar";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Textarea } from "../components/ui/Textarea";
 
 interface Conversation {
   id: string;
@@ -11,8 +18,11 @@ interface Conversation {
   contact: { id: string; phone: string; name: string | null };
   bot: { name: string } | null;
   assignedAgent: { name: string } | null;
-  messages: { id: string; content: string; direction: string; timestamp: string }[];
+  messages: { id: string; content: string; direction: string; timestamp: string; aiGenerated?: boolean }[];
   updatedAt: string;
+  windowExpiresAt?: string;
+  windowOpen?: boolean;
+  leadScore?: number;
 }
 
 interface Contact {
@@ -23,11 +33,18 @@ interface Contact {
   _count: { conversations: number };
 }
 
+interface Suggestion {
+  id: string;
+  text: string;
+  tone: string;
+  reasoning: string;
+}
+
 const statusColors: Record<string, string> = {
   active: "var(--success)",
   waiting_agent: "var(--warning)",
   silenced: "var(--info)",
-  closed: "var(--text-tertiary)",
+  closed: "var(--text-3)",
 };
 
 const statusLabels: Record<string, string> = {
@@ -36,6 +53,8 @@ const statusLabels: Record<string, string> = {
   silenced: "Silenciada",
   closed: "Cerrada",
 };
+
+const STORAGE_KEY = "atlas.inbox.panel";
 
 export default function Conversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -49,6 +68,11 @@ export default function Conversations() {
   const [showContacts, setShowContacts] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [contactCustomValues, setContactCustomValues] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showContactPanel, setShowContactPanel] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY) !== "false"; } catch { return true; }
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<any>(null);
 
@@ -61,6 +85,18 @@ export default function Conversations() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (selectedConv && messages.length > 0) {
+      fetchSuggestions();
+    } else {
+      setSuggestions([]);
+    }
+  }, [selectedConv?.id, messages.length]);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, String(showContactPanel)); } catch {}
+  }, [showContactPanel]);
 
   function setupSocket() {
     const socket = io(import.meta.env.VITE_API_URL || "http://localhost:4000");
@@ -82,8 +118,8 @@ export default function Conversations() {
         api.get(`/api/conversations?${params}`),
         api.get(`/api/conversations/contacts?${search ? `search=${search}` : ""}`),
       ]);
-      setConversations(convRes.data.conversations);
-      setContacts(contactRes.data.contacts);
+      setConversations(convRes.data.conversations || []);
+      setContacts(contactRes.data.contacts || []);
     } finally { setLoading(false); }
   }
 
@@ -97,12 +133,14 @@ export default function Conversations() {
     } catch {}
   }
 
-  async function sendMessage() {
-    if (!newMessage.trim() || !selectedConv) return;
+  async function sendMessage(textOverride?: string) {
+    const content = (textOverride ?? newMessage).trim();
+    if (!content || !selectedConv) return;
     try {
-      const { data } = await api.post(`/api/conversations/${selectedConv.id}/messages`, { content: newMessage.trim() });
+      const { data } = await api.post(`/api/conversations/${selectedConv.id}/messages`, { content });
       setMessages([...messages, data.message]);
       setNewMessage("");
+      setSuggestions([]);
     } catch {}
   }
 
@@ -120,6 +158,21 @@ export default function Conversations() {
     } catch { setContactCustomValues([]); }
   }
 
+  async function fetchSuggestions() {
+    if (!selectedConv) return;
+    setLoadingSuggestions(true);
+    try {
+      const { data } = await api.post("/api/ai/suggest-responses", {
+        conversationId: selectedConv.id,
+      });
+      setSuggestions(data.suggestions || []);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
   async function exportContacts() {
     const res = await api.get("/api/conversations/contacts/export", { responseType: "blob" });
     const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -129,32 +182,40 @@ export default function Conversations() {
     a.click();
   }
 
+  function getWindowBadge(conv: Conversation) {
+    if (!conv.windowOpen) return null;
+    if (!conv.windowExpiresAt) return null;
+    const ms = new Date(conv.windowExpiresAt).getTime() - Date.now();
+    if (ms <= 0) return null;
+    const hours = Math.floor(ms / 3600000);
+    if (hours < 2) return <Badge variant="warning"><Clock size={10} className="mr-1" />{hours}h</Badge>;
+    return <span className="w-1.5 h-1.5 rounded-full bg-success" />;
+  }
+
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] -m-4 md:-m-6" style={{ background: "var(--bg-base)" }}>
-      {/* Left panel */}
-      <div className="w-80 flex flex-col flex-shrink-0" style={{ background: "var(--bg-surface)", borderRight: "1px solid var(--border-default)" }}>
-        <div className="p-4 border-b flex-shrink-0" style={{ borderColor: "var(--border-default)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Conversaciones</h2>
+    <div className="flex h-[calc(100vh-3.5rem)] -m-4 md:-m-6 bg-background">
+      {/* ── Left column: conversation list (360px) ──────────── */}
+      <div className="w-[360px] flex flex-col flex-shrink-0 border-r border-border bg-background">
+        <div className="p-3 border-b border-border flex-shrink-0">
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className="text-[15px] font-[650] tracking-tight text-ink">Conversaciones</h2>
             <div className="flex gap-1">
-              <button onClick={() => setShowContacts(!showContacts)} className="btn-icon !w-8 !h-8" title="Contactos">
-                <Users size={15} />
+              <button onClick={() => setShowContacts(!showContacts)} className="btn-icon !w-7 !h-7" title="Contactos">
+                <Users size={14} />
               </button>
-              <button onClick={exportContacts} className="btn-icon !w-8 !h-8" title="Exportar CSV">
-                <Download size={15} />
+              <button onClick={exportContacts} className="btn-icon !w-7 !h-7" title="Exportar CSV">
+                <Download size={14} />
               </button>
             </div>
           </div>
           <div className="relative mb-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={16} style={{ color: "var(--text-tertiary)" }} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} className="input w-full pl-9 text-sm" placeholder="Buscar..." />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={14} style={{ color: "var(--text-3)" }} />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9 text-[13px]" placeholder="Buscar..." />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {["", "active", "waiting_agent", "silenced"].map((s) => (
               <button key={s} onClick={() => setStatusFilter(s)}
-                className={`text-xs px-2 py-1 rounded transition-colors ${statusFilter === s ? "bg-[var(--accent)] text-white" : "text-[var(--text-tertiary)]"}`}
-                style={{ background: statusFilter === s ? "var(--accent)" : "var(--bg-muted)" }}
-              >
+                className={`text-[11px] px-2 py-0.5 rounded-sm transition-colors ${statusFilter === s ? "bg-brand-soft text-brand-text font-medium" : "text-ink-2 hover:bg-atlas-hover"}`}>
                 {s ? statusLabels[s] : "Todos"}
               </button>
             ))}
@@ -165,53 +226,53 @@ export default function Conversations() {
           {showContacts ? (
             contacts.map((contact) => (
               <div key={contact.id} onClick={() => { setSelectedContact(contact); setSelectedConv(null); fetchContactCustomFields(contact.id); }}
-                className="p-3 border-b cursor-pointer transition-colors"
-                style={{ borderColor: "var(--border-default)", background: selectedContact?.id === contact.id ? "var(--bg-hover)" : "transparent" }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--bg-muted)", color: "var(--text-tertiary)" }}>
-                    <User size={14} />
-                  </div>
+                className={`relative p-3 border-b border-border cursor-pointer transition-colors hover:bg-atlas-hover ${selectedContact?.id === contact.id ? "bg-brand-tint" : ""}`}>
+                {selectedContact?.id === contact.id && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand" />}
+                <div className="flex items-center gap-2.5">
+                  <Avatar id={contact.id} name={contact.name || contact.phone} size="md" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{contact.name || contact.phone}</p>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{contact.phone}</p>
+                    <p className="text-[13px] font-medium truncate text-ink">{contact.name || contact.phone}</p>
+                    <p className="text-[11px] truncate text-ink-3">{contact.phone}</p>
                   </div>
-                  <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{contact._count.conversations}</span>
+                  <span className="text-[11px] text-ink-3">{contact._count.conversations}</span>
                 </div>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {contact.tags.map((ct) => (
-                    <span key={ct.tag.id} className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: ct.tag.color + "33", color: ct.tag.color }}>
-                      {ct.tag.name}
-                    </span>
-                  ))}
-                </div>
+                {contact.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {contact.tags.slice(0, 3).map((ct) => (
+                      <span key={ct.tag.id} className="text-[10.5px] px-1.5 py-0.5 rounded-sm font-medium" style={{ backgroundColor: ct.tag.color + "20", color: ct.tag.color }}>
+                        {ct.tag.name}
+                      </span>
+                    ))}
+                    {contact.tags.length > 3 && <span className="text-[10.5px] text-ink-3">+{contact.tags.length - 3}</span>}
+                  </div>
+                )}
               </div>
             ))
           ) : loading ? (
-            <div className="p-4 text-center" style={{ color: "var(--text-tertiary)" }}>Cargando...</div>
+            <div className="p-8 text-center text-ink-3 text-[13px]">Cargando...</div>
           ) : conversations.length === 0 ? (
-            <div className="p-4 text-center" style={{ color: "var(--text-tertiary)" }}>Sin conversaciones</div>
+            <div className="p-8 text-center text-ink-3 text-[13px]">Sin conversaciones</div>
           ) : (
             conversations.map((conv) => (
               <div key={conv.id} onClick={() => selectConversation(conv)}
-                className="p-3 border-b cursor-pointer transition-colors"
-                style={{
-                  borderColor: "var(--border-default)",
-                  background: selectedConv?.id === conv.id ? "var(--bg-hover)" : "transparent",
-                  borderLeft: selectedConv?.id === conv.id ? "3px solid var(--accent)" : "3px solid transparent",
-                }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--bg-muted)", color: "var(--text-tertiary)" }}>
-                    <Phone size={14} />
-                  </div>
+                className={`relative p-3 border-b border-border cursor-pointer transition-colors hover:bg-atlas-hover ${selectedConv?.id === conv.id ? "bg-brand-tint" : ""}`}>
+                {selectedConv?.id === conv.id && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand" />}
+                <div className="flex items-center gap-2.5">
+                  <Avatar id={conv.contact.id} name={conv.contact.name || conv.contact.phone} size="md" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{conv.contact.name || conv.contact.phone}</p>
-                    <p className="text-xs truncate" style={{ color: "var(--text-tertiary)" }}>{conv.messages[0]?.content || "Sin mensajes"}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-[13px] font-medium truncate text-ink">{conv.contact.name || conv.contact.phone}</p>
+                      {getWindowBadge(conv)}
+                    </div>
+                    <p className="text-[11.5px] truncate text-ink-2 mt-0.5">
+                      {conv.messages[0]?.content || "Sin mensajes"}
+                    </p>
                   </div>
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: statusColors[conv.status] || "var(--text-tertiary)" }} />
                 </div>
-                <div className="flex items-center gap-2 mt-1">
-                  {conv.bot && <span className="pill text-xs !py-0.5">{conv.bot.name}</span>}
-                  {conv.assignedAgent && <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{conv.assignedAgent.name}</span>}
+                <div className="flex items-center gap-1.5 mt-1.5 ml-10">
+                  {conv.bot && <span className="pill text-[10.5px] !py-0 !px-2">{conv.bot.name}</span>}
+                  {conv.assignedAgent && <span className="text-[10.5px] text-ink-3">{conv.assignedAgent.name}</span>}
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: statusColors[conv.status] || "var(--text-3)" }} title={statusLabels[conv.status]} />
                 </div>
               </div>
             ))
@@ -219,85 +280,268 @@ export default function Conversations() {
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* ── Center column: thread ────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
         {selectedContact && selectedContact.id !== selectedConv?.contact.id ? (
-          <>
-            <div className="p-4 border-b flex-shrink-0" style={{ borderColor: "var(--border-default)", background: "var(--bg-surface)" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--bg-muted)", color: "var(--text-tertiary)" }}>
-                  <User size={20} />
-                </div>
-                <div>
-                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>{selectedContact.name || selectedContact.phone}</p>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{selectedContact.phone}</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>Campos Personalizados</h3>
-              {contactCustomValues.length === 0 ? (
-                <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Sin campos personalizados</p>
-              ) : (
-                <div className="space-y-2">
-                  {contactCustomValues.map((cv: any) => (
-                    <div key={cv.id} className="flex justify-between py-1.5 border-b" style={{ borderColor: "var(--border-subtle)" }}>
-                      <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{cv.customField.name}</span>
-                      <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{cv.value}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+          <ContactEmptyState
+            contact={selectedContact}
+            customValues={contactCustomValues}
+            onClose={() => setSelectedContact(null)}
+          />
         ) : selectedConv ? (
           <>
-            <div className="p-4 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: "var(--border-default)", background: "var(--bg-surface)" }}>
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0 bg-background">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--bg-muted)", color: "var(--text-tertiary)" }}>
-                  <Phone size={20} />
-                </div>
+                <Avatar id={selectedConv.contact.id} name={selectedConv.contact.name || selectedConv.contact.phone} size="md" />
                 <div className="min-w-0">
-                  <p className="font-medium truncate" style={{ color: "var(--text-primary)" }}>{selectedConv.contact.name || selectedConv.contact.phone}</p>
-                  <p className="text-xs truncate" style={{ color: "var(--text-tertiary)" }}>{selectedConv.contact.phone}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[14px] font-[650] text-ink tracking-tight">{selectedConv.contact.name || selectedConv.contact.phone}</p>
+                    {selectedConv.windowOpen && selectedConv.windowExpiresAt && new Date(selectedConv.windowExpiresAt).getTime() > Date.now() && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-success" title="Ventana 24h abierta" />
+                    )}
+                    {selectedConv.assignedAgent && (
+                      <Badge variant="default"><UserCheck size={10} className="mr-1" />{selectedConv.assignedAgent.name}</Badge>
+                    )}
+                  </div>
+                  <p className="text-[11.5px] text-ink-3">{selectedConv.contact.phone}</p>
                 </div>
               </div>
-              <select value={selectedConv.status} onChange={(e) => updateStatus(e.target.value)} className="input text-xs py-1 w-auto">
-                <option value="active">Activa</option>
-                <option value="waiting_agent">Esperando agente</option>
-                <option value="silenced">Silenciada</option>
-                <option value="closed">Cerrada</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <select value={selectedConv.status} onChange={(e) => updateStatus(e.target.value)} className="text-[12px] py-1 px-2 rounded-md border border-border bg-background text-ink">
+                  <option value="active">Activa</option>
+                  <option value="waiting_agent">Esperando agente</option>
+                  <option value="silenced">Silenciada</option>
+                  <option value="closed">Cerrada</option>
+                </select>
+                <button onClick={() => setShowContactPanel(!showContactPanel)} className="btn-icon !w-8 !h-8" title="Panel de contacto">
+                  <ChevronRight size={14} className={`transition-transform ${showContactPanel ? "rotate-180" : ""}`} />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2" style={{ background: "#0b141a" }}>
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1.5" style={{ background: "var(--chat-bg)" }}>
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
                   <div className={msg.direction === "outbound" ? "bubble-out" : "bubble-in"}>
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    <p className="text-xs mt-1 text-right" style={{ color: msg.direction === "outbound" ? "rgba(255,255,255,0.6)" : "var(--text-tertiary)" }}>
-                      {new Date(msg.timestamp).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
+                    {msg.aiGenerated && (
+                      <div className="flex items-center gap-1 mb-1 text-[10.5px] opacity-60">
+                        <Sparkles size={10} /> IA
+                      </div>
+                    )}
+                    <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px]" style={{ color: msg.direction === "outbound" ? "rgba(51,65,79,0.5)" : "var(--text-3)" }}>
+                      <span>{new Date(msg.timestamp).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
+                      {msg.direction === "outbound" && (msg.aiGenerated ? <Sparkles size={10} /> : <CheckCheck size={12} />)}
+                    </div>
                   </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 border-t flex gap-2 flex-shrink-0" style={{ borderColor: "var(--border-default)", background: "var(--bg-surface)" }}>
-              <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} className="input flex-1" placeholder="Escribe un mensaje..." />
-              <button onClick={sendMessage} className="btn-primary"><Send size={18} /></button>
+            {/* ── AI Suggestions panel ──────────────────── */}
+            {(loadingSuggestions || suggestions.length > 0) && (
+              <div className="px-4 py-3 border-t border-border bg-atlas-subtle">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles size={12} className="text-brand-text" />
+                  <span className="section-label">Respuestas sugeridas</span>
+                </div>
+                {loadingSuggestions ? (
+                  <div className="flex gap-2">
+                    {[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 flex-1" />)}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {suggestions.map((s) => (
+                      <button key={s.id} onClick={() => sendMessage(s.text)}
+                        className="text-left p-2.5 rounded-md border border-border bg-background hover:border-brand hover:bg-brand-tint transition-all group">
+                        <p className="text-[12px] text-ink leading-relaxed line-clamp-3">{s.text}</p>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-[10px] text-ink-3 uppercase tracking-wide">{s.tone}</span>
+                          <ArrowRight size={11} className="text-ink-3 group-hover:text-brand-text transition-colors" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Composer ───────────────────────────────── */}
+            <div className="px-4 py-3 border-t border-border flex gap-2 items-end flex-shrink-0 bg-background">
+              <Textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                rows={1}
+                className="min-h-[40px] max-h-32"
+                placeholder="Escribe un mensaje..."
+              />
+              <Button onClick={() => sendMessage()} disabled={!newMessage.trim()} size="icon" className="h-10 w-10">
+                <Send size={16} />
+              </Button>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <MessageSquare size={48} className="mx-auto mb-4" style={{ color: "var(--text-tertiary)", opacity: 0.3 }} />
-              <p style={{ color: "var(--text-tertiary)" }}>Selecciona una conversacion</p>
+          <div className="flex-1 flex items-center justify-center bg-background">
+            <div className="text-center max-w-sm">
+              <div className="w-16 h-16 rounded-full bg-atlas-panel mx-auto mb-4 flex items-center justify-center">
+                <MessageSquare size={28} className="text-ink-3 opacity-60" />
+              </div>
+              <p className="text-[14px] font-[650] text-ink tracking-tight mb-1">Inbox de conversaciones</p>
+              <p className="text-[12px] text-ink-3">Selecciona una conversación para ver mensajes y respuestas sugeridas por IA.</p>
             </div>
           </div>
         )}
       </div>
+
+      {/* ── Right column: contact panel (320px, collapsible) ── */}
+      {showContactPanel && (selectedConv || selectedContact) && (
+        <div className="w-[320px] flex flex-col flex-shrink-0 border-l border-border bg-background">
+          <ContactPanel
+            conversation={selectedConv}
+            contact={selectedContact || selectedConv?.contact}
+            customValues={selectedConv ? contactCustomValues : []}
+            messages={messages}
+            onClose={() => setShowContactPanel(false)}
+          />
+        </div>
+      )}
     </div>
+  );
+}
+
+/* ── Sub-components ─────────────────────────────────────── */
+
+function ContactEmptyState({ contact, customValues, onClose }: { contact: Contact; customValues: any[]; onClose: () => void }) {
+  return (
+    <>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar id={contact.id} name={contact.name || contact.phone} size="lg" />
+          <div>
+            <p className="text-[14px] font-[650] text-ink tracking-tight">{contact.name || contact.phone}</p>
+            <p className="text-[11.5px] text-ink-3">{contact.phone}</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="btn-icon !w-8 !h-8"><X size={14} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        <h3 className="section-label mb-2">Campos Personalizados</h3>
+        {customValues.length === 0 ? (
+          <p className="text-[12.5px] text-ink-3">Sin campos personalizados</p>
+        ) : (
+          <div className="space-y-1">
+            {customValues.map((cv: any) => (
+              <div key={cv.id} className="flex justify-between py-1.5 border-b border-border text-[12.5px]">
+                <span className="text-ink-2">{cv.customField.name}</span>
+                <span className="text-ink font-medium">{cv.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function ContactPanel({ conversation, contact, customValues, messages, onClose }: { conversation: Conversation | null; contact: any; customValues: any[]; messages: any[]; onClose: () => void }) {
+  if (!contact) return null;
+  const inbound = messages.filter((m) => m.direction === "inbound").length;
+  const outbound = messages.filter((m) => m.direction === "outbound").length;
+
+  return (
+    <>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
+        <h3 className="section-label">Contacto</h3>
+        <button onClick={onClose} className="btn-icon !w-7 !h-7"><X size={14} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex flex-col items-center text-center pb-3 border-b border-border">
+          <Avatar id={contact.id} name={contact.name || contact.phone} size="lg" />
+          <p className="text-[14px] font-[650] text-ink mt-2 tracking-tight">{contact.name || "Sin nombre"}</p>
+          <p className="text-[12px] text-ink-3 mt-0.5">{contact.phone}</p>
+          {conversation?.leadScore !== undefined && (
+            <div className="mt-2.5">
+              <Badge variant={conversation.leadScore > 80 ? "success" : conversation.leadScore > 30 ? "default" : "default"}>
+                <Hash size={10} className="mr-1" />Score: {conversation.leadScore}
+              </Badge>
+            </div>
+          )}
+        </div>
+
+        {conversation && (
+          <div>
+            <h4 className="section-label mb-2">Estadisticas</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-md border border-border p-2.5 text-center">
+                <p className="text-[18px] font-[650] text-ink tracking-tight">{inbound}</p>
+                <p className="text-[10.5px] text-ink-3 uppercase tracking-wide">Recibidos</p>
+              </div>
+              <div className="rounded-md border border-border p-2.5 text-center">
+                <p className="text-[18px] font-[650] text-ink tracking-tight">{outbound}</p>
+                <p className="text-[10.5px] text-ink-3 uppercase tracking-wide">Enviados</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="section-label">Etiquetas</h4>
+            <button className="text-ink-3 hover:text-ink transition-colors" title="Agregar tag"><Plus size={12} /></button>
+          </div>
+          {contact.tags?.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {contact.tags.map((ct: any) => (
+                <span key={ct.tag.id} className="text-[11px] px-2 py-0.5 rounded-sm font-medium" style={{ backgroundColor: ct.tag.color + "20", color: ct.tag.color }}>
+                  {ct.tag.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[12px] text-ink-3">Sin etiquetas</p>
+          )}
+        </div>
+
+        {customValues.length > 0 && (
+          <div>
+            <h4 className="section-label mb-2">Campos Personalizados</h4>
+            <div className="space-y-1">
+              {customValues.map((cv: any) => (
+                <div key={cv.id} className="flex justify-between py-1.5 border-b border-border text-[12.5px]">
+                  <span className="text-ink-2">{cv.customField.name}</span>
+                  <span className="text-ink font-medium">{cv.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {conversation && conversation.windowExpiresAt && (
+          <div>
+            <h4 className="section-label mb-2">Ventana 24h</h4>
+            <div className="rounded-md border border-border p-2.5 text-[12px]">
+              {conversation.windowOpen ? (
+                <div className="flex items-center gap-1.5 text-ink-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                  Abierta hasta {new Date(conversation.windowExpiresAt).toLocaleString("es", { dateStyle: "short", timeStyle: "short" })}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-ink-3">
+                  <AlertCircle size={12} />
+                  Cerrada
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

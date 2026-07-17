@@ -266,3 +266,108 @@ export async function transcribeAudio(configId: string, audioBuffer: Buffer): Pr
 
   return transcription.text;
 }
+
+/* ── AI Suggest Responses (Inbox 3-columnas) ──────────── */
+
+export async function suggestResponses(conversationId: string) {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      contact: {
+        include: {
+          tags: { include: { tag: true } },
+          adAttributions: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      },
+      bot: true,
+      messages: { orderBy: { timestamp: "desc" }, take: 30 },
+    },
+  });
+
+  if (!conversation) throw new Error("Conversacion no encontrada");
+
+  const config = await prisma.aIConfig.findFirst({
+    where: { isActive: true, isDefault: true },
+  });
+  if (!config) {
+    return { suggestions: [], error: "no_ai_config" };
+  }
+
+  const scores = await prisma.leadScore.aggregate({
+    where: { contactId: conversation.contactId },
+    _sum: { points: true },
+  });
+  const leadScore = scores._sum.points || 0;
+
+  let knowledge = "";
+  if (conversation.bot) {
+    try { knowledge = await getKnowledgeContent(conversation.botId!); } catch {}
+  }
+
+  const messages = conversation.messages.slice(0, 20).reverse();
+  const tagList = conversation.contact.tags.map((ct) => ct.tag.name).join(", ") || "ninguna";
+  const attribution = conversation.contact.adAttributions[0];
+
+  const systemPrompt = `Eres un asistente de ventas que ayuda a un agente humano a responder mensajes de WhatsApp.
+
+CONTEXTO DEL CONTACTO:
+- Nombre: ${conversation.contact.name || "Sin nombre"}
+- Telefono: ${conversation.contact.phone}
+- Etiquetas: ${tagList}
+- Lead score: ${leadScore} puntos${attribution ? `\n- Fuente: anuncio de ${attribution.source} (campana: ${attribution.campaign || "N/A"})` : "\n- Fuente: organico"}
+
+CONTEXTO DE LA CONVERSACION:
+- Estado: ${conversation.status}
+- Bot activo: ${conversation.bot?.name || "ninguno"}
+${conversation.bot?.systemPrompt ? `- Instrucciones del bot: ${conversation.bot.systemPrompt}` : ""}
+
+${knowledge ? `CONOCIMIENTO DEL NEGOCIO:\n${knowledge.substring(0, 1500)}\n` : ""}
+
+INSTRUCCIONES:
+- Genera EXACTAMENTE 3 respuestas sugeridas en espanol
+- Cada respuesta debe ser corta (max 150 caracteres), conversacional y natural para WhatsApp
+- Las 3 respuestas deben tener diferentes tonos: una directa, una mas consultiva, una con pregunta abierta
+- NO incluyas saludos innecesarios si la conversacion ya esta avanzada
+- Si hay objection de precio, una respuesta debe abordar el valor
+- Si el cliente esta indeciso, una respuesta debe ayudar a avanzar
+
+Responde SOLO con un JSON array, sin markdown, sin explicaciones:
+[
+  {"text": "respuesta directa", "tone": "directa", "reasoning": "porque es directa"},
+  {"text": "respuesta consultiva", "tone": "consultiva", "reasoning": "porque es consultiva"},
+  {"text": "respuesta con pregunta", "tone": "abierta", "reasoning": "porque hace una pregunta"}
+]`;
+
+  const chatMessages = [
+    { role: "system", content: systemPrompt },
+    ...messages.map((m) => ({ role: m.direction === "inbound" ? "user" : "assistant", content: m.content })),
+  ];
+
+  try {
+    const response = await generateResponse(config.id, chatMessages, { maxTokens: 600 });
+
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      return {
+        suggestions: [
+          { id: "1", text: response.substring(0, 150).trim(), tone: "directa", reasoning: "Generada por IA" },
+          { id: "2", text: response.substring(0, 150).trim(), tone: "alternativa", reasoning: "Generada por IA" },
+        ],
+        context: { leadScore, hasAttribution: !!attribution, hasKnowledge: !!knowledge },
+      };
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      suggestions: parsed.map((s: any, i: number) => ({
+        id: `sug-${i}`,
+        text: s.text || "",
+        tone: s.tone || "neutral",
+        reasoning: s.reasoning || "",
+      })).filter((s: any) => s.text).slice(0, 3),
+      context: { leadScore, hasAttribution: !!attribution, hasKnowledge: !!knowledge },
+    };
+  } catch (err: any) {
+    return { suggestions: [], error: err.message };
+  }
+}

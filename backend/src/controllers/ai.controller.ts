@@ -60,3 +60,14 @@ export async function testGenerate(req: Request, res: Response) {
     res.status(500).json({ error: error.message || "Error generando respuesta" });
   }
 }
+
+export async function suggestResponses(req: Request, res: Response) {
+  try {
+    const { conversationId } = req.body;
+    if (!conversationId) return res.status(400).json({ error: "conversationId requerido" });
+    const result = await aiService.suggestResponses(conversationId);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Error generando sugerencias" });
+  }
+}

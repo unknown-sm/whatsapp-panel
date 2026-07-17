@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { processIncomingMessage } from "../services/whatsapp.service";
+import { encrypt, decrypt, isEncrypted } from "../services/crypto.service";
 import prisma from "../lib/prisma";
 
 export async function webhookVerify(req: Request, res: Response) {
@@ -8,8 +9,9 @@ export async function webhookVerify(req: Request, res: Response) {
   const challenge = req.query["hub.challenge"];
 
   const config = await prisma.whatsappConfig.findFirst();
+  const storedToken = config?.verifyToken && isEncrypted(config.verifyToken) ? decrypt(config.verifyToken) : config?.verifyToken;
 
-  if (mode === "subscribe" && token === config?.verifyToken) {
+  if (mode === "subscribe" && token === storedToken) {
     await prisma.whatsappConfig.updateMany({
       data: { status: "online", lastPing: new Date() },
     });
@@ -77,10 +79,12 @@ export async function testConnection(req: Request, res: Response) {
     return res.status(400).json({ error: "WhatsApp no configurado" });
   }
 
+  const accessToken = isEncrypted(config.accessToken) ? decrypt(config.accessToken) : config.accessToken;
+
   try {
     const axios = await import("axios");
     await axios.default.get(`https://graph.facebook.com/v21.0/${config.phoneNumberId}`, {
-      headers: { Authorization: `Bearer ${config.accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     await prisma.whatsappConfig.updateMany({ data: { status: "online", lastPing: new Date() } });
     res.json({ status: "ok", message: "Conexion exitosa" });
@@ -93,18 +97,31 @@ export async function testConnection(req: Request, res: Response) {
 export async function updateConfig(req: Request, res: Response) {
   const { phoneNumberId, accessToken, verifyToken } = req.body;
 
+  // Encrypt sensitive fields at rest
+  const encryptedToken = encrypt(accessToken);
+  const encryptedVerify = verifyToken ? encrypt(verifyToken) : null;
+
   const existing = await prisma.whatsappConfig.findFirst();
 
   if (existing) {
     const config = await prisma.whatsappConfig.update({
       where: { id: existing.id },
-      data: { phoneNumberId, accessToken, verifyToken },
+      data: {
+        phoneNumberId,
+        accessToken: encryptedToken,
+        verifyToken: encryptedVerify || existing.verifyToken,
+      },
     });
     return res.json({ config });
   }
 
   const config = await prisma.whatsappConfig.create({
-    data: { phoneNumberId, accessToken, verifyToken, webhookUrl: "/webhook/incoming" },
+    data: {
+      phoneNumberId,
+      accessToken: encryptedToken,
+      verifyToken: encryptedVerify,
+      webhookUrl: "/webhook/incoming",
+    },
   });
   res.status(201).json({ config });
 }

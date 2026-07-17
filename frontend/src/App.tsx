@@ -14,7 +14,9 @@ import Broadcasts from "./pages/Broadcasts";
 import Analytics from "./pages/Analytics";
 import Logs from "./pages/Logs";
 import Lab from "./pages/Lab";
+import Templates from "./pages/Templates";
 import AppLayout from "./components/AppLayout";
+import { ToastContainer } from "./components/ToastContainer";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -33,6 +35,7 @@ function App() {
     );
   }
   return (
+    <>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
@@ -47,9 +50,12 @@ function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="logs" element={<Logs />} />
         <Route path="lab" element={<Lab />} />
+        <Route path="templates" element={<Templates />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
+    <ToastContainer />
+    </>
   );
 }
 export default App;

@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 import {
   Search, Send, Users, Download, MessageSquare, Phone, Sparkles,
   Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
-  AlertCircle, UserCheck, ArrowRight, Hash, Plus,
+  AlertCircle, UserCheck, ArrowRight, Hash, Plus, Loader2,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
@@ -367,25 +367,34 @@ export default function Conversations() {
               </div>
             )}
 
-            {/* ── Composer ───────────────────────────────── */}
-            <div className="px-4 py-3 border-t border-border flex gap-2 items-end flex-shrink-0 bg-background">
-              <Textarea
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
+            {/* ── Composer (with 24h enforcement) ──────────── */}
+            {selectedConv.windowOpen === false ? (
+              <WindowClosedComposer
+                onTemplateSent={(newText) => {
+                  setNewMessage(newText);
+                  sendMessage();
                 }}
-                rows={1}
-                className="min-h-[40px] max-h-32"
-                placeholder="Escribe un mensaje..."
               />
-              <Button onClick={() => sendMessage()} disabled={!newMessage.trim()} size="icon" className="h-10 w-10">
-                <Send size={16} />
-              </Button>
-            </div>
+            ) : (
+              <div className="px-4 py-3 border-t border-border flex gap-2 items-end flex-shrink-0 bg-background">
+                <Textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  rows={1}
+                  className="min-h-[40px] max-h-32"
+                  placeholder="Escribe un mensaje..."
+                />
+                <Button onClick={() => sendMessage()} disabled={!newMessage.trim()} size="icon" className="h-10 w-10">
+                  <Send size={16} />
+                </Button>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center bg-background">
@@ -543,5 +552,68 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose }
         )}
       </div>
     </>
+  );
+}
+
+/* ── Window Closed Composer (24h enforcement) ────── */
+
+function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: string) => void }) {
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (showTemplates && templates.length === 0) loadTemplates();
+  }, [showTemplates]);
+
+  async function loadTemplates() {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/api/templates/approved");
+      setTemplates(data.templates || []);
+    } catch {} finally { setLoading(false); }
+  }
+
+  return (
+    <div className="px-4 py-4 border-t border-border bg-warn-chip-bg">
+      {!showTemplates ? (
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-1.5 mb-2">
+            <AlertTriangle size={14} className="text-warn-chip-text" />
+            <p className="text-[12.5px] font-[600] text-warn-chip-text">Ventana 24h cerrada</p>
+          </div>
+          <p className="text-[11.5px] text-warn-chip-text/80 mb-3 leading-relaxed">
+            Meta no permite mensajes libres fuera de la ventana. Usa un template aprobado para reabrirla.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setShowTemplates(true)}>
+            <Send size={12} />Reabrir con template
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="section-label text-warn-chip-text">Templates aprobados</p>
+            <button onClick={() => setShowTemplates(false)} className="text-warn-chip-text hover:opacity-70">
+              <X size={12} />
+            </button>
+          </div>
+          {loading ? (
+            <Loader2 className="animate-spin mx-auto block" size={16} style={{ color: "var(--warn-chip-text)" }} />
+          ) : templates.length === 0 ? (
+            <p className="text-[11.5px] text-warn-chip-text/80 text-center py-2">No hay templates aprobados</p>
+          ) : (
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {templates.slice(0, 5).map((t) => (
+                <button key={t.id} onClick={() => onTemplateSent(`[TEMPLATE: ${t.name}] ${t.bodyText}`)}
+                  className="w-full text-left p-2 rounded-md border border-warn-chip-border bg-background hover:bg-warn-chip-bg transition-colors">
+                  <p className="text-[11.5px] font-[600] text-ink">{t.name}</p>
+                  <p className="text-[11px] text-ink-2 line-clamp-2">{t.bodyText}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

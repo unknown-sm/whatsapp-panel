@@ -1,5 +1,17 @@
 import axios from "axios";
 import prisma from "../lib/prisma";
+import { decrypt, isEncrypted } from "./crypto.service";
+
+/* Helper: get decrypted config */
+async function getDecryptedConfig() {
+  const config = await prisma.whatsappConfig.findFirst();
+  if (!config) return null;
+  return {
+    ...config,
+    accessToken: isEncrypted(config.accessToken) ? decrypt(config.accessToken) : config.accessToken,
+    verifyToken: config.verifyToken && isEncrypted(config.verifyToken) ? decrypt(config.verifyToken) : config.verifyToken,
+  };
+}
 
 export interface IWhatsAppEngine {
   sendText(phone: string, message: string): Promise<boolean>;
@@ -15,7 +27,7 @@ export function resolveEngine(): IWhatsAppEngine {
 
 class MetaEngine implements IWhatsAppEngine {
   async sendText(phone: string, message: string): Promise<boolean> {
-    const config = await prisma.whatsappConfig.findFirst();
+    const config = await getDecryptedConfig();
     if (!config) {
       console.error("Meta: WhatsApp config not found");
       return false;
@@ -38,7 +50,7 @@ class MetaEngine implements IWhatsAppEngine {
   }
 
   async sendMedia(phone: string, mediaId: string, type: "image" | "video" | "document"): Promise<boolean> {
-    const config = await prisma.whatsappConfig.findFirst();
+    const config = await getDecryptedConfig();
     if (!config) return false;
     try {
       const url = `https://graph.facebook.com/v21.0/${config.phoneNumberId}/messages`;
@@ -50,7 +62,7 @@ class MetaEngine implements IWhatsAppEngine {
   }
 
   async getStatus() {
-    const config = await prisma.whatsappConfig.findFirst();
+    const config = await getDecryptedConfig();
     return { status: config?.status || "offline", lastPing: config?.lastPing?.toISOString() || null, configured: !!config?.phoneNumberId };
   }
 }

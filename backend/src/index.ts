@@ -24,6 +24,7 @@ import logsRoutes from "./routes/logs.routes";
 import playbookRoutes from "./routes/playbook.routes";
 import pushRoutes from "./routes/push.routes";
 import routingRoutes from "./routes/routing.routes";
+import labRoutes from "./routes/lab.routes";
 import { checkFollowUps } from "./services/followup.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { seedPlaybooks } from "./services/playbook.service";
@@ -275,6 +276,7 @@ app.use("/api/logs", logsRoutes);
 app.use("/api/playbooks", playbookRoutes);
 app.use("/api/push", pushRoutes);
 app.use("/api/routing", routingRoutes);
+app.use("/api/lab", labRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {

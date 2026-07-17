@@ -764,3 +764,38 @@ model RoutingRule {
   @@index([isActive])
   @@index([priority])
 }
+
+// ═══════════════════════════════════════════════════════════
+// LABORATORY — Red-team de IA con personas simuladas
+// ═══════════════════════════════════════════════════════════
+
+model AgentTestRun {
+  id          String    @id @default(uuid())
+  status      String    @default("running") // "running", "completed", "failed"
+  score       Int?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  configId    String?
+  createdById String?
+
+  cases AgentTestCase[]
+
+  @@index([status])
+  @@index([startedAt])
+}
+
+model AgentTestCase {
+  id          String   @id @default(uuid())
+  runId       String
+  personaId   String
+  personaName String
+  veredicto   String?  // "verde", "amarillo", "rojo"
+  score       Int?
+  hallazgos    Json?    // [{ tipo, descripcion, gravedad }]
+  transcript  Json?    // [{ role, content }]
+  createdAt   DateTime @default(now())
+
+  run AgentTestRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+}

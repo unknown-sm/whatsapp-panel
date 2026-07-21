@@ -50,24 +50,56 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
 }
 function WhatsappSettings() {
   const [config, setConfig] = useState({ phoneNumberId: "", accessToken: "", verifyToken: "" });
-  const [status, setStatus] = useState({ status: "offline", lastPing: null, configured: false });
+  const [status, setStatus] = useState<any>({ status: "offline", lastPing: null, configured: false });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [signupCode, setSignupCode] = useState("");
+  const [signupResult, setSignupResult] = useState<any>(null);
+  const [signingUp, setSigningUp] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => { fetchStatus(); }, []);
 
   async function fetchStatus() {
-    try { const { data } = await api.get("/webhook/status"); setStatus(data); if (data.configured) setConfig({ phoneNumberId: "", accessToken: "", verifyToken: "" }); } catch {}
+    try {
+      const { data } = await api.get("/api/whatsapp/config");
+      setStatus({ ...data, configured: data.configured, lastPing: data.lastPing });
+    } catch {}
   }
 
-  async function handleSave() { setSaving(true); try { await api.put("/webhook/config", config); fetchStatus(); } finally { setSaving(false); } }
+  async function handleSave() {
+    setSaving(true);
+    try { await api.put("/webhook/config", config); fetchStatus(); } finally { setSaving(false); }
+  }
 
   async function handleTest() {
     setTesting(true);
     try { await api.post("/webhook/test"); fetchStatus(); alert("Conexion exitosa!"); }
     catch (e: any) { alert(e.response?.data?.error || "Error de conexion"); }
     finally { setTesting(false); }
+  }
+
+  async function handleOAuthComplete() {
+    if (!signupCode.trim()) return;
+    setSigningUp(true);
+    try {
+      const { data } = await api.post("/api/whatsapp/complete-signup", { code: signupCode.trim() });
+      setSignupResult(data);
+      setSignupCode("");
+      fetchStatus();
+      alert(`Conectado! Numero: ${data.phoneNumber.displayPhoneNumber}`);
+    } catch (e: any) {
+      alert("Error: " + (e.response?.data?.error || e.message));
+    } finally {
+      setSigningUp(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!confirm("Desconectar WhatsApp? El bot dejara de responder")) return;
+    setDisconnecting(true);
+    try { await api.post("/api/whatsapp/disconnect"); fetchStatus(); } finally { setDisconnecting(false); }
   }
 
   return (
@@ -78,49 +110,101 @@ function WhatsappSettings() {
             {status.status === "online" ? <Wifi size={24} style={{ color: "var(--accent)" }} /> : <WifiOff size={24} style={{ color: "var(--danger)" }} />}
             <div>
               <p className="font-medium" style={{ color: "var(--text-primary)" }}>{status.status === "online" ? "En linea" : "Desconectado"}</p>
-              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{status.lastPing ? `Ultimo ping: ${new Date(status.lastPing).toLocaleString("es")}` : "Sin conexion"}</p>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {status.phoneNumberId ? `Phone ID: ${status.phoneNumberId}` : "Sin conexion"}
+                {status.lastPing && ` · Ultimo ping: ${new Date(status.lastPing).toLocaleString("es")}`}
+              </p>
             </div>
           </div>
           <span className={`status-dot ${status.status === "online" ? "status-online" : "status-offline"}`} />
         </div>
+        {status.configured && (
+          <button onClick={handleDisconnect} disabled={disconnecting} className="btn-ghost text-xs text-danger mt-3 w-full justify-center">
+            {disconnecting ? "Desconectando..." : "Desconectar"}
+          </button>
+        )}
       </div>
 
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Meta Cloud API</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Phone Number ID</label>
-            <input value={config.phoneNumberId} onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })} className="input" placeholder="Tu Phone Number ID de Meta" />
+      {/* ── OAuth Connect with Meta ──────────────────── */}
+      {!status.configured && (
+        <div className="card mb-6">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Conectar con Meta (Embedded Signup)</h3>
+          <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>
+            Recomendado: tu app de Meta debe tener habilitado "Embedded Signup" en WhatsApp &rarr; Configuration. Despues del dialog de Meta, pega el <code>code</code> aqui.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Authorization Code de Meta</label>
+              <textarea
+                value={signupCode}
+                onChange={(e) => setSignupCode(e.target.value)}
+                rows={3}
+                className="input font-mono text-[12px]"
+                placeholder="pega aqui el code que devuelve el dialog de Facebook Login..."
+              />
+            </div>
+            <button onClick={handleOAuthComplete} disabled={!signupCode.trim() || signingUp} className="btn-primary w-full disabled:opacity-50">
+              {signingUp ? "Conectando..." : "Completar Signup"}
+            </button>
+            {signupResult && (
+              <div className="p-3 rounded-md text-[12px]" style={{ background: "var(--success-muted)", color: "var(--success)" }}>
+                <p className="font-medium">Conectado a {signupResult.waba?.name}</p>
+                <p>Numero: {signupResult.phoneNumber?.displayPhoneNumber}</p>
+                <p>Webhook: {signupResult.webhookUrl}</p>
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Access Token</label>
-            <div className="relative">
-              <input type={showToken ? "text" : "password"} value={config.accessToken} onChange={(e) => setConfig({ ...config, accessToken: e.target.value })} className="input pr-10" placeholder="Tu Access Token de Meta" />
-              <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-tertiary)" }}>
-                {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+          <details className="mt-3">
+            <summary className="text-[11.5px] cursor-pointer" style={{ color: "var(--text-3)" }}>Setup manual (avanzado)</summary>
+            <div className="mt-3 space-y-4">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Phone Number ID</label>
+                <input value={config.phoneNumberId} onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })} className="input" placeholder="Tu Phone Number ID de Meta" />
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Access Token</label>
+                <div className="relative">
+                  <input type={showToken ? "text" : "password"} value={config.accessToken} onChange={(e) => setConfig({ ...config, accessToken: e.target.value })} className="input pr-10" placeholder="Tu Access Token de Meta" />
+                  <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-tertiary)" }}>
+                    {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Verify Token</label>
+                <input value={config.verifyToken} onChange={(e) => setConfig({ ...config, verifyToken: e.target.value })} className="input" placeholder="Token de verificacion" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50"><Save size={16} /> {saving ? "Guardando..." : "Guardar"}</button>
+                <button onClick={handleTest} disabled={testing || !config.phoneNumberId} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexion"}</button>
+              </div>
+            </div>
+          </details>
+        </div>
+      )}
+
+      {status.configured && (
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Configuracion activa</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between py-1.5">
+              <span style={{ color: "var(--text-secondary)" }}>Phone Number ID</span>
+              <code style={{ background: "var(--bg-muted)", padding: "2px 6px", borderRadius: 4 }}>{status.phoneNumberId}</code>
+            </div>
+            <div className="flex justify-between py-1.5">
+              <span style={{ color: "var(--text-secondary)" }}>Webhook URL</span>
+              <code style={{ background: "var(--bg-muted)", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>{status.webhookUrl}</code>
+            </div>
+            <div className="flex justify-between py-1.5">
+              <span style={{ color: "var(--text-secondary)" }}>Status</span>
+              <span className={`status-dot ${status.status === "online" ? "status-online" : "status-offline"}`} />
             </div>
           </div>
-          <div>
-            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Verify Token</label>
-            <input value={config.verifyToken} onChange={(e) => setConfig({ ...config, verifyToken: e.target.value })} className="input" placeholder="Token de verificacion (inventalo)" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50"><Save size={16} /> {saving ? "Guardando..." : "Guardar"}</button>
-            <button onClick={handleTest} disabled={testing || !config.phoneNumberId} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexion"}</button>
-          </div>
+          <button onClick={handleTest} disabled={testing} className="btn-secondary w-full justify-center mt-4">
+            <TestTube size={14} /> {testing ? "Probando..." : "Probar Conexion"}
+          </button>
         </div>
-
-        <div className="mt-6 pt-4 border-t" style={{ borderColor: "var(--border-default)" }}>
-          <p className="text-sm mb-2" style={{ color: "var(--text-tertiary)" }}>URL del Webhook:</p>
-          <code className="px-3 py-1.5 rounded text-sm block" style={{ background: "var(--bg-muted)", color: "var(--accent)" }}>
-            {window.location.origin}/webhook/incoming
-          </code>
-          <p className="text-xs mt-2" style={{ color: "var(--text-tertiary)" }}>
-            Configura esta URL en tu app de Meta Developers &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

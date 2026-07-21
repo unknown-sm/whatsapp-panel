@@ -8,6 +8,7 @@ import { addScoreByCondition } from "./leadscore.service";
 import * as sessionService from "./session.service";
 import * as attributionService from "./attribution.service";
 import * as mediaService from "./media.service";
+import * as npsService from "./nps.service";
 
 const engine = resolveEngine();
 
@@ -114,6 +115,16 @@ export async function processIncomingMessage(data: any) {
       if (conversation.botId) {
         addScoreByCondition(contact.id, "KEYWORD_MATCHED", `Keyword detectada: "${text.substring(0, 50)}"`).catch(() => {});
       }
+
+      // NPS: detectar si es respuesta a una pregunta NPS (numero 0-10)
+      try {
+        if (media?.type === undefined && /^\d{1,2}$/.test(text.trim())) {
+          const npsResult = await npsService.recordNpsResponse(contact.id, text);
+          if (npsResult.recorded) {
+            console.log(`NPS response recorded for contact ${contact.id}: ${text}`);
+          }
+        }
+      } catch {}
 
       io.emit("message:new", {
         conversationId: conversation.id,

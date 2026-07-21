@@ -5,7 +5,7 @@ import ThemeToggle from "./ThemeToggle";
 import {
   LayoutDashboard, Bot, MessageSquare, Clock, Settings, LogOut,
   Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3, FileText,
-  FlaskConical, Send,
+  FlaskConical, Send, Star, ClipboardList,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +18,8 @@ const navItems = [
   { to: "/broadcasts", icon: Megaphone, label: "Broadcasts" },
   { to: "/templates", icon: Send, label: "Templates" },
   { to: "/lab", icon: FlaskConical, label: "Laboratorio" },
+  { to: "/nps", icon: Star, label: "NPS" },
+  { to: "/reports", icon: ClipboardList, label: "Reportes" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/logs", icon: FileText, label: "Logs" },
   { to: "/settings", icon: Settings, label: "Configuracion" },

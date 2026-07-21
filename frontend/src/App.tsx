@@ -15,6 +15,8 @@ import Analytics from "./pages/Analytics";
 import Logs from "./pages/Logs";
 import Lab from "./pages/Lab";
 import Templates from "./pages/Templates";
+import Reports from "./pages/Reports";
+import Nps from "./pages/Nps";
 import AppLayout from "./components/AppLayout";
 import { ToastContainer } from "./components/ToastContainer";
 
@@ -51,6 +53,8 @@ function App() {
         <Route path="logs" element={<Logs />} />
         <Route path="lab" element={<Lab />} />
         <Route path="templates" element={<Templates />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="nps" element={<Nps />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

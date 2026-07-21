@@ -222,6 +222,7 @@ model Contact {
   leadScores   LeadScore[]
   deals        Deal[]
   broadcastRecipients BroadcastRecipient[]
+  npsResponses NpsResponse[]
   customFieldValues   CustomFieldValue[]
   conversationWindow  ConversationWindow?
   adAttributions      AdAttribution[]
@@ -803,4 +804,63 @@ model AgentTestCase {
   run AgentTestRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// REPORTS — Snapshots periodicos
+// ═══════════════════════════════════════════════════════════
+
+model Report {
+  id          String   @id @default(uuid())
+  period      String   // "daily", "weekly", "monthly"
+  periodStart DateTime
+  periodEnd   DateTime
+  data        Json     // { conversations, deals, leads, revenue, ... }
+  generatedAt DateTime @default(now())
+
+  @@index([period, periodStart])
+}
+
+model ReportSubscription {
+  id        String   @id @default(uuid())
+  email     String
+  period    String   @default("daily") // "daily", "weekly", "monthly"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([isActive])
+}
+
+// ═══════════════════════════════════════════════════════════
+// NPS — Net Promoter Score post-venta
+// ═══════════════════════════════════════════════════════════
+
+model NpsCampaign {
+  id          String    @id @default(uuid())
+  name        String
+  templateId  String?
+  triggerType String    @default("deal_won") // "deal_won", "manual", "scheduled"
+  isActive    Boolean   @default(true)
+  delayHours  Int       @default(24)
+  createdAt   DateTime  @default(now())
+
+  responses NpsResponse[]
+}
+
+model NpsResponse {
+  id          String    @id @default(uuid())
+  campaignId  String?
+  contactId   String
+  score       Int?      // 0-10
+  comment     String?
+  sentAt      DateTime  @default(now())
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  campaign NpsCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  contact  Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([campaignId])
+  @@index([respondedAt])
 }

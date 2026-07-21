@@ -27,7 +27,10 @@ import routingRoutes from "./routes/routing.routes";
 import labRoutes from "./routes/lab.routes";
 import templateRoutes from "./routes/template.routes";
 import metaOAuthRoutes from "./routes/meta-oauth.routes";
+import reportsRoutes from "./routes/reports.routes";
+import npsRoutes from "./routes/nps.routes";
 import { checkFollowUps } from "./services/followup.service";
+import * as reportsService from "./services/reports.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
 import { seedPlaybooks } from "./services/playbook.service";
 import { seedRoutingRules } from "./services/routing.service";
@@ -284,6 +287,8 @@ app.use("/api/routing", routingRoutes);
 app.use("/api/lab", labRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/whatsapp", metaOAuthRoutes);
+app.use("/api/reports", reportsRoutes);
+app.use("/api/nps", npsRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {
@@ -320,6 +325,19 @@ setInterval(checkFollowUps, 5 * 60 * 1000);
 
 // Broadcast cron job (every minute)
 setInterval(checkScheduledBroadcasts, 60 * 1000);
+
+// Reports cron job (every hour, generates daily report at 8am)
+setInterval(async () => {
+  const now = new Date();
+  if (now.getHours() === 8 && now.getMinutes() < 5) {
+    try {
+      await reportsService.saveReport("daily");
+      console.log("Daily report auto-generated");
+    } catch (err) {
+      console.error("Report cron error:", err);
+    }
+  }
+}, 5 * 60 * 1000);
 
 export { io };
 

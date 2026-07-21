@@ -66,6 +66,23 @@ export async function processIncomingMessage(data: any) {
         data: { conversationId: conversation.id, direction: "inbound", type: "text", content: text },
       });
 
+      // Follow-up: si hay attempts pendientes sin responder, marcar como replied
+      try {
+        const pendingAttempts = await prisma.followUpAttempt.findMany({
+          where: { conversationId: conversation.id, replied: false },
+          orderBy: { sentAt: "desc" },
+          take: 1,
+        });
+        if (pendingAttempts.length > 0) {
+          await prisma.followUpAttempt.update({
+            where: { id: pendingAttempts[0].id },
+            data: { replied: true },
+          });
+          // Lead scoring: FOLLOW_UP_REPLIED
+          addScoreByCondition(contact.id, "FOLLOW_UP_REPLIED", "Respondio un follow-up").catch(() => {});
+        }
+      } catch {}
+
       // Lead scoring: MESSAGE_RECEIVED
       addScoreByCondition(contact.id, "MESSAGE_RECEIVED", "Mensaje recibido por WhatsApp").catch(() => {});
 

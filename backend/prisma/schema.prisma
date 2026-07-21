@@ -289,9 +289,14 @@ model Message {
   id             String   @id @default(uuid())
   conversationId String
   direction      String
-  type           String   @default("text")
+  type           String   @default("text") // text, image, audio, video, document, voice, sticker, location
   content        String
-  mediaUrl       String?
+  mediaUrl       String?  // URL original de Meta
+  mediaLocalPath String?  // Path local en uploads/
+  mediaMimeType  String?  // image/jpeg, audio/ogg, etc
+  mediaFilename  String?
+  mediaSize      Int?
+  transcription  String?  // Audio transcrito por IA
   variables      Json?
   timestamp      DateTime @default(now())
 

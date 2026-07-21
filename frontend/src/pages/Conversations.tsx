@@ -5,6 +5,7 @@ import {
   Search, Send, Users, Download, MessageSquare, Phone, Sparkles,
   Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
   AlertCircle, UserCheck, ArrowRight, Hash, Plus, Loader2,
+  Image, Film, FileText, Music, Mic, Download, FileAudio,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
@@ -18,7 +19,7 @@ interface Conversation {
   contact: { id: string; phone: string; name: string | null };
   bot: { name: string } | null;
   assignedAgent: { name: string } | null;
-  messages: { id: string; content: string; direction: string; timestamp: string; aiGenerated?: boolean }[];
+  messages: { id: string; content: string; direction: string; timestamp: string; aiGenerated?: boolean; type?: string; mediaUrl?: string; mediaMimeType?: string; mediaFilename?: string; mediaSize?: number; transcription?: string }[];
   updatedAt: string;
   windowExpiresAt?: string;
   windowOpen?: boolean;
@@ -322,13 +323,25 @@ export default function Conversations() {
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1.5" style={{ background: "var(--chat-bg)" }}>
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
-                  <div className={msg.direction === "outbound" ? "bubble-out" : "bubble-in"}>
+                  <div className={msg.direction === "outbound" ? "bubble-out" : "bubble-in"} style={{ maxWidth: msg.type !== "text" ? "75%" : undefined }}>
                     {msg.aiGenerated && (
                       <div className="flex items-center gap-1 mb-1 text-[10.5px] opacity-60">
                         <Sparkles size={10} /> IA
                       </div>
                     )}
-                    <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    {msg.type && msg.type !== "text" && msg.mediaUrl && (
+                      <MediaContent msg={msg} />
+                    )}
+                    {msg.content && msg.content !== `[${msg.type}]` && (
+                      <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    )}
+                    {msg.transcription && (
+                      <div className="mt-1.5 p-2 rounded text-[12px] italic border-t" style={{ borderColor: "var(--border)", color: "var(--ink-2)" }}>
+                        <span className="text-[10.5px] uppercase tracking-wide text-ink-3 not-italic">Transcripción</span>
+                        <br />
+                        {msg.transcription}
+                      </div>
+                    )}
                     <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px]" style={{ color: msg.direction === "outbound" ? "rgba(51,65,79,0.5)" : "var(--text-3)" }}>
                       <span>{new Date(msg.timestamp).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
                       {msg.direction === "outbound" && (msg.aiGenerated ? <Sparkles size={10} /> : <CheckCheck size={12} />)}
@@ -615,5 +628,62 @@ function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: strin
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Media Content Renderer ─────────────────────── */
+
+function MediaContent({ msg }: { msg: any }) {
+  const url = msg.mediaUrl;
+  const type = msg.type;
+
+  if (type === "image" || type === "sticker") {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+        <img src={url} alt={msg.mediaFilename || "imagen"} className="rounded-md max-w-full max-h-80 object-cover" loading="lazy" />
+      </a>
+    );
+  }
+
+  if (type === "video") {
+    return (
+      <video src={url} controls className="rounded-md max-w-full max-h-80" preload="metadata">
+        Tu navegador no soporta video.
+      </video>
+    );
+  }
+
+  if (type === "audio" || type === "voice") {
+    return (
+      <div className="flex items-center gap-2 py-1">
+        <div className="w-9 h-9 rounded-full bg-atlas-panel flex items-center justify-center flex-shrink-0">
+          <Mic size={16} style={{ color: "var(--ink-2)" }} />
+        </div>
+        <audio src={url} controls className="h-9 flex-1" preload="metadata" />
+      </div>
+    );
+  }
+
+  if (type === "document") {
+    const sizeKb = msg.mediaSize ? (msg.mediaSize / 1024).toFixed(1) : "?";
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        className="flex items-center gap-2.5 p-2.5 rounded-md border bg-atlas-subtle border-border hover:border-brand transition-colors min-w-[200px]">
+        <div className="w-9 h-9 rounded-md bg-background flex items-center justify-center flex-shrink-0">
+          <FileText size={18} style={{ color: "var(--ink-2)" }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px] font-medium text-ink truncate">{msg.mediaFilename || "documento"}</p>
+          <p className="text-[10.5px] text-ink-3">{sizeKb} KB</p>
+        </div>
+        <Download size={14} className="text-ink-3" />
+      </a>
+    );
+  }
+
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="text-[12px] underline">
+      Descargar archivo
+    </a>
   );
 }

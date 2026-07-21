@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { processIncomingMessage } from "../services/whatsapp.service";
+import * as mediaService from "../services/media.service";
 import { encrypt, decrypt, isEncrypted } from "../services/crypto.service";
 import prisma from "../lib/prisma";
 
@@ -28,16 +29,27 @@ export async function webhookIncoming(req: Request, res: Response) {
     // Detect and convert OpenWA webhook format
     if (payload.event === "message.received" && payload.data) {
       const d = payload.data;
+      const type = d.type || "text";
+      const msgObj: any = {
+        from: d.from?.replace("@c.us", "") || d.chatId?.replace("@c.us", ""),
+        type,
+        timestamp: d.timestamp ? String(d.timestamp * 1000) : undefined,
+      };
+      if (type === "text") {
+        msgObj.text = { body: d.body || "" };
+      } else if (["image", "audio", "voice", "video", "document", "sticker"].includes(type)) {
+        const mediaObj: any = { id: d.mediaKey || d.id || d.body };
+        if (d.mimetype) mediaObj.mime_type = d.mimetype;
+        if (d.caption) mediaObj.caption = d.caption;
+        if (d.filename) mediaObj.filename = d.filename;
+        msgObj[type] = mediaObj;
+      } else {
+        msgObj.text = { body: d.body || `[${type}]` };
+      }
       payload = {
         entry: [{
           changes: [{
-            value: {
-              messages: [{
-                from: d.from?.replace("@c.us", "") || d.chatId?.replace("@c.us", ""),
-                text: { body: d.body || "" },
-                type: d.type || "text",
-              }],
-            },
+            value: { messages: [msgObj] },
           }],
         }],
       };

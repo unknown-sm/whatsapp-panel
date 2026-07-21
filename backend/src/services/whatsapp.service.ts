@@ -7,6 +7,7 @@ import { findBotByKeyword } from "./bot.service";
 import { addScoreByCondition } from "./leadscore.service";
 import * as sessionService from "./session.service";
 import * as attributionService from "./attribution.service";
+import * as mediaService from "./media.service";
 
 const engine = resolveEngine();
 
@@ -28,11 +29,13 @@ export async function processIncomingMessage(data: any) {
     const messages = value.messages || [];
 
     for (const msg of messages) {
-      if (msg.type !== "text") continue;
-
       const phone = msg.from;
-      const text = msg.text?.body || "";
 
+      // Extract media info if present
+      const media = mediaService.extractMediaFromPayload(msg);
+      const text = msg.text?.body || media?.caption || (media ? `[${media.type}]` : "");
+
+      if (!text && !media) continue;
       let contact = await prisma.contact.findUnique({ where: { phone } });
       if (!contact) {
         contact = await prisma.contact.create({ data: { phone } });
@@ -62,8 +65,29 @@ export async function processIncomingMessage(data: any) {
         });
       }
 
+      // Download + save media locally (if any)
+      let savedMedia: { localPath: string; url: string; filename: string; size: number } | null = null;
+      let transcription: string | null = null;
+      if (media) {
+        savedMedia = await mediaService.saveMediaLocally(media.mediaId, media.mimeType || "application/octet-stream");
+        if (media.type === "audio" || media.type === "voice") {
+          transcription = await mediaService.transcribeAudioIfPossible(media.mediaId);
+        }
+      }
+
       await prisma.message.create({
-        data: { conversationId: conversation.id, direction: "inbound", type: "text", content: text },
+        data: {
+          conversationId: conversation.id,
+          direction: "inbound",
+          type: media?.type || "text",
+          content: text,
+          mediaUrl: savedMedia?.url,
+          mediaLocalPath: savedMedia?.localPath,
+          mediaMimeType: media?.mimeType,
+          mediaFilename: savedMedia?.filename,
+          mediaSize: savedMedia?.size,
+          transcription,
+        },
       });
 
       // Follow-up: si hay attempts pendientes sin responder, marcar como replied
@@ -96,6 +120,10 @@ export async function processIncomingMessage(data: any) {
         phone,
         content: text,
         direction: "inbound",
+        type: media?.type || "text",
+        mediaUrl: savedMedia?.url,
+        mediaMimeType: media?.mimeType,
+        transcription,
         timestamp: new Date().toISOString(),
       });
 

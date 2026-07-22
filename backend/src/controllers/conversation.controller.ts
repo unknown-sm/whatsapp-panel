@@ -1,8 +1,27 @@
 import { Request, Response } from "express";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
 import * as convService from "../services/conversation.service";
 import { addScoreByCondition } from "../services/leadscore.service";
+import { resolveEngine } from "../services/whatsapp-engine";
+import prisma from "../lib/prisma";
 import { io } from "../index";
 import { z } from "zod";
+
+const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOADS_DIR,
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || "";
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+});
 
 export async function listConversations(req: Request, res: Response) {
   try {
@@ -136,5 +155,86 @@ export async function exportContacts(req: Request, res: Response) {
     res.send(csv);
   } catch {
     res.status(500).json({ error: "Error al exportar" });
+  }
+}
+
+/* ── Outbound media (upload + send) ───────────────── */
+
+const MIME_TO_TYPE: Record<string, "image" | "video" | "document" | "audio"> = {
+  "image/jpeg": "image", "image/png": "image", "image/webp": "image", "image/gif": "image",
+  "video/mp4": "video", "video/3gpp": "video", "video/quicktime": "video",
+  "audio/ogg": "audio", "audio/mpeg": "audio", "audio/mp4": "audio", "audio/amr": "audio",
+  "application/pdf": "document",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "document",
+  "text/plain": "document",
+};
+
+export { upload };
+
+export async function sendMedia(req: Request, res: Response) {
+  try {
+    const { caption, type: typeOverride } = req.body as { caption?: string; type?: string };
+    const file = (req as any).file;
+
+    if (!file) return res.status(400).json({ error: "archivo requerido" });
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: { contact: true },
+    });
+    if (!conversation) return res.status(404).json({ error: "Conversacion no encontrada" });
+
+    const mimeType = file.mimetype || "application/octet-stream";
+    const mediaType = (typeOverride as any) || MIME_TO_TYPE[mimeType] || "document";
+    const filename = file.originalname;
+
+    const engine = resolveEngine();
+    const buffer = fs.readFileSync(file.path);
+    const ok = await engine.sendMedia(
+      conversation.contact.phone,
+      buffer,
+      mimeType,
+      mediaType,
+      caption,
+      filename
+    );
+
+    if (!ok) {
+      // Cleanup file
+      try { fs.unlinkSync(file.path); } catch {}
+      return res.status(500).json({ error: "Meta rechazo el envio. Verifica que el numero esta registrado en Meta." });
+    }
+
+    // Save message
+    const message = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: "outbound",
+        type: mediaType,
+        content: caption || `[${mediaType}]`,
+        mediaUrl: `/uploads/${path.basename(file.path)}`,
+        mediaLocalPath: file.path,
+        mediaMimeType: mimeType,
+        mediaFilename: filename,
+        mediaSize: file.size,
+      },
+    });
+
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() },
+    });
+
+    io.to(conversation.id).emit("message:new", {
+      ...message,
+      timestamp: message.timestamp.toISOString(),
+    });
+    io.emit("conversation:updated", { id: conversation.id, updatedAt: new Date() });
+
+    res.json({ success: true, message });
+  } catch (err: any) {
+    console.error("sendMedia error:", err);
+    res.status(500).json({ error: err.message });
   }
 }

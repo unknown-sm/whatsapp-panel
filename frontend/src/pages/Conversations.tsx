@@ -6,6 +6,7 @@ import {
   Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
   AlertCircle, UserCheck, ArrowRight, Hash, Plus, Loader2,
   Image, Film, FileText, Music, Mic, Download, FileAudio,
+  Paperclip,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
@@ -389,24 +390,12 @@ export default function Conversations() {
                 }}
               />
             ) : (
-              <div className="px-4 py-3 border-t border-border flex gap-2 items-end flex-shrink-0 bg-background">
-                <Textarea
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  rows={1}
-                  className="min-h-[40px] max-h-32"
-                  placeholder="Escribe un mensaje..."
-                />
-                <Button onClick={() => sendMessage()} disabled={!newMessage.trim()} size="icon" className="h-10 w-10">
-                  <Send size={16} />
-                </Button>
-              </div>
+              <Composer
+                newMessage={newMessage}
+                setNewMessage={setNewMessage}
+                sendMessage={sendMessage}
+                conversationId={selectedConv.id}
+              />
             )}
           </>
         ) : (
@@ -627,6 +616,163 @@ function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: strin
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Composer with media upload + drag-drop ─────────── */
+
+function Composer({ newMessage, setNewMessage, sendMessage, conversationId }: {
+  newMessage: string;
+  setNewMessage: (v: string) => void;
+  sendMessage: (override?: string) => Promise<void>;
+  conversationId: string;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; preview: string; type: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [caption, setCaption] = useState("");
+
+  function detectType(file: File): string {
+    if (file.type.startsWith("image/")) return "image";
+    if (file.type.startsWith("video/")) return "video";
+    if (file.type.startsWith("audio/")) return "audio";
+    return "document";
+  }
+
+  function handleFileSelect(file: File) {
+    if (file.size > 50 * 1024 * 1024) {
+      alert("Maximo 50MB");
+      return;
+    }
+    const type = detectType(file);
+    const preview = type === "image" || type === "video" ? URL.createObjectURL(file) : "";
+    setPendingFile({ file, preview, type });
+  }
+
+  function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) handleFileSelect(f);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFileSelect(f);
+  }
+
+  async function sendFile() {
+    if (!pendingFile) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", pendingFile.file);
+      if (caption) form.append("caption", caption);
+      form.append("type", pendingFile.type);
+      await api.post(`/api/conversations/${conversationId}/media`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setPendingFile(null);
+      setCaption("");
+      // Trigger a refetch of messages
+      window.dispatchEvent(new Event("focus"));
+    } catch (err: any) {
+      alert("Error: " + (err.response?.data?.error || err.message));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function clearPending() {
+    if (pendingFile?.preview) URL.revokeObjectURL(pendingFile.preview);
+    setPendingFile(null);
+    setCaption("");
+  }
+
+  return (
+    <div
+      className={`px-3 py-3 border-t flex-shrink-0 bg-background ${dragOver ? "border-brand bg-brand-tint" : "border-border"}`}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+    >
+      {/* File preview */}
+      {pendingFile && (
+        <div className="mb-2 p-2 rounded-md border border-border bg-atlas-subtle flex items-start gap-2">
+          {pendingFile.type === "image" && (
+            <img src={pendingFile.preview} className="w-14 h-14 object-cover rounded" />
+          )}
+          {pendingFile.type === "video" && (
+            <video src={pendingFile.preview} className="w-14 h-14 object-cover rounded" muted />
+          )}
+          {pendingFile.type === "audio" && (
+            <div className="w-14 h-14 rounded bg-atlas-panel flex items-center justify-center">
+              <Mic size={20} className="text-ink-2" />
+            </div>
+          )}
+          {pendingFile.type === "document" && (
+            <div className="w-14 h-14 rounded bg-atlas-panel flex items-center justify-center">
+              <FileText size={20} className="text-ink-2" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[12.5px] font-[600] text-ink truncate">{pendingFile.file.name}</p>
+            <p className="text-[10.5px] text-ink-3">
+              {(pendingFile.file.size / 1024).toFixed(1)} KB · {pendingFile.type}
+            </p>
+            <input
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="Caption (opcional)"
+              className="input text-[12px] mt-1.5 h-8"
+            />
+          </div>
+          <button onClick={clearPending} className="btn-icon !w-7 !h-7" title="Quitar">
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-2 items-end">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+          onChange={onFileInput}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="btn-icon !w-10 !h-10 flex-shrink-0"
+          title="Adjuntar archivo"
+        >
+          <Paperclip size={18} />
+        </button>
+        <Textarea
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
+          rows={1}
+          className="min-h-[40px] max-h-32"
+          placeholder={pendingFile ? "Caption..." : "Escribe un mensaje o arrastra un archivo..."}
+        />
+        {pendingFile ? (
+          <Button onClick={sendFile} disabled={uploading} size="icon" className="h-10 w-10">
+            {uploading ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+          </Button>
+        ) : (
+          <Button onClick={() => sendMessage()} disabled={!newMessage.trim()} size="icon" className="h-10 w-10">
+            <Send size={16} />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

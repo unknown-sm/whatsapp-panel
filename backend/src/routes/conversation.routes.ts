@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   listConversations, getConversation, sendMessage, assignAgent,
   updateStatus, addNote, addTag, removeTag, listContacts, exportContacts,
+  sendMedia, upload,
 } from "../controllers/conversation.controller";
 import { authMiddleware } from "../middleware/auth";
 
@@ -16,6 +17,7 @@ router.get("/contacts/export", exportContacts);
 // Dynamic routes AFTER static routes
 router.get("/:id", getConversation);
 router.post("/:id/messages", sendMessage);
+router.post("/:id/media", upload.single("file"), sendMedia);
 router.put("/:id/agent", assignAgent);
 router.put("/:id/status", updateStatus);
 router.post("/:contactId/notes", addNote);

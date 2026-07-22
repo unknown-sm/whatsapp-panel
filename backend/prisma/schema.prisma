@@ -14,6 +14,68 @@ datasource db {
 // AUTENTICACION Y USUARIOS
 // ═══════════════════════════════════════════════════════════
 
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("free") // "free", "pro", "enterprise"
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members          UserOrganization[]
+  contacts         Contact[]
+  conversations    Conversation[]
+  bots             Bot[]
+  deals            Deal[]
+  pipelines        Pipeline[]
+  broadcastTemplates BroadcastTemplate[]
+  broadcasts       Broadcast[]
+  followUpRules    FollowUpRule[]
+  leadScoreRules   LeadScoreRule[]
+  messageTemplates MessageTemplate[]
+  customFields     CustomField[]
+  routingRules     RoutingRule[]
+  salesPlaybooks   SalesPlaybook[]
+  notes            ContactNote[]
+  tags             Tag[]
+  contactTags      ContactTags[]
+  contactNotes     ContactNote[]
+  messages         Message[]
+  followUpAttempts FollowUpAttempt[]
+  adAttributions   AdAttribution[]
+  conversationWindows ConversationWindow[]
+  botKnowledge     BotKnowledge[]
+  flowSteps        FlowStep[]
+  flowStepMedia    FlowStepMedia[]
+  intentRoutes     IntentRoute[]
+  httpRoutes       HttpRoute[]
+  agentTestRuns    AgentTestRun[]
+  reports          Report[]
+  reportSubscriptions ReportSubscription[]
+  npsCampaigns     NpsCampaign[]
+  npsResponses     NpsResponse[]
+  leads            Contact[] @relation("OrgContacts")
+
+  @@index([slug])
+}
+
+model UserOrganization {
+  id     String @id @default(uuid())
+  userId String
+  orgId  String
+  role   String @default("AGENT") // "ADMIN", "AGENT"
+  isDefault Boolean @default(false)
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([userId])
+  @@index([orgId])
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -25,6 +87,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  memberships         UserOrganization[]
   assignedConversations Conversation[]
   notes                 ContactNote[]
   assignedDeals         Deal[]
@@ -58,6 +121,7 @@ model Setting {
 
 model Bot {
   id           String   @id @default(uuid())
+  orgId        String?
   name         String
   systemPrompt String?
   exactMatch   Boolean  @default(false)
@@ -66,11 +130,14 @@ model Bot {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  org          Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   keywords     BotKeyword[]
   flowSteps    FlowStep[]
   followUpRules FollowUpRule[]
   conversations Conversation[]
   knowledge    BotKnowledge[]
+
+  @@index([orgId])
 }
 
 model BotKnowledge {
@@ -209,13 +276,15 @@ model AIConfig {
 
 model Contact {
   id           String   @id @default(uuid())
-  phone        String   @unique
+  orgId        String?
+  phone        String
   name         String?
   firstContact DateTime @default(now())
   lastActivity DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  org                Organization?       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   tags         ContactTags[]
   conversations Conversation[]
   notes        ContactNote[]
@@ -227,6 +296,9 @@ model Contact {
   conversationWindow  ConversationWindow?
   adAttributions      AdAttribution[]
   abTestAssignments   PlaybookABTestAssignment[]
+
+  @@unique([orgId, phone])
+  @@index([orgId])
 }
 
 model ContactTags {
@@ -264,6 +336,7 @@ model ContactNote {
 
 model Conversation {
   id              String   @id @default(uuid())
+  orgId           String?
   contactId       String
   botId           String?
   status          String   @default("active")
@@ -274,12 +347,14 @@ model Conversation {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  org             Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   contact         Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
   bot             Bot?       @relation(fields: [botId], references: [id], onDelete: SetNull)
   assignedAgent   User?      @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
   messages        Message[]
   followUpAttempts FollowUpAttempt[]
 
+  @@index([orgId])
   @@index([contactId])
   @@index([botId])
   @@index([status])
@@ -313,6 +388,7 @@ model Message {
 
 model FollowUpRule {
   id          String   @id @default(uuid())
+  orgId       String?
   botId       String
   stepId      String?
   delayHours  Int
@@ -322,7 +398,10 @@ model FollowUpRule {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  org         Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model FollowUpAttempt {
@@ -387,14 +466,18 @@ enum ResponseType {
 
 model Pipeline {
   id          String   @id @default(uuid())
+  orgId       String?
   name        String
   description String?
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   stages PipelineStage[]
   deals  Deal[]
+
+  @@index([orgId])
 }
 
 model PipelineStage {
@@ -427,6 +510,7 @@ enum DealPriority {
 
 model Deal {
   id                String       @id @default(uuid())
+  orgId             String?
   name              String
   value             Float        @default(0)
   currency          String       @default("USD")
@@ -443,11 +527,13 @@ model Deal {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   contact    Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   pipeline   Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   assignedTo User?         @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
 
+  @@index([orgId])
   @@index([stageId])
   @@index([pipelineId])
   @@index([assignedToId])
@@ -472,6 +558,7 @@ enum ScoreCondition {
 
 model LeadScoreRule {
   id          String        @id @default(uuid())
+  orgId       String?
   name        String
   condition   ScoreCondition
   config      Json?         // { keyword: "comprar", tagId: "...", minMessages: 3 }
@@ -480,7 +567,10 @@ model LeadScoreRule {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  org         Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   scores      LeadScore[]
+
+  @@index([orgId])
 }
 
 model LeadScore {
@@ -505,6 +595,7 @@ model LeadScore {
 
 model BroadcastTemplate {
   id        String   @id @default(uuid())
+  orgId     String?
   name      String
   content   String
   variables String[] @default([])
@@ -512,7 +603,10 @@ model BroadcastTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   broadcasts Broadcast[]
+
+  @@index([orgId])
 }
 
 enum BroadcastStatus {
@@ -610,6 +704,7 @@ model CustomFieldValue {
 
 model ConversationWindow {
   id              String    @id @default(uuid())
+  orgId           String?
   contactId       String    @unique
   lastInboundAt   DateTime
   windowExpiresAt DateTime
@@ -620,9 +715,12 @@ model ConversationWindow {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  org     Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  @@index([orgId])
   @@index([contactId])
-  @@index([windowExpiresAt])
+  @@index([campaignId])
+  @@index([source])
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -631,6 +729,7 @@ model ConversationWindow {
 
 model AdAttribution {
   id              String    @id @default(uuid())
+  orgId           String?
   contactId       String
   adId            String?
   campaignId      String?
@@ -663,6 +762,7 @@ model AdAttribution {
 
 model SalesPlaybook {
   id          String   @id @default(uuid())
+  orgId       String?
   name        String
   description String?
   methodology String   // "SPIN", "BANT", "AIDA", "CHALLENGER", "CONSULTATIVE"
@@ -671,9 +771,12 @@ model SalesPlaybook {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
   abTests PlaybookABTest[] @relation("PlaybookA")
   abTestsB PlaybookABTest[] @relation("PlaybookB")
+
+  @@index([orgId])
 }
 
 model PlaybookStage {
@@ -733,6 +836,7 @@ model PlaybookABTestAssignment {
 
 model MessageTemplate {
   id                String   @id @default(uuid())
+  orgId             String?
   name              String   @unique
   category          String   // "MARKETING", "UTILITY", "AUTHENTICATION"
   language          String   @default("es")
@@ -749,6 +853,8 @@ model MessageTemplate {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([orgId])
   @@index([status])
 }
 
@@ -758,6 +864,7 @@ model MessageTemplate {
 
 model RoutingRule {
   id            String   @id @default(uuid())
+  orgId         String?
   name          String
   priority      Int      @default(0)
   condition     Json     // { minScore?: number, tags?: string[], source?: string }
@@ -767,6 +874,8 @@ model RoutingRule {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([orgId])
   @@index([isActive])
   @@index([priority])
 }
@@ -812,22 +921,28 @@ model AgentTestCase {
 
 model Report {
   id          String   @id @default(uuid())
+  orgId       String?
   period      String   // "daily", "weekly", "monthly"
   periodStart DateTime
   periodEnd   DateTime
   data        Json     // { conversations, deals, leads, revenue, ... }
   generatedAt DateTime @default(now())
 
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([orgId])
   @@index([period, periodStart])
 }
 
 model ReportSubscription {
   id        String   @id @default(uuid())
+  orgId     String?
   email     String
   period    String   @default("daily") // "daily", "weekly", "monthly"
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@index([orgId])
   @@index([isActive])
 }
 
@@ -837,6 +952,7 @@ model ReportSubscription {
 
 model NpsCampaign {
   id          String    @id @default(uuid())
+  orgId       String?
   name        String
   templateId  String?
   triggerType String    @default("deal_won") // "deal_won", "manual", "scheduled"
@@ -844,7 +960,10 @@ model NpsCampaign {
   delayHours  Int       @default(24)
   createdAt   DateTime  @default(now())
 
+  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   responses NpsResponse[]
+
+  @@index([orgId])
 }
 
 model NpsResponse {

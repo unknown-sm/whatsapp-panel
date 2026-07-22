@@ -130,7 +130,7 @@ class OpenWAEngine implements IWhatsAppEngine {
       await axios.post(`${this.baseUrl}/sendText`, { phone, message }, { headers: this.getHeaders() });
       return true;
     } catch (error: any) {
-      console.error("OpenWA sendText error:", error.response?.data || err.message);
+      console.error("OpenWA sendText error:", error.response?.data || error.message);
       return false;
     }
   }

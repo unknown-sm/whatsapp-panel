@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 export interface AuthRequest extends Request {
-  user?: { id: string; email: string; role: string };
+  user?: { id: string; email: string; role: string; orgId?: string };
 }
 
 export const authenticate = authMiddleware;
@@ -14,7 +14,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
   const token = header.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as { id: string; email: string; role: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as { id: string; email: string; role: string; orgId?: string };
     req.user = decoded;
     next();
   } catch {

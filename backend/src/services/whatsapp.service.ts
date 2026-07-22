@@ -16,8 +16,12 @@ export async function sendWhatsAppMessage(phoneNumber: string, message: string):
   return engine.sendText(phoneNumber, message);
 }
 
-export async function sendWhatsAppMedia(phoneNumber: string, mediaId: string, type: "image" | "video" | "document"): Promise<boolean> {
-  return engine.sendMedia(phoneNumber, mediaId, type);
+export async function sendWhatsAppMediaById(phoneNumber: string, mediaId: string, type: "image" | "video" | "document" | "audio" | "sticker", caption?: string, filename?: string): Promise<boolean> {
+  return engine.sendMediaById(phoneNumber, mediaId, type, caption, filename);
+}
+
+export async function sendWhatsAppMedia(phoneNumber: string, buffer: Buffer, mimeType: string, type: "image" | "video" | "document" | "audio" | "sticker", caption?: string, filename?: string): Promise<boolean> {
+  return engine.sendMedia(phoneNumber, buffer, mimeType, type, caption, filename);
 }
 
 export async function processIncomingMessage(data: any) {

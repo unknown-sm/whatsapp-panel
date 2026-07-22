@@ -619,6 +619,7 @@ enum BroadcastStatus {
 
 model Broadcast {
   id          String          @id @default(uuid())
+  orgId       String?
   name        String
   templateId  String?
   content     String
@@ -632,8 +633,11 @@ model Broadcast {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  org        Organization?      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   template    BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   recipients  BroadcastRecipient[]
+
+  @@index([orgId])
 }
 
 model BroadcastRecipient {
@@ -719,8 +723,7 @@ model ConversationWindow {
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([contactId])
-  @@index([campaignId])
-  @@index([source])
+  @@index([windowExpiresAt])
 }
 
 // ═══════════════════════════════════════════════════════════

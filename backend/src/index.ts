@@ -54,12 +54,68 @@ async function seedDatabase() {
     console.error("Schema push error (continuing):", e instanceof Error ? e.message : e);
   }
 
+  // Migration: create default org for existing data without orgId
+  try {
+    const existingOrgs = await prisma.organization.count();
+    if (existingOrgs === 0) {
+      // Create a default org
+      const defaultOrg = await prisma.organization.create({
+        data: { name: "Default Organization", slug: "default", plan: "free" },
+      });
+      console.log(`Default org creado: ${defaultOrg.id}`);
+
+      // Migrate existing data: assign orgId to all rows where it's null
+      const updates = [
+        prisma.user.updateMany({ where: { role: { in: ["ADMIN", "AGENT"] }, memberships: { none: {} } }, data: {} }),
+        prisma.contact.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.conversation.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.bot.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.pipeline.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.deal.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.followUpRule.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.leadScoreRule.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.broadcastTemplate.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.broadcast.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.customField.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.conversationWindow.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.adAttribution.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.salesPlaybook.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.messageTemplate.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.routingRule.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.report.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+        prisma.npsCampaign.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
+      ];
+      const results = await Promise.all(updates);
+      console.log(`Migrados ${results.length} modelos a default org`);
+
+      // Create membership for existing admin
+      const adminUser = await prisma.user.findUnique({ where: { email: "admin@whatsapp-panel.com" } });
+      if (adminUser) {
+        await prisma.userOrganization.create({
+          data: { userId: adminUser.id, orgId: defaultOrg.id, role: "ADMIN", isDefault: true },
+        });
+        console.log("Admin user asignado a default org");
+      }
+    }
+  } catch (e) {
+    console.error("Migration error (continuing):", e instanceof Error ? e.message : e);
+  }
+
   // Admin User
   try {
     const existingAdmin = await prisma.user.findUnique({ where: { email: "admin@whatsapp-panel.com" } });
     if (!existingAdmin) {
       const hashedPassword = await bcrypt.hash("admin123", 12);
-      await prisma.user.create({ data: { email: "admin@whatsapp-panel.com", password: hashedPassword, name: "Administrador", role: "ADMIN" } });
+      const defaultOrg = await prisma.organization.findFirst();
+      await prisma.user.create({
+        data: {
+          email: "admin@whatsapp-panel.com",
+          password: hashedPassword,
+          name: "Administrador",
+          role: "ADMIN",
+          memberships: defaultOrg ? { create: { orgId: defaultOrg.id, role: "ADMIN", isDefault: true } } : undefined,
+        },
+      });
       console.log("Admin creado: admin@whatsapp-panel.com / admin123");
     } else {
       console.log("Admin ya existe");

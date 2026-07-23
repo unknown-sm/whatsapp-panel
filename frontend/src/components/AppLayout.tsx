@@ -38,15 +38,17 @@ export default function AppLayout() {
         className={`${sidebarOpen ? "w-[260px]" : "w-[72px]"} hidden md:flex flex-col transition-all duration-300 ease-in-out flex-shrink-0`}
         style={{ background: "var(--bg-surface)", borderRight: "1px solid var(--border-default)" }}
       >
-        {/* Logo */}
+        {/* Logo + org */}
         <div className="h-16 flex items-center gap-3 px-5 border-b flex-shrink-0" style={{ borderColor: "var(--border-default)" }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "var(--accent)" }}>
             <MessageSquare size={16} className="text-white" />
           </div>
           {sidebarOpen && (
             <div className="min-w-0">
-              <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>WhatsApp Panel</p>
-              <p className="text-[10px] font-medium truncate" style={{ color: "var(--text-tertiary)" }}>CRM</p>
+              <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{user?.org?.name || "WhatsApp Panel"}</p>
+              <p className="text-[10px] font-medium truncate" style={{ color: "var(--text-tertiary)" }}>
+                {user?.org ? `Plan ${user.org.plan}` : "CRM"}
+              </p>
             </div>
           )}
         </div>

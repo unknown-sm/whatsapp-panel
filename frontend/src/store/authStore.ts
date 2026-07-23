@@ -6,6 +6,8 @@ interface User {
   email: string;
   name: string | null;
   role: "ADMIN" | "AGENT";
+  orgId?: string;
+  org?: { id: string; name: string; slug: string; plan: string } | null;
 }
 
 interface AuthState {

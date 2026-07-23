@@ -75,3 +75,19 @@ export async function findBotByKeyword(text: string) {
     include: { keywords: true },
   });
 
+  for (const bot of bots) {
+    for (const kw of bot.keywords) {
+      if (bot.exactMatch) {
+        if (text.toLowerCase() === kw.keyword.toLowerCase()) return bot;
+      } else {
+        if (text.toLowerCase().includes(kw.keyword.toLowerCase())) return bot;
+      }
+    }
+  }
+
+  return prisma.bot.findFirst({
+    where: { isActive: true, isDefault: true },
+    include: { keywords: true },
+  });
+}
+

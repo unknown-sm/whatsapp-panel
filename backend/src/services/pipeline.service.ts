@@ -1,14 +1,15 @@
 import prisma from "../lib/prisma";
 
-export async function createPipeline(data: { name: string; description?: string }) {
+export async function createPipeline(data: { name: string; description?: string }, orgId?: string) {
   return prisma.pipeline.create({
-    data: { name: data.name, description: data.description },
+    data: { name: data.name, description: data.description, orgId: orgId || null },
     include: { stages: true, deals: true },
   });
 }
 
-export async function getPipelines() {
+export async function getPipelines(orgId?: string) {
   return prisma.pipeline.findMany({
+    where: orgId ? { orgId } : undefined,
     include: {
       stages: { orderBy: { order: "asc" } },
       _count: { select: { deals: true } },
@@ -17,9 +18,9 @@ export async function getPipelines() {
   });
 }
 
-export async function getPipelineById(id: string) {
-  return prisma.pipeline.findUnique({
-    where: { id },
+export async function getPipelineById(id: string, orgId?: string) {
+  return prisma.pipeline.findFirst({
+    where: { id, ...(orgId ? { orgId } : {}) },
     include: {
       stages: { orderBy: { order: "asc" } },
       deals: {
@@ -77,6 +78,7 @@ export async function createDeal(data: {
   source?: string;
   tags?: string[];
   notes?: string;
+  orgId?: string;
 }) {
   return prisma.deal.create({
     data: {
@@ -92,6 +94,7 @@ export async function createDeal(data: {
       source: data.source || null,
       tags: data.tags || [],
       notes: data.notes || null,
+      orgId: data.orgId || null,
     },
     include: {
       contact: true,
@@ -102,8 +105,9 @@ export async function createDeal(data: {
   });
 }
 
-export async function getDeals(filters?: { pipelineId?: string; stageId?: string; status?: string; assignedToId?: string }) {
+export async function getDeals(filters?: { pipelineId?: string; stageId?: string; status?: string; assignedToId?: string }, orgId?: string) {
   const where: any = {};
+  if (orgId) where.orgId = orgId;
   if (filters?.pipelineId) where.pipelineId = filters.pipelineId;
   if (filters?.stageId) where.stageId = filters.stageId;
   if (filters?.status) where.status = filters.status;
@@ -121,9 +125,9 @@ export async function getDeals(filters?: { pipelineId?: string; stageId?: string
   });
 }
 
-export async function getDealById(id: string) {
-  return prisma.deal.findUnique({
-    where: { id },
+export async function getDealById(id: string, orgId?: string) {
+  return prisma.deal.findFirst({
+    where: { id, ...(orgId ? { orgId } : {}) },
     include: {
       contact: true,
       assignedTo: { select: { id: true, name: true, email: true } },

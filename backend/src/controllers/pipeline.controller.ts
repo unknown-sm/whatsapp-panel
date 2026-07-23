@@ -2,11 +2,15 @@ import { Request, Response } from "express";
 import * as pipelineService from "../services/pipeline.service";
 import { addScoreByCondition } from "../services/leadscore.service";
 
+function getOrgId(req: Request): string | undefined {
+  return (req as any).user?.orgId;
+}
+
 // ─── Pipelines ─────────────────────────────────────
 
 export async function createPipeline(req: Request, res: Response) {
   try {
-    const pipeline = await pipelineService.createPipeline(req.body);
+    const pipeline = await pipelineService.createPipeline(req.body, getOrgId(req));
     res.status(201).json(pipeline);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -15,7 +19,7 @@ export async function createPipeline(req: Request, res: Response) {
 
 export async function getPipelines(req: Request, res: Response) {
   try {
-    const pipelines = await pipelineService.getPipelines();
+    const pipelines = await pipelineService.getPipelines(getOrgId(req));
     res.json(pipelines);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -24,7 +28,7 @@ export async function getPipelines(req: Request, res: Response) {
 
 export async function getPipelineById(req: Request, res: Response) {
   try {
-    const pipeline = await pipelineService.getPipelineById(req.params.id);
+    const pipeline = await pipelineService.getPipelineById(req.params.id, getOrgId(req));
     if (!pipeline) return res.status(404).json({ error: "Pipeline no encontrado" });
     res.json(pipeline);
   } catch (err: any) {
@@ -83,7 +87,8 @@ export async function deleteStage(req: Request, res: Response) {
 
 export async function createDeal(req: Request, res: Response) {
   try {
-    const deal = await pipelineService.createDeal(req.body);
+    const data = { ...req.body, orgId: getOrgId(req) };
+    const deal = await pipelineService.createDeal(data);
 
     // Lead scoring: DEAL_CREATED
     if (deal.contactId) {
@@ -98,7 +103,7 @@ export async function createDeal(req: Request, res: Response) {
 
 export async function getDeals(req: Request, res: Response) {
   try {
-    const deals = await pipelineService.getDeals(req.query as any);
+    const deals = await pipelineService.getDeals(req.query as any, getOrgId(req));
     res.json(deals);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

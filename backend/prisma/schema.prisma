@@ -23,39 +23,7 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members          UserOrganization[]
-  contacts         Contact[]
-  conversations    Conversation[]
-  bots             Bot[]
-  deals            Deal[]
-  pipelines        Pipeline[]
-  broadcastTemplates BroadcastTemplate[]
-  broadcasts       Broadcast[]
-  followUpRules    FollowUpRule[]
-  leadScoreRules   LeadScoreRule[]
-  messageTemplates MessageTemplate[]
-  customFields     CustomField[]
-  routingRules     RoutingRule[]
-  salesPlaybooks   SalesPlaybook[]
-  contactNotes     ContactNote[]
-  tags             Tag[]
-  contactTags      ContactTags[]
-  contactNotes     ContactNote[]
-  messages         Message[]
-  followUpAttempts FollowUpAttempt[]
-  adAttributions   AdAttribution[]
-  conversationWindows ConversationWindow[]
-  botKnowledge     BotKnowledge[]
-  flowSteps        FlowStep[]
-  flowStepMedia    FlowStepMedia[]
-  intentRoutes     IntentRoute[]
-  httpRoutes       HttpRoute[]
-  agentTestRuns    AgentTestRun[]
-  reports          Report[]
-  reportSubscriptions ReportSubscription[]
-  npsCampaigns     NpsCampaign[]
-  npsResponses     NpsResponse[]
-  leads            Contact[] @relation("OrgContacts")
+  members UserOrganization[]
 
   @@index([slug])
 }
@@ -130,7 +98,7 @@ model Bot {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  org          Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org          Organization? @relation("OrgBots", fields: [orgId], references: [id], onDelete: Cascade)
   keywords     BotKeyword[]
   flowSteps    FlowStep[]
   followUpRules FollowUpRule[]
@@ -284,7 +252,7 @@ model Contact {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  org                Organization?       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org                Organization?       @relation("OrgContacts", fields: [orgId], references: [id], onDelete: Cascade)
   tags         ContactTags[]
   conversations Conversation[]
   notes        ContactNote[]
@@ -347,7 +315,7 @@ model Conversation {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  org             Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org             Organization? @relation("OrgConversations", fields: [orgId], references: [id], onDelete: Cascade)
   contact         Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
   bot             Bot?       @relation(fields: [botId], references: [id], onDelete: SetNull)
   assignedAgent   User?      @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
@@ -398,7 +366,7 @@ model FollowUpRule {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org         Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org         Organization? @relation("OrgFollowUpRules", fields: [orgId], references: [id], onDelete: Cascade)
   bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
@@ -473,7 +441,7 @@ model Pipeline {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org    Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org    Organization? @relation("OrgPipelines", fields: [orgId], references: [id], onDelete: Cascade)
   stages PipelineStage[]
   deals  Deal[]
 
@@ -527,7 +495,7 @@ model Deal {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org        Organization? @relation("OrgDeals", fields: [orgId], references: [id], onDelete: Cascade)
   contact    Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
   stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   pipeline   Pipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
@@ -567,7 +535,7 @@ model LeadScoreRule {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  org         Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org         Organization? @relation("OrgLeadScoreRules", fields: [orgId], references: [id], onDelete: Cascade)
   scores      LeadScore[]
 
   @@index([orgId])
@@ -603,7 +571,7 @@ model BroadcastTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org        Organization? @relation("OrgBroadcastTemplates", fields: [orgId], references: [id], onDelete: Cascade)
   broadcasts Broadcast[]
 
   @@index([orgId])
@@ -633,7 +601,7 @@ model Broadcast {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  org        Organization?      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org         Organization? @relation("OrgFollowUpRules", fields: [orgId], references: [id], onDelete: Cascade)
   template    BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   recipients  BroadcastRecipient[]
 
@@ -719,7 +687,7 @@ model ConversationWindow {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  org     Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org    Organization? @relation("OrgPipelines", fields: [orgId], references: [id], onDelete: Cascade)
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([contactId])
@@ -774,7 +742,7 @@ model SalesPlaybook {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org    Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org    Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
   abTests PlaybookABTest[] @relation("PlaybookA")
   abTestsB PlaybookABTest[] @relation("PlaybookB")
@@ -856,7 +824,7 @@ model MessageTemplate {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org Organization? @relation("OrgMessageTemplates", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([status])
 }
@@ -877,7 +845,7 @@ model RoutingRule {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org Organization? @relation("OrgRoutingRules", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([isActive])
   @@index([priority])
@@ -931,7 +899,7 @@ model Report {
   data        Json     // { conversations, deals, leads, revenue, ... }
   generatedAt DateTime @default(now())
 
-  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org Organization? @relation("OrgReports", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([period, periodStart])
 }
@@ -944,7 +912,7 @@ model ReportSubscription {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org Organization? @relation("OrgReportSubs", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([isActive])
 }
@@ -963,7 +931,7 @@ model NpsCampaign {
   delayHours  Int       @default(24)
   createdAt   DateTime  @default(now())
 
-  org        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org        Organization? @relation("OrgNpsCampaigns", fields: [orgId], references: [id], onDelete: Cascade)
   responses NpsResponse[]
 
   @@index([orgId])

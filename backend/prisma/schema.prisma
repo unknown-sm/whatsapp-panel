@@ -37,7 +37,7 @@ model Organization {
   customFields     CustomField[]
   routingRules     RoutingRule[]
   salesPlaybooks   SalesPlaybook[]
-  notes            ContactNote[]
+  contactNotes     ContactNote[]
   tags             Tag[]
   contactTags      ContactTags[]
   contactNotes     ContactNote[]

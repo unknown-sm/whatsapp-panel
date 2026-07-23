@@ -39,6 +39,7 @@ model Organization {
   reports           Report[]           @relation("OrgReports")
   reportSubscriptions ReportSubscription[] @relation("OrgReportSubs")
   npsCampaigns      NpsCampaign[]      @relation("OrgNpsCampaigns")
+  conversationWindows ConversationWindow[] @relation("OrgConvWindows")
 
   @@index([slug])
 }

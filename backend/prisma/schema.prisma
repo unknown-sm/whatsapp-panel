@@ -23,7 +23,22 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members UserOrganization[]
+  members           UserOrganization[]
+  bots              Bot[]              @relation("OrgBots")
+  contacts          Contact[]          @relation("OrgContacts")
+  conversations     Conversation[]     @relation("OrgConversations")
+  pipelines         Pipeline[]         @relation("OrgPipelines")
+  deals             Deal[]             @relation("OrgDeals")
+  broadcastTemplates BroadcastTemplate[] @relation("OrgBroadcastTemplates")
+  broadcasts        Broadcast[]        @relation("OrgBroadcasts")
+  followUpRules     FollowUpRule[]     @relation("OrgFollowUpRules")
+  leadScoreRules    LeadScoreRule[]    @relation("OrgLeadScoreRules")
+  messageTemplates  MessageTemplate[]  @relation("OrgMessageTemplates")
+  routingRules      RoutingRule[]      @relation("OrgRoutingRules")
+  salesPlaybooks    SalesPlaybook[]    @relation("OrgSalesPlaybooks")
+  reports           Report[]           @relation("OrgReports")
+  reportSubscriptions ReportSubscription[] @relation("OrgReportSubs")
+  npsCampaigns      NpsCampaign[]      @relation("OrgNpsCampaigns")
 
   @@index([slug])
 }

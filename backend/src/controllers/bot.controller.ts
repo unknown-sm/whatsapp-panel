@@ -5,9 +5,13 @@ import * as aiService from "../services/ai.service";
 import prisma from "../lib/prisma";
 import { z } from "zod";
 
+function getOrgId(req: Request): string | undefined {
+  return (req as any).user?.orgId;
+}
+
 export async function listBots(req: Request, res: Response) {
   try {
-    const bots = await botService.getAllBots();
+    const bots = await botService.getAllBots(getOrgId(req));
     res.json({ bots });
   } catch {
     res.status(500).json({ error: "Error al obtener bots" });
@@ -16,7 +20,7 @@ export async function listBots(req: Request, res: Response) {
 
 export async function getBot(req: Request, res: Response) {
   try {
-    const bot = await botService.getBotById(req.params.id);
+    const bot = await botService.getBotById(req.params.id, getOrgId(req));
     if (!bot) return res.status(404).json({ error: "Bot no encontrado" });
     res.json({ bot });
   } catch {
@@ -26,7 +30,7 @@ export async function getBot(req: Request, res: Response) {
 
 export async function createBot(req: Request, res: Response) {
   try {
-    const bot = await botService.createBot(req.body);
+    const bot = await botService.createBot({ ...req.body, orgId: getOrgId(req) });
     res.status(201).json({ bot });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });

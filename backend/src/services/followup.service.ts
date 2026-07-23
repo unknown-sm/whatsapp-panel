@@ -3,8 +3,10 @@ import { z } from "zod";
 import { sendWhatsAppMessage } from "./whatsapp.service";
 import { io } from "../index";
 
-export async function getFollowUpRules(botId?: string) {
-  const where = botId ? { botId } : {};
+export async function getFollowUpRules(botId?: string, orgId?: string) {
+  const where: any = {};
+  if (botId) where.botId = botId;
+  if (orgId) where.orgId = orgId;
   return prisma.followUpRule.findMany({ where, orderBy: { createdAt: "desc" } });
 }
 
@@ -16,6 +18,7 @@ export async function createFollowUpRule(data: any) {
     maxAttempts: z.number().int().min(1).max(5).default(3),
     message: z.string().min(1),
     isActive: z.boolean().default(true),
+    orgId: z.string().optional(),
   }).parse(data);
 
   return prisma.followUpRule.create({ data: parsed });

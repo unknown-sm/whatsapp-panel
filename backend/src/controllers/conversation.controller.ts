@@ -26,6 +26,7 @@ const upload = multer({
 export async function listConversations(req: Request, res: Response) {
   try {
     const { status, botId, agentId, search, page, pageSize } = req.query;
+    const orgId = (req as any).user?.orgId;
     const result = await convService.getConversations({
       status: status as string,
       botId: botId as string,
@@ -33,6 +34,7 @@ export async function listConversations(req: Request, res: Response) {
       search: search as string,
       page: page ? parseInt(page as string) : undefined,
       pageSize: pageSize ? parseInt(pageSize as string) : undefined,
+      orgId,
     });
     res.json(result);
   } catch {

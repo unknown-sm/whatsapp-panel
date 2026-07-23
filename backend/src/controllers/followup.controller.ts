@@ -2,9 +2,13 @@ import { Request, Response } from "express";
 import * as followupService from "../services/followup.service";
 import { z } from "zod";
 
+function getOrgId(req: Request): string | undefined {
+  return (req as any).user?.orgId;
+}
+
 export async function listRules(req: Request, res: Response) {
   try {
-    const rules = await followupService.getFollowUpRules(req.query.botId as string);
+    const rules = await followupService.getFollowUpRules(req.query.botId as string, getOrgId(req));
     res.json({ rules });
   } catch {
     res.status(500).json({ error: "Error al obtener reglas" });
@@ -13,7 +17,8 @@ export async function listRules(req: Request, res: Response) {
 
 export async function createRule(req: Request, res: Response) {
   try {
-    const rule = await followupService.createFollowUpRule(req.body);
+    const data = { ...req.body, orgId: getOrgId(req) };
+    const rule = await followupService.createFollowUpRule(data);
     res.status(201).json({ rule });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });

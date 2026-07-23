@@ -1,11 +1,15 @@
 import { Request, Response } from "express";
 import * as broadcastService from "../services/broadcast.service";
 
+function getOrgId(req: Request): string | undefined {
+  return (req as any).user?.orgId;
+}
+
 // ─── Templates ─────────────────────────────────────
 
 export async function createTemplate(req: Request, res: Response) {
   try {
-    const template = await broadcastService.createTemplate(req.body);
+    const template = await broadcastService.createTemplate({ ...req.body, orgId: getOrgId(req) });
     res.status(201).json(template);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -14,7 +18,7 @@ export async function createTemplate(req: Request, res: Response) {
 
 export async function getTemplates(req: Request, res: Response) {
   try {
-    const templates = await broadcastService.getTemplates();
+    const templates = await broadcastService.getTemplates(getOrgId(req));
     res.json(templates);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -43,7 +47,7 @@ export async function deleteTemplate(req: Request, res: Response) {
 
 export async function createBroadcast(req: Request, res: Response) {
   try {
-    const broadcast = await broadcastService.createBroadcast(req.body);
+    const broadcast = await broadcastService.createBroadcast({ ...req.body, orgId: getOrgId(req) });
     res.status(201).json(broadcast);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -52,7 +56,7 @@ export async function createBroadcast(req: Request, res: Response) {
 
 export async function getBroadcasts(req: Request, res: Response) {
   try {
-    const broadcasts = await broadcastService.getBroadcasts();
+    const broadcasts = await broadcastService.getBroadcasts(getOrgId(req));
     res.json(broadcasts);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -61,7 +65,7 @@ export async function getBroadcasts(req: Request, res: Response) {
 
 export async function getBroadcastById(req: Request, res: Response) {
   try {
-    const broadcast = await broadcastService.getBroadcastById(req.params.id);
+    const broadcast = await broadcastService.getBroadcastById(req.params.id, getOrgId(req));
     if (!broadcast) return res.status(404).json({ error: "Broadcast no encontrado" });
     res.json(broadcast);
   } catch (err: any) {

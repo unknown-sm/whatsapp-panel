@@ -1,8 +1,9 @@
 import prisma from "../lib/prisma";
 import { z } from "zod";
 
-export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string; page?: number; pageSize?: number }) {
+export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string; page?: number; pageSize?: number; orgId?: string }) {
   const where: any = {};
+  if (filters.orgId) where.orgId = filters.orgId;
   if (filters.status) where.status = filters.status;
   if (filters.botId) where.botId = filters.botId;
   if (filters.agentId) where.assignedAgentId = filters.agentId;

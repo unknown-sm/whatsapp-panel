@@ -17,21 +17,22 @@ const updateBotSchema = z.object({
   isDefault: z.boolean().optional(),
 });
 
-export async function getAllBots() {
+export async function getAllBots(orgId?: string) {
   return prisma.bot.findMany({
+    where: orgId ? { orgId } : undefined,
     include: { keywords: true, _count: { select: { flowSteps: true, conversations: true } } },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getBotById(id: string) {
-  return prisma.bot.findUnique({
-    where: { id },
+export async function getBotById(id: string, orgId?: string) {
+  return prisma.bot.findFirst({
+    where: { id, ...(orgId ? { orgId } : {}) },
     include: { keywords: true, flowSteps: { orderBy: { order: "asc" } } },
   });
 }
 
-export async function createBot(data: { name: string; systemPrompt?: string; exactMatch?: boolean; isActive?: boolean; keywords?: string[] }) {
+export async function createBot(data: { name: string; systemPrompt?: string; exactMatch?: boolean; isActive?: boolean; keywords?: string[]; orgId?: string }) {
   const parsed = createBotSchema.parse(data);
   return prisma.bot.create({
     data: {
@@ -39,6 +40,7 @@ export async function createBot(data: { name: string; systemPrompt?: string; exa
       systemPrompt: parsed.systemPrompt,
       exactMatch: parsed.exactMatch,
       isActive: parsed.isActive,
+      orgId: data.orgId || null,
       keywords: { create: parsed.keywords.map((kw) => ({ keyword: kw })) },
     },
     include: { keywords: true },
@@ -73,18 +75,3 @@ export async function findBotByKeyword(text: string) {
     include: { keywords: true },
   });
 
-  for (const bot of bots) {
-    for (const kw of bot.keywords) {
-      if (bot.exactMatch) {
-        if (text.toLowerCase() === kw.keyword.toLowerCase()) return bot;
-      } else {
-        if (text.toLowerCase().includes(kw.keyword.toLowerCase())) return bot;
-      }
-    }
-  }
-
-  return prisma.bot.findFirst({
-    where: { isActive: true, isDefault: true },
-    include: { keywords: true },
-  });
-}

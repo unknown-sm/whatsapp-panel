@@ -3,19 +3,22 @@ import { sendWhatsAppMessage } from "./whatsapp.service";
 
 // ─── Templates ─────────────────────────────────────
 
-export async function createTemplate(data: { name: string; content: string; variables?: string[] }) {
+export async function createTemplate(data: { name: string; content: string; variables?: string[]; orgId?: string }) {
   return prisma.broadcastTemplate.create({
     data: {
       name: data.name,
       content: data.content,
       variables: data.variables || [],
+      orgId: data.orgId || null,
     },
   });
 }
 
-export async function getTemplates() {
+export async function getTemplates(orgId?: string) {
+  const where: any = { isActive: true };
+  if (orgId) where.orgId = orgId;
   return prisma.broadcastTemplate.findMany({
-    where: { isActive: true },
+    where,
     orderBy: { createdAt: "desc" },
   });
 }
@@ -36,6 +39,7 @@ export async function createBroadcast(data: {
   content: string;
   scheduledAt?: string;
   filters?: any;
+  orgId?: string;
 }) {
   return prisma.broadcast.create({
     data: {
@@ -45,21 +49,25 @@ export async function createBroadcast(data: {
       scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       filters: data.filters || {},
       status: data.scheduledAt ? "SCHEDULED" : "DRAFT",
+      orgId: data.orgId || null,
     },
     include: { template: true },
   });
 }
 
-export async function getBroadcasts() {
+export async function getBroadcasts(orgId?: string) {
+  const where: any = {};
+  if (orgId) where.orgId = orgId;
   return prisma.broadcast.findMany({
+    where,
     include: { template: true, _count: { select: { recipients: true } } },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getBroadcastById(id: string) {
-  return prisma.broadcast.findUnique({
-    where: { id },
+export async function getBroadcastById(id: string, orgId?: string) {
+  return prisma.broadcast.findFirst({
+    where: { id, ...(orgId ? { orgId } : {}) },
     include: {
       template: true,
       recipients: { include: { contact: true } },

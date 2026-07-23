@@ -76,7 +76,6 @@ async function seedDatabase() {
         prisma.leadScoreRule.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
         prisma.broadcastTemplate.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
         prisma.broadcast.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
-        prisma.customField.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
         prisma.conversationWindow.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
         prisma.adAttribution.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),
         prisma.salesPlaybook.updateMany({ where: { orgId: null }, data: { orgId: defaultOrg.id } }),

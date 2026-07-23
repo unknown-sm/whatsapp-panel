@@ -261,7 +261,7 @@ model AIConfig {
 model Contact {
   id           String   @id @default(uuid())
   orgId        String?
-  phone        String
+  phone        String   @unique
   name         String?
   firstContact DateTime @default(now())
   lastActivity DateTime @default(now())
@@ -281,7 +281,6 @@ model Contact {
   adAttributions      AdAttribution[]
   abTestAssignments   PlaybookABTestAssignment[]
 
-  @@unique([orgId, phone])
   @@index([orgId])
 }
 

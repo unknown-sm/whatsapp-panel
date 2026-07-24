@@ -100,26 +100,25 @@ export async function sendBroadcast(broadcastId: string) {
     where.tags = { some: { tag: { name: { in: filters.tags } } } };
   }
 
+  // If minScore filter, get qualified IDs first (SQL), then fetch only those contacts
+  let contacts;
   if (filters.minScore && filters.minScore > 0) {
-    // This requires a subquery - for simplicity, we'll get all and filter
-  }
-
-  const contacts = await prisma.contact.findMany({
-    where,
-    include: { tags: { include: { tag: true } } },
-  });
-
-  // Filter by score if needed
-  let filteredContacts = contacts;
-  if (filters.minScore) {
     const scores = await prisma.leadScore.groupBy({
       by: ["contactId"],
       _sum: { points: true },
       having: { points: { _sum: { gte: filters.minScore } } },
     });
-    const qualifiedIds = new Set(scores.map((s) => s.contactId));
-    filteredContacts = contacts.filter((c) => qualifiedIds.has(c.id));
+    const qualifiedIds = scores.map((s) => s.contactId);
+    if (qualifiedIds.length === 0) {
+      throw new Error("No hay contactos que cumplan el filtro de score");
+    }
+    where.id = { in: qualifiedIds };
   }
+
+  contacts = await prisma.contact.findMany({
+    where,
+    include: { tags: { include: { tag: true } } },
+  });
 
   if (filteredContacts.length === 0) {
     throw new Error("No hay contactos que cumplan los filtros");

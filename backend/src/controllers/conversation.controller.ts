@@ -57,6 +57,13 @@ export async function sendMessage(req: Request, res: Response) {
     const { content } = z.object({ content: z.string().min(1) }).parse(req.body);
     const message = await convService.sendMessage(req.params.id, content);
     io.to(req.params.id).emit("message:new", message);
+    // Lead scoring: MESSAGE_SENT
+    try {
+      const conv = await prisma.conversation.findUnique({ where: { id: req.params.id }, select: { contactId: true } });
+      if (conv?.contactId) {
+        addScoreByCondition(conv.contactId, "MESSAGE_SENT", "Mensaje enviado por agente").catch(() => {});
+      }
+    } catch {}
     res.json({ message });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
@@ -237,6 +244,47 @@ export async function sendMedia(req: Request, res: Response) {
     res.json({ success: true, message });
   } catch (err: any) {
     console.error("sendMedia error:", err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/* Bulk contacts import (CSV) */
+export async function importContacts(req: Request, res: Response) {
+  try {
+    const { contacts } = req.body as { contacts: { phone: string; name?: string }[] };
+    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({ error: "contacts[] requerido (array de {phone, name?})" });
+    }
+    if (contacts.length > 1000) {
+      return res.status(400).json({ error: "Maximo 1000 contactos por carga" });
+    }
+
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const item of contacts) {
+      try {
+        if (!item.phone || !/^\d{7,15}$/.test(item.phone)) {
+          errors.push(`Telefono invalido: ${item.phone}`);
+          skipped++;
+          continue;
+        }
+        const existing = await prisma.contact.findUnique({ where: { phone: item.phone } });
+        if (existing) {
+          skipped++;
+          continue;
+        }
+        await prisma.contact.create({ data: { phone: item.phone, name: item.name || null } });
+        created++;
+      } catch (err: any) {
+        errors.push(`${item.phone}: ${err.message}`);
+        skipped++;
+      }
+    }
+
+    res.json({ created, skipped, errors: errors.slice(0, 10), total: contacts.length });
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 }

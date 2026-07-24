@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma";
 import { z } from "zod";
 import { sendWhatsAppMessage } from "./whatsapp.service";
+import { addScoreByCondition } from "./leadscore.service";
 import { io } from "../index";
 
 export async function getFollowUpRules(botId?: string, orgId?: string) {
@@ -109,6 +110,8 @@ export async function checkFollowUps() {
           direction: "outbound",
           timestamp: new Date().toISOString(),
         });
+        // Lead scoring: MESSAGE_SENT
+        addScoreByCondition(conv.contactId, "MESSAGE_SENT", "Follow-up enviado").catch(() => {});
       }
     }
   }

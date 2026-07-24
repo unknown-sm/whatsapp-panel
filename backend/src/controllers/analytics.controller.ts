@@ -51,7 +51,38 @@ export async function getTopBots(req: Request, res: Response) {
 
 export async function getOverviewStats(req: Request, res: Response) {
   try {
-    const data = await analyticsService.getOverviewStats();
+    const orgId = (req as any).user?.orgId;
+    const data = await analyticsService.getOverviewStats(orgId);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function getRevenueBySource(req: Request, res: Response) {
+  try {
+    const days = parseInt(req.query.days as string) || 90;
+    const data = await analyticsService.getRevenueBySource(days);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function getAgentPerformance(req: Request, res: Response) {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const data = await analyticsService.getAgentPerformance(days);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function getForecast(req: Request, res: Response) {
+  try {
+    const months = parseInt(req.query.months as string) || 3;
+    const data = await analyticsService.getForecast(months);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

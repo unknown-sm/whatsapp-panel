@@ -196,6 +196,8 @@ async function processBotFlow(conversation: any, userMessage: string) {
             direction: "outbound",
             timestamp: new Date().toISOString(),
           });
+          // Lead scoring: MESSAGE_SENT
+          addScoreByCondition(conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por bot").catch(() => {});
         }
       }
       break;
@@ -257,6 +259,8 @@ async function processBotFlow(conversation: any, userMessage: string) {
             direction: "outbound",
             timestamp: new Date().toISOString(),
           });
+          // Lead scoring: MESSAGE_SENT
+          addScoreByCondition(conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por IA").catch(() => {});
         }
       }
       break;

@@ -59,7 +59,55 @@ export async function addScoreByCondition(contactId: string, condition: string, 
     where: { condition: condition as any, isActive: true },
   });
   if (!rule) return null;
-  return addScore({ contactId, ruleId: rule.id, points: rule.points, reason });
+  const result = await addScore({ contactId, ruleId: rule.id, points: rule.points, reason });
+
+  // Pipeline auto-advance: check if contact's deal should move stages
+  try {
+    const totalScore = await prisma.leadScore.aggregate({
+      where: { contactId },
+      _sum: { points: true },
+    });
+    const score = totalScore._sum.points || 0;
+
+    // Find contact's active deal
+    const deal = await prisma.deal.findFirst({
+      where: { contactId, status: "OPEN" },
+      include: { stage: true },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!deal) return result;
+
+    // Find pipeline stages for auto-advance
+    const stages = await prisma.pipelineStage.findMany({
+      where: { pipelineId: deal.pipelineId },
+      orderBy: { order: "asc" },
+    });
+
+    const currentIdx = stages.findIndex((s) => s.id === deal.stageId);
+    if (currentIdx < 0 || currentIdx >= stages.length - 1) return result;
+
+    // Skip won/lost stages
+    const currentStage = stages[currentIdx];
+    if (currentStage.name.toLowerCase().includes("cerrado")) return result;
+
+    // Auto-advance thresholds
+    let shouldAdvance = false;
+    if (currentIdx <= 1 && score > 30) shouldAdvance = true;  // Ahead of time
+    if (currentIdx <= 2 && score > 60) shouldAdvance = true;  // Ahead of time
+
+    if (shouldAdvance) {
+      const nextStage = stages[currentIdx + 1];
+      if (!nextStage.name.toLowerCase().includes("cerrado")) {
+        await prisma.deal.update({
+          where: { id: deal.id },
+          data: { stageId: nextStage.id },
+        });
+        console.log(`Pipeline auto-advance: deal ${deal.id} → ${nextStage.name} (score: ${score})`);
+      }
+    }
+  } catch {}
+
+  return result;
 }
 
 export async function getContactScores(contactId: string) {

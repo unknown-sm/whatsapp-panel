@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import * as pipelineService from "../services/pipeline.service";
 import { addScoreByCondition } from "../services/leadscore.service";
+import * as npsService from "../services/nps.service";
+import prisma from "../lib/prisma";
 
 function getOrgId(req: Request): string | undefined {
   return (req as any).user?.orgId;
@@ -137,6 +139,16 @@ export async function moveDeal(req: Request, res: Response) {
     // Lead scoring: DEAL_WON
     if (deal.status === "WON" && deal.contactId) {
       addScoreByCondition(deal.contactId, "DEAL_WON", `Deal ganado: ${deal.name}`).catch(() => {});
+
+      // NPS auto-trigger: send NPS if deal_won campaign active
+      try {
+        const npsCampaigns = await prisma.npsCampaign.findMany({
+          where: { triggerType: "deal_won", isActive: true },
+        });
+        for (const campaign of npsCampaigns) {
+          npsService.sendNpsToContact(campaign.id, deal.contactId).catch(() => {});
+        }
+      } catch {}
     }
 
     res.json(deal);

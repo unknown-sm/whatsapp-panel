@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { useTranslation } from "react-i18next";
+import { useAgentChatStore } from "../store/agentChatStore";
 import ThemeToggle from "./ThemeToggle";
+import AgentChatPanel from "./AgentChatPanel";
 import {
   LayoutDashboard, Bot, MessageSquare, Clock, Settings, LogOut,
   Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3, FileText,
-  FlaskConical, Send, Star, ClipboardList, Globe,
+  FlaskConical, Send, Star, ClipboardList, Globe, MessageCircle,
 } from "lucide-react";
 
 const languages: Record<string, { label: string; flag: string }> = {
@@ -22,6 +24,16 @@ export default function AppLayout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { t, i18n } = useTranslation();
+  const { unreadTotal, open: openChat, fetchUnread, connectSocket, disconnectSocket } = useAgentChatStore();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      connectSocket(token);
+      fetchUnread();
+    }
+    return () => disconnectSocket();
+  }, []);
 
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: t("sidebar.dashboard") },
@@ -179,6 +191,17 @@ export default function AppLayout() {
 
           {/* Language switcher in header (mobile) */}
           <div className="flex items-center gap-2">
+            {/* Agent chat button */}
+            <button onClick={openChat} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] relative"
+              style={{ color: "var(--text-tertiary)" }}>
+              <MessageCircle size={18} />
+              {unreadTotal > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 text-[9px] font-bold px-1 rounded-full"
+                  style={{ background: "var(--danger)", color: "#fff", minWidth: 16, textAlign: "center", lineHeight: "16px" }}>
+                  {unreadTotal > 9 ? "9+" : unreadTotal}
+                </span>
+              )}
+            </button>
             <div className="relative">
               <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] flex items-center gap-1"
                 style={{ color: "var(--text-tertiary)" }}>
@@ -204,6 +227,8 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </main>
+
+      <AgentChatPanel />
     </div>
   );
 }

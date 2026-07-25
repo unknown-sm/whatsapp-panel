@@ -30,6 +30,7 @@ import metaOAuthRoutes from "./routes/meta-oauth.routes";
 import reportsRoutes from "./routes/reports.routes";
 import npsRoutes from "./routes/nps.routes";
 import webhookRoutes from "./routes/webhook.routes";
+import agentChatRoutes from "./routes/agent-chat.routes";
 import { checkFollowUps } from "./services/followup.service";
 import * as reportsService from "./services/reports.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
@@ -346,6 +347,7 @@ app.use("/api/whatsapp", metaOAuthRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/nps", npsRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/api/agent-chat", agentChatRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {
@@ -370,6 +372,12 @@ io.on("connection", (socket) => {
       direction: "outbound",
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // Agent-to-agent chat
+  socket.on("agent-chat:message", (msg) => {
+    // Broadcast to all connected clients (frontend filters by org)
+    socket.broadcast.emit("agent-chat:received", msg);
   });
 
   socket.on("disconnect", () => {

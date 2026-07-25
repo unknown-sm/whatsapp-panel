@@ -75,6 +75,8 @@ model User {
   assignedConversations Conversation[]
   notes                 ContactNote[]
   assignedDeals         Deal[]
+  sentAgentMessages     AgentMessage[]    @relation("SentAgentMessages")
+  recvAgentMessages     AgentMessage[]    @relation("RecvAgentMessages")
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -989,4 +991,29 @@ model WebhookConfig {
 
   @@unique([orgId])
   @@index([orgId])
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHAT INTERNO AGENTE ↔ AGENTE
+// ═══════════════════════════════════════════════════════════
+
+model AgentMessage {
+  id             String    @id @default(uuid())
+  orgId          String
+  senderId       String
+  recipientId    String?
+  conversationId String?
+  content        String
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sender       User          @relation("SentAgentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient    User?         @relation("RecvAgentMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([recipientId])
+  @@index([conversationId])
+  @@index([createdAt])
 }

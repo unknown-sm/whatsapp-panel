@@ -145,7 +145,6 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
       if (!contact) throw new Error("Contacto no encontrado");
       const updateData: any = {};
       if (data.name) updateData.name = data.name;
-      if (data.email !== undefined) updateData.email = data.email;
       await prisma.contact.update({ where: { id: contact.id }, data: updateData });
       return { action, contactId: contact.id, updated: true };
     }

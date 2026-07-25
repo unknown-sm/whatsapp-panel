@@ -40,6 +40,8 @@ model Organization {
   reportSubscriptions ReportSubscription[] @relation("OrgReportSubs")
   npsCampaigns      NpsCampaign[]      @relation("OrgNpsCampaigns")
   conversationWindows ConversationWindow[] @relation("OrgConvWindows")
+  webhookConfig     WebhookConfig?
+  agentMessages     AgentMessage[]
 
   @@index([slug])
 }
@@ -338,6 +340,7 @@ model Conversation {
   assignedAgent   User?      @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
   messages        Message[]
   followUpAttempts FollowUpAttempt[]
+  agentMessages   AgentMessage[]
 
   @@index([orgId])
   @@index([contactId])

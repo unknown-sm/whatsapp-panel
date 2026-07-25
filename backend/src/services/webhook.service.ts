@@ -68,10 +68,6 @@ export async function regenerateSecret(orgId: string) {
   return secret;
 }
 
-// ═══════════════════════════════════════════════════════════
-// WEBHOOK TRIGGER — called by n8n
-// ═══════════════════════════════════════════════════════════
-
 export async function triggerWebhook(orgId: string, secret: string, action: string, payload: any) {
   const config = await prisma.webhookConfig.findUnique({ where: { orgId } });
   if (!config) throw new Error("Webhook no configurado para esta organizacion");
@@ -93,9 +89,37 @@ export async function triggerWebhook(orgId: string, secret: string, action: stri
   return result;
 }
 
-// ═══════════════════════════════════════════════════════════
-// ACTION DISPATCHER
-// ═══════════════════════════════════════════════════════════
+async function upsertTag(name: string) {
+  return prisma.tag.upsert({ where: { name }, create: { name }, update: {} });
+}
+
+async function addTagsToContact(contactId: string, tags: string[]) {
+  for (const t of tags) {
+    const tag = await upsertTag(t);
+    await prisma.contactTags.create({
+      data: { contactId, tagId: tag.id },
+    }).catch(() => {}); // ignore if already exists
+  }
+}
+
+async function findOrCreateScoreRule(orgId: string, condition: string, points: number) {
+  const conditionEnum = condition as any;
+  let rule = await prisma.leadScoreRule.findFirst({
+    where: { orgId, condition: conditionEnum },
+  });
+  if (!rule) {
+    rule = await prisma.leadScoreRule.create({
+      data: {
+        orgId,
+        name: `Webhook: ${condition}`,
+        condition: conditionEnum,
+        points,
+        isActive: true,
+      },
+    });
+  }
+  return rule;
+}
 
 async function dispatchAction(orgId: string, action: string, payload: any) {
   switch (action) {
@@ -103,20 +127,14 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
       const { phone, name, tags } = payload;
       if (!phone) throw new Error("phone requerido");
       const existing = await prisma.contact.findFirst({ where: { phone, orgId } });
-      if (existing) return { action, contactId: existing.id, existed: true };
+      if (existing) {
+        if (tags?.length) await addTagsToContact(existing.id, tags);
+        return { action, contactId: existing.id, existed: true };
+      }
       const contact = await prisma.contact.create({
         data: { phone, name: name || phone, orgId },
       });
-      if (tags?.length) {
-        for (const t of tags) {
-          const tag = await prisma.tag.upsert({ where: { name_orgId: { name: t, orgId } }, create: { name: t, orgId }, update: {} });
-          await prisma.contactTags.upsert({
-            where: { contactId_tagId: { contactId: contact.id, tagId: tag.id } },
-            create: { contactId: contact.id, tagId: tag.id },
-            update: {},
-          });
-        }
-      }
+      if (tags?.length) await addTagsToContact(contact.id, tags);
       return { action, contactId: contact.id, created: true };
     }
 
@@ -148,7 +166,7 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
       const deal = await prisma.deal.create({
         data: {
           orgId,
-          title,
+          name: title,
           value: value || 0,
           currency: payload.currency || "USD",
           priority: priority || "MEDIUM",
@@ -176,12 +194,13 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
       if (!contactPhone || !condition || points === undefined) throw new Error("contactPhone, condition y points requeridos");
       const contact = await prisma.contact.findFirst({ where: { phone: contactPhone, orgId } });
       if (!contact) throw new Error("Contacto no encontrado");
+      const rule = await findOrCreateScoreRule(orgId, condition, points);
       const score = await prisma.leadScore.create({
         data: {
           contactId: contact.id,
-          condition,
+          ruleId: rule.id,
           points,
-          description: description || `Webhook: ${condition}`,
+          reason: description || `Webhook: ${condition}`,
         },
       });
       return { action, scoreId: score.id, added: true };
@@ -194,6 +213,7 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
       if (!contact) throw new Error("Contacto no encontrado");
       const template = await prisma.messageTemplate.findFirst({
         where: { name: templateName, orgId },
+        select: { id: true, name: true, bodyText: true },
       });
       if (!template) throw new Error(`Template "${templateName}" no encontrado`);
       let conversation = await prisma.conversation.findFirst({
@@ -204,17 +224,17 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
           data: { contactId: contact.id, orgId, status: "active" },
         });
       }
-      let content = template.content || templateName;
+      let body = template.bodyText || templateName;
       if (params) {
         for (const [k, v] of Object.entries(params)) {
-          content = content.replace(`{{${k}}}`, String(v));
+          body = body.replace(`{{${k}}}`, String(v));
         }
       }
       await prisma.message.create({
         data: {
           conversationId: conversation.id,
           direction: "outbound",
-          content,
+          content: body,
           type: "text",
         },
       });
@@ -237,17 +257,8 @@ async function dispatchAction(orgId: string, action: string, payload: any) {
       if (!contactPhone || !tags?.length) throw new Error("contactPhone y tags[] requeridos");
       const contact = await prisma.contact.findFirst({ where: { phone: contactPhone, orgId } });
       if (!contact) throw new Error("Contacto no encontrado");
-      const result: string[] = [];
-      for (const t of tags) {
-        const tag = await prisma.tag.upsert({ where: { name_orgId: { name: t, orgId } }, create: { name: t, orgId }, update: {} });
-        await prisma.contactTags.upsert({
-          where: { contactId_tagId: { contactId: contact.id, tagId: tag.id } },
-          create: { contactId: contact.id, tagId: tag.id },
-          update: {},
-        });
-        result.push(t);
-      }
-      return { action, contactId: contact.id, tags: result, added: true };
+      await addTagsToContact(contact.id, tags);
+      return { action, contactId: contact.id, tags, added: true };
     }
 
     default:

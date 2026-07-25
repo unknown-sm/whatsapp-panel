@@ -120,19 +120,19 @@ export async function sendBroadcast(broadcastId: string) {
     include: { tags: { include: { tag: true } } },
   });
 
-  if (filteredContacts.length === 0) {
+  if (contacts.length === 0) {
     throw new Error("No hay contactos que cumplan los filtros");
   }
 
   // Update status
   await prisma.broadcast.update({
     where: { id: broadcastId },
-    data: { status: "SENDING", totalCount: filteredContacts.length },
+    data: { status: "SENDING", totalCount: contacts.length },
   });
 
   // Create recipients
   await prisma.broadcastRecipient.createMany({
-    data: filteredContacts.map((c) => ({
+    data: contacts.map((c) => ({
       broadcastId,
       contactId: c.id,
       status: "pending",
@@ -144,7 +144,7 @@ export async function sendBroadcast(broadcastId: string) {
   let sentCount = 0;
   let failedCount = 0;
 
-  for (const contact of filteredContacts) {
+  for (const contact of contacts) {
     const message = broadcast.content;
     const success = await sendWhatsAppMessage(contact.phone, message);
 

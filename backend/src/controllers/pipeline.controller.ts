@@ -94,7 +94,7 @@ export async function createDeal(req: Request, res: Response) {
 
     // Lead scoring: DEAL_CREATED
     if (deal.contactId) {
-      addScoreByCondition(deal.contactId, "DEAL_CREATED", `Deal creado: ${deal.name}`).catch(() => {});
+      addScoreByCondition(deal.orgId || "", deal.contactId, "DEAL_CREATED", `Deal creado: ${deal.name}`).catch(() => {});
     }
 
     res.status(201).json(deal);
@@ -138,7 +138,7 @@ export async function moveDeal(req: Request, res: Response) {
 
     // Lead scoring: DEAL_WON
     if (deal.status === "WON" && deal.contactId) {
-      addScoreByCondition(deal.contactId, "DEAL_WON", `Deal ganado: ${deal.name}`).catch(() => {});
+        addScoreByCondition(deal.orgId || "", deal.contactId, "DEAL_WON", `Deal ganado: ${deal.name}`).catch(() => {});
 
       // NPS auto-trigger: send NPS if deal_won campaign active
       try {

@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "WhatsApp Panel",
-    "subtitle": "CRM con Automatizacion e IA",
+    "subtitle": "CRM con Automatización e IA",
     "loading": "Cargando...",
     "plan": "Plan {{plan}}"
   },
@@ -19,13 +19,13 @@
     "back": "Volver",
     "next": "Siguiente",
     "confirm": "Confirmar",
-    "yes": "Si",
+    "yes": "Sí",
     "no": "No",
     "active": "Activo",
     "inactive": "Inactivo",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
-    "online": "En linea",
+    "online": "En línea",
     "offline": "Desconectado",
     "loading": "Cargando...",
     "no_data": "Sin datos",
@@ -50,30 +50,30 @@
     "reports": "Reportes",
     "analytics": "Analytics",
     "logs": "Logs",
-    "settings": "Configuracion",
-    "logout": "Cerrar sesion",
-    "collapse": "Colapsar menu"
+    "settings": "Configuración",
+    "logout": "Cerrar sesión",
+    "collapse": "Colapsar menú"
   },
   "roles": {
     "admin": "Administrador",
     "agent": "Agente"
   },
   "auth": {
-    "login": "Iniciar Sesion",
+    "login": "Iniciar Sesión",
     "register": "Crear Cuenta",
     "email": "Email",
-    "password": "Contrasena",
+    "password": "Contraseña",
     "name": "Nombre",
-    "orgName": "Nombre de tu organizacion",
+    "orgName": "Nombre de tu organización",
     "yourName": "Tu nombre",
-    "passwordMin": "Contrasena (min 6)",
-    "logging_in": "Iniciando sesion...",
+    "passwordMin": "Contraseña (mín 6)",
+    "logging_in": "Iniciando sesión...",
     "creating_account": "Creando cuenta...",
     "create_account_start": "Crear cuenta y empezar",
     "create_new_account": "Crear cuenta nueva",
     "already_have_account": "Ya tengo cuenta",
     "demo_credentials": "Demo: admin@whatsapp-panel.com / admin123",
-    "login_error": "Error al iniciar sesion",
+    "login_error": "Error al iniciar sesión",
     "register_error": "Error al registrarse"
   },
   "dashboard": {
@@ -86,12 +86,12 @@
     "pipeline_value": "Valor Pipeline",
     "won_deals": "Deals Ganados",
     "open_deals": "Deals Abiertos",
-    "conversion": "Conversion",
+    "conversion": "Conversión",
     "welcome_title": "Bienvenido a WhatsApp Panel CRM",
     "welcome_text": "Comienza creando tu primer bot, gestiona tu pipeline de ventas, o revisa el lead scoring."
   },
   "settings": {
-    "title": "Configuracion",
+    "title": "Configuración",
     "subtitle": "Administra las conexiones y preferencias del sistema",
     "tabs": {
       "whatsapp": "WhatsApp",
@@ -104,9 +104,9 @@
     },
     "whatsapp": {
       "connect_meta": "Conectar con Meta (Embedded Signup)",
-      "connect_hint": "Recomendado: tu app de Meta debe tener habilitado \"Embedded Signup\" en WhatsApp → Configuration. Despues del dialog de Meta, pega el code aqui.",
+      "connect_hint": "Recomendado: tu app de Meta debe tener habilitado \"Embedded Signup\" en WhatsApp → Configuration. Después del diálogo de Meta, pega el código aquí.",
       "auth_code": "Authorization Code de Meta",
-      "paste_code": "pega aqui el code que devuelve el dialog de Facebook Login...",
+      "paste_code": "Pega aquí el código que devuelve el diálogo de Facebook Login...",
       "complete_signup": "Completar Signup",
       "connecting": "Conectando...",
       "manual_setup": "Setup manual (avanzado)",
@@ -114,9 +114,9 @@
       "access_token": "Access Token",
       "verify_token": "Verify Token",
       "saving": "Guardando...",
-      "test_connection": "Probar Conexion",
+      "test_connection": "Probar Conexión",
       "testing": "Probando...",
-      "active_config": "Configuracion activa",
+      "active_config": "Configuración activa",
       "webhook_url": "Webhook URL",
       "status": "Status",
       "disconnect": "Desconectar",
@@ -127,22 +127,22 @@
       "not_configured": "No Configurado",
       "active": "Activo",
       "disabled": "Desactivado",
-      "last_trigger": "Ultimo trigger",
+      "last_trigger": "Último trigger",
       "triggers": "triggers",
       "activate": "Activar",
       "deactivate": "Desactivar",
       "secret_key": "Secret Key",
-      "new_secret": "Nuevo Secret - guardalo ahora!",
-      "secret_warning": "Este secret no se volvera a mostrar. Guardalo en un lugar seguro.",
+      "new_secret": "Nuevo Secret - ¡guárdalo ahora!",
+      "secret_warning": "Este secret no se volverá a mostrar. Guárdalo en un lugar seguro.",
       "regenerate": "Regenerar Secret",
       "generate": "Generar Secret",
       "generating": "Generando...",
       "allowed_actions": "Acciones Permitidas",
-      "how_to": "Como usar en n8n",
+      "how_to": "Cómo usar en n8n",
       "url_label": "1. URL del Webhook",
       "body_format": "2. Formato del Body (JSON)",
       "n8n_step": "3. n8n: Agrega un nodo \"HTTP Request\"",
-      "examples": "Ejemplos de payload por accion",
+      "examples": "Ejemplos de payload por acción",
       "actions": {
         "create_contact": "Crear Contacto",
         "update_contact": "Actualizar Contacto",
@@ -156,10 +156,10 @@
     }
   },
   "notifications": {
-    "connection_success": "Conexion exitosa!",
-    "connection_error": "Error de conexion",
+    "connection_success": "¡Conexión exitosa!",
+    "connection_error": "Error de conexión",
     "saved": "Guardado correctamente",
     "deleted": "Eliminado correctamente",
-    "error_generic": "Ocurrio un error"
+    "error_generic": "Ocurrió un error"
   }
 }

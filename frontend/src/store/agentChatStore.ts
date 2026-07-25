@@ -75,7 +75,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
     try {
       const { data } = await api.get("/api/agent-chat/conversations");
       set({ conversations: Array.isArray(data) ? data : [] });
-    } catch {} finally { set({ loading: false }); }
+    } catch (err) { console.error("agentChat fetchConvs:", err); } finally { set({ loading: false }); }
   },
 
   fetchMessages: async (partnerId: string) => {
@@ -84,7 +84,7 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       set({ messages: Array.isArray(data) ? data : [] });
       get().fetchConversations();
       get().fetchUnread();
-    } catch {}
+    } catch (err) { console.error("agentChat fetchMsgs:", err); }
   },
 
   selectPartner: (user) => {
@@ -111,14 +111,14 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
       if (socket) {
         socket.emit("agent-chat:message", data);
       }
-    } catch {}
+    } catch (err) { console.error("agentChat send:", err); }
   },
 
   fetchUnread: async () => {
     try {
       const { data } = await api.get("/api/agent-chat/unread-count");
       set({ unreadTotal: data.count || 0 });
-    } catch {}
+    } catch (err) { console.error("agentChat unread:", err); }
   },
 
   connectSocket: (token) => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAgentChatStore } from "../store/agentChatStore";
-import { X, ArrowLeft, Send, MessageSquare, User } from "lucide-react";
+import { X, ArrowLeft, Send, MessageSquare } from "lucide-react";
 
 export default function AgentChatPanel() {
   const { isOpen, close, conversations, messages, activePartner, unreadTotal, loading, fetchConversations, selectPartner, clearPartner, sendMessage } = useAgentChatStore();

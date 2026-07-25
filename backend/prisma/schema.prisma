@@ -42,6 +42,7 @@ model Organization {
   conversationWindows ConversationWindow[] @relation("OrgConvWindows")
   webhookConfig     WebhookConfig?
   agentMessages     AgentMessage[]
+  adAttributions    AdAttribution[]
 
   @@index([slug])
 }
@@ -742,7 +743,9 @@ model AdAttribution {
   createdAt       DateTime  @default(now())
 
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  org     Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
   @@index([contactId])
+  @@index([orgId])
   @@index([campaignId])
   @@index([source])
 }
@@ -1016,6 +1019,7 @@ model AgentMessage {
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   @@index([orgId])
+  @@index([senderId])
   @@index([recipientId])
   @@index([conversationId])
   @@index([createdAt])

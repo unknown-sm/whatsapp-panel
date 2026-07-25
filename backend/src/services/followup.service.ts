@@ -111,7 +111,7 @@ export async function checkFollowUps() {
           timestamp: new Date().toISOString(),
         });
         // Lead scoring: MESSAGE_SENT
-        addScoreByCondition(conv.contactId, "MESSAGE_SENT", "Follow-up enviado").catch(() => {});
+        addScoreByCondition(conv.orgId || "", conv.contactId, "MESSAGE_SENT", "Follow-up enviado").catch(() => {});
       }
     }
   }

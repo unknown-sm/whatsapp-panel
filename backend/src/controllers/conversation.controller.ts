@@ -61,7 +61,7 @@ export async function sendMessage(req: Request, res: Response) {
     try {
       const conv = await prisma.conversation.findUnique({ where: { id: req.params.id }, select: { contactId: true } });
       if (conv?.contactId) {
-        addScoreByCondition(conv.contactId, "MESSAGE_SENT", "Mensaje enviado por agente").catch(() => {});
+        addScoreByCondition((req as any).user?.orgId || "", conv.contactId, "MESSAGE_SENT", "Mensaje enviado por agente").catch(() => {});
       }
     } catch {}
     res.json({ message });
@@ -91,7 +91,7 @@ export async function updateStatus(req: Request, res: Response) {
 
     // Lead scoring: CONVERSATION_CLOSED
     if (status === "closed" && conv?.contactId) {
-      addScoreByCondition(conv.contactId, "CONVERSATION_CLOSED", "Conversacion cerrada").catch(() => {});
+      addScoreByCondition((req as any).user?.orgId || "", conv.contactId, "CONVERSATION_CLOSED", "Conversacion cerrada").catch(() => {});
     }
 
     res.json({ conversation: conv });
@@ -119,7 +119,7 @@ export async function addTag(req: Request, res: Response) {
     await convService.addTag(req.params.contactId, tagId);
 
     // Lead scoring: TAG_ADDED
-    addScoreByCondition(req.params.contactId, "TAG_ADDED", "Tag agregado al contacto").catch(() => {});
+    addScoreByCondition((req as any).user?.orgId || "", req.params.contactId, "TAG_ADDED", "Tag agregado al contacto").catch(() => {});
 
     res.json({ message: "Tag agregado" });
   } catch (error) {

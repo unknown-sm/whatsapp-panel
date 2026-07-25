@@ -7,6 +7,7 @@ export async function createRule(data: {
   condition: string;
   config?: any;
   points: number;
+  orgId: string;
 }) {
   return prisma.leadScoreRule.create({
     data: {
@@ -14,25 +15,27 @@ export async function createRule(data: {
       condition: data.condition as any,
       config: data.config || {},
       points: data.points,
+      orgId: data.orgId,
     },
   });
 }
 
-export async function getRules() {
+export async function getRules(orgId: string) {
   return prisma.leadScoreRule.findMany({
+    where: { orgId },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { scores: true } } },
   });
 }
 
-export async function updateRule(id: string, data: Partial<{ name: string; condition: string; config: any; points: number; isActive: boolean }>) {
+export async function updateRule(orgId: string, id: string, data: Partial<{ name: string; condition: string; config: any; points: number; isActive: boolean }>) {
   const updateData: any = { ...data };
   if (data.condition) updateData.condition = data.condition;
-  return prisma.leadScoreRule.update({ where: { id }, data: updateData });
+  return prisma.leadScoreRule.update({ where: { id, orgId }, data: updateData });
 }
 
-export async function deleteRule(id: string) {
-  return prisma.leadScoreRule.delete({ where: { id } });
+export async function deleteRule(orgId: string, id: string) {
+  return prisma.leadScoreRule.delete({ where: { id, orgId } });
 }
 
 // ─── Scores ────────────────────────────────────────
@@ -54,14 +57,13 @@ export async function addScore(data: {
   });
 }
 
-export async function addScoreByCondition(contactId: string, condition: string, reason: string) {
+export async function addScoreByCondition(orgId: string, contactId: string, condition: string, reason: string) {
   const rule = await prisma.leadScoreRule.findFirst({
-    where: { condition: condition as any, isActive: true },
+    where: { orgId, condition: condition as any, isActive: true },
   });
   if (!rule) return null;
   const result = await addScore({ contactId, ruleId: rule.id, points: rule.points, reason });
 
-  // Pipeline auto-advance: check if contact's deal should move stages
   try {
     const totalScore = await prisma.leadScore.aggregate({
       where: { contactId },
@@ -69,15 +71,13 @@ export async function addScoreByCondition(contactId: string, condition: string, 
     });
     const score = totalScore._sum.points || 0;
 
-    // Find contact's active deal
     const deal = await prisma.deal.findFirst({
-      where: { contactId, status: "OPEN" },
+      where: { contactId, orgId, status: "OPEN" },
       include: { stage: true },
       orderBy: { createdAt: "desc" },
     });
     if (!deal) return result;
 
-    // Find pipeline stages for auto-advance
     const stages = await prisma.pipelineStage.findMany({
       where: { pipelineId: deal.pipelineId },
       orderBy: { order: "asc" },
@@ -86,14 +86,12 @@ export async function addScoreByCondition(contactId: string, condition: string, 
     const currentIdx = stages.findIndex((s) => s.id === deal.stageId);
     if (currentIdx < 0 || currentIdx >= stages.length - 1) return result;
 
-    // Skip won/lost stages
     const currentStage = stages[currentIdx];
     if (currentStage.name.toLowerCase().includes("cerrado")) return result;
 
-    // Auto-advance thresholds
     let shouldAdvance = false;
-    if (currentIdx <= 1 && score > 30) shouldAdvance = true;  // Ahead of time
-    if (currentIdx <= 2 && score > 60) shouldAdvance = true;  // Ahead of time
+    if (currentIdx <= 1 && score > 30) shouldAdvance = true;
+    if (currentIdx <= 2 && score > 60) shouldAdvance = true;
 
     if (shouldAdvance) {
       const nextStage = stages[currentIdx + 1];
@@ -110,7 +108,9 @@ export async function addScoreByCondition(contactId: string, condition: string, 
   return result;
 }
 
-export async function getContactScores(contactId: string) {
+export async function getContactScores(contactId: string, orgId: string) {
+  const contact = await prisma.contact.findFirst({ where: { id: contactId, orgId }, select: { orgId: true } });
+  if (!contact) return [];
   return prisma.leadScore.findMany({
     where: { contactId },
     include: { rule: true },
@@ -118,9 +118,10 @@ export async function getContactScores(contactId: string) {
   });
 }
 
-export async function getLeaderboard(limit: number = 50) {
+export async function getLeaderboard(orgId: string, limit: number = 50) {
   const scores = await prisma.leadScore.groupBy({
     by: ["contactId"],
+    where: { contact: { orgId } },
     _sum: { points: true },
     _count: { id: true },
     orderBy: { _sum: { points: "desc" } },
@@ -129,7 +130,7 @@ export async function getLeaderboard(limit: number = 50) {
 
   const contactIds = scores.map((s) => s.contactId);
   const contacts = await prisma.contact.findMany({
-    where: { id: { in: contactIds } },
+    where: { id: { in: contactIds }, orgId },
     select: { id: true, name: true, phone: true },
   });
 
@@ -143,92 +144,61 @@ export async function getLeaderboard(limit: number = 50) {
   }));
 }
 
-export async function recalculateScores() {
-  // Delete all existing scores
-  await prisma.leadScore.deleteMany({});
-
-  // Get all active rules
-  const rules = await prisma.leadScoreRule.findMany({ where: { isActive: true } });
-
+export async function recalculateScores(orgId: string) {
+  await prisma.leadScore.deleteMany({ where: { contact: { orgId } } });
+  const rules = await prisma.leadScoreRule.findMany({ where: { isActive: true, orgId } });
   const scoresToCreate: any[] = [];
 
   for (const rule of rules) {
     switch (rule.condition) {
       case "MESSAGE_RECEIVED": {
         const conversations = await prisma.conversation.findMany({
-          include: { messages: true, contact: true },
+          where: { orgId },
+          include: { messages: true },
         });
         for (const conv of conversations) {
           const inboundCount = conv.messages.filter((m) => m.direction === "inbound").length;
           if (inboundCount > 0) {
-            scoresToCreate.push({
-              contactId: conv.contactId,
-              ruleId: rule.id,
-              points: rule.points * inboundCount,
-              reason: `${inboundCount} mensajes recibidos`,
-            });
+            scoresToCreate.push({ contactId: conv.contactId, ruleId: rule.id, points: rule.points * inboundCount, reason: `${inboundCount} mensajes recibidos` });
           }
         }
         break;
       }
       case "MESSAGE_SENT": {
         const conversations = await prisma.conversation.findMany({
+          where: { orgId },
           include: { messages: true },
         });
         for (const conv of conversations) {
           const outboundCount = conv.messages.filter((m) => m.direction === "outbound").length;
           if (outboundCount > 0) {
-            scoresToCreate.push({
-              contactId: conv.contactId,
-              ruleId: rule.id,
-              points: rule.points * outboundCount,
-              reason: `${outboundCount} mensajes enviados`,
-            });
+            scoresToCreate.push({ contactId: conv.contactId, ruleId: rule.id, points: rule.points * outboundCount, reason: `${outboundCount} mensajes enviados` });
           }
         }
         break;
       }
       case "CONVERSATION_CLOSED": {
-        const closed = await prisma.conversation.findMany({
-          where: { status: "closed" },
-        });
+        const closed = await prisma.conversation.findMany({ where: { status: "closed", orgId } });
         for (const conv of closed) {
-          scoresToCreate.push({
-            contactId: conv.contactId,
-            ruleId: rule.id,
-            points: rule.points,
-            reason: "Conversacion cerrada",
-          });
+          scoresToCreate.push({ contactId: conv.contactId, ruleId: rule.id, points: rule.points, reason: "Conversacion cerrada" });
         }
         break;
       }
       case "FOLLOW_UP_REPLIED": {
         const attempts = await prisma.followUpAttempt.findMany({
-          where: { replied: true },
+          where: { replied: true, conversation: { orgId } },
           include: { conversation: true },
         });
         for (const attempt of attempts) {
-          scoresToCreate.push({
-            contactId: attempt.conversation.contactId,
-            ruleId: rule.id,
-            points: rule.points,
-            reason: "Respondio seguimiento",
-          });
+          scoresToCreate.push({ contactId: attempt.conversation.contactId, ruleId: rule.id, points: rule.points, reason: "Respondio seguimiento" });
         }
         break;
       }
       case "DEAL_WON": {
-        const deals = await prisma.deal.findMany({
-          where: { status: "WON" },
-        });
+        const deals = await prisma.deal.findMany({ where: { status: "WON", orgId } });
         for (const deal of deals) {
           if (deal.contactId) {
-            scoresToCreate.push({
-              contactId: deal.contactId,
-              ruleId: rule.id,
-              points: rule.points,
-              reason: `Deal ganado: ${deal.name}`,
-            });
+            scoresToCreate.push({ contactId: deal.contactId, ruleId: rule.id, points: rule.points, reason: `Deal ganado: ${deal.name}` });
           }
         }
         break;

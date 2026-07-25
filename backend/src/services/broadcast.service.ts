@@ -116,7 +116,7 @@ export async function sendBroadcast(broadcastId: string) {
   }
 
   contacts = await prisma.contact.findMany({
-    where,
+    where: { ...where, orgId: broadcast.orgId || undefined },
     include: { tags: { include: { tag: true } } },
   });
 

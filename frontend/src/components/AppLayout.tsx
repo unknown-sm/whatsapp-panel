@@ -21,6 +21,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [headerLangOpen, setHeaderLangOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { t, i18n } = useTranslation();
@@ -114,7 +115,7 @@ export default function AppLayout() {
             {/* Language switcher */}
             <div className="relative">
               <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] flex items-center gap-1"
-                style={{ color: "var(--text-tertiary)" }} title={t("sidebar.collapse")}>
+                style={{ color: "var(--text-tertiary)" }} title="Cambiar idioma">
                 <Globe size={16} />
                 {sidebarOpen && <span className="text-[10px] font-medium">{languages[i18n.language]?.label || "ES"}</span>}
               </button>
@@ -203,15 +204,15 @@ export default function AppLayout() {
               )}
             </button>
             <div className="relative">
-              <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] flex items-center gap-1"
+              <button onClick={() => setHeaderLangOpen(!headerLangOpen)} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] flex items-center gap-1 md:hidden"
                 style={{ color: "var(--text-tertiary)" }}>
                 <Globe size={16} />
                 <span className="text-[10px] font-medium">{languages[i18n.language]?.label || "ES"}</span>
               </button>
-              {langMenuOpen && (
+              {headerLangOpen && (
                 <div className="absolute top-full right-0 mt-1 w-28 rounded-lg border shadow-lg z-50" style={{ background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
                   {Object.entries(languages).map(([code, info]) => (
-                    <button key={code} onClick={() => changeLanguage(code)}
+                    <button key={code} onClick={() => { i18n.changeLanguage(code); setHeaderLangOpen(false); }}
                       className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors hover:opacity-80 ${i18n.language === code ? "font-bold" : ""}`}
                       style={{ color: i18n.language === code ? "var(--accent)" : "var(--text-secondary)" }}>
                       <span>{info.flag}</span> {info.label}

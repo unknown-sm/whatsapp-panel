@@ -108,16 +108,16 @@ export async function processIncomingMessage(data: any) {
             data: { replied: true },
           });
           // Lead scoring: FOLLOW_UP_REPLIED
-          addScoreByCondition(contact.id, "FOLLOW_UP_REPLIED", "Respondio un follow-up").catch(() => {});
+          addScoreByCondition(contact.orgId || "", contact.id, "FOLLOW_UP_REPLIED", "Respondio un follow-up").catch(() => {});
         }
       } catch {}
 
       // Lead scoring: MESSAGE_RECEIVED
-      addScoreByCondition(contact.id, "MESSAGE_RECEIVED", "Mensaje recibido por WhatsApp").catch(() => {});
+      addScoreByCondition(contact.orgId || "", contact.id, "MESSAGE_RECEIVED", "Mensaje recibido por WhatsApp").catch(() => {});
 
       // Lead scoring: KEYWORD_MATCHED if bot matched
       if (conversation.botId) {
-        addScoreByCondition(contact.id, "KEYWORD_MATCHED", `Keyword detectada: "${text.substring(0, 50)}"`).catch(() => {});
+        addScoreByCondition(contact.orgId || "", contact.id, "KEYWORD_MATCHED", `Keyword detectada: "${text.substring(0, 50)}"`).catch(() => {});
       }
 
       // NPS: detectar si es respuesta a una pregunta NPS (numero 0-10)
@@ -197,7 +197,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
             timestamp: new Date().toISOString(),
           });
           // Lead scoring: MESSAGE_SENT
-          addScoreByCondition(conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por bot").catch(() => {});
+          addScoreByCondition(conversation.orgId || "", conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por bot").catch(() => {});
         }
       }
       break;
@@ -260,7 +260,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
             timestamp: new Date().toISOString(),
           });
           // Lead scoring: MESSAGE_SENT
-          addScoreByCondition(conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por IA").catch(() => {});
+          addScoreByCondition(conversation.orgId || "", conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por IA").catch(() => {});
         }
       }
       break;

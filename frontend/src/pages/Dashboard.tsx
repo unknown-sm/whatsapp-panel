@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Bot, MessageSquare, Clock, TrendingUp, DollarSign, Target, BarChart3, ArrowUpRight } from "lucide-react";
 import { useBotStore } from "../store/botStore";
+import { useTranslation } from "react-i18next";
 import api from "../services/api";
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { bots, fetchBots } = useBotStore();
   const [revenue, setRevenue] = useState<any>(null);
 
@@ -16,25 +18,25 @@ export default function Dashboard() {
   const totalConversations = bots.reduce((sum, b) => sum + (b._count?.conversations || 0), 0);
 
   const stats = [
-    { label: "Bots Activos", value: String(activeBots), icon: Bot, color: "var(--success)" },
-    { label: "Conversaciones", value: String(totalConversations), icon: MessageSquare, color: "var(--info)" },
-    { label: "Seguimientos", value: "0", icon: Clock, color: "var(--warning)" },
-    { label: "Tasa de Respuesta", value: "0%", icon: TrendingUp, color: "var(--accent)" },
+    { label: t("dashboard.active_bots"), value: String(activeBots), icon: Bot, color: "var(--success)" },
+    { label: t("dashboard.conversations"), value: String(totalConversations), icon: MessageSquare, color: "var(--info)" },
+    { label: t("dashboard.followups"), value: "0", icon: Clock, color: "var(--warning)" },
+    { label: t("dashboard.response_rate"), value: "0%", icon: TrendingUp, color: "var(--accent)" },
   ];
 
   const revenueStats = revenue ? [
-    { label: "Valor Pipeline", value: `$${revenue.totalValue.toLocaleString()}`, icon: DollarSign, color: "var(--accent)" },
-    { label: "Deals Ganados", value: `$${revenue.wonValue.toLocaleString()}`, icon: Target, color: "var(--success)" },
-    { label: "Deals Abiertos", value: String(revenue.openDeals), icon: BarChart3, color: "var(--info)" },
-    { label: "Conversion", value: `${revenue.conversionRate}%`, icon: ArrowUpRight, color: "var(--warning)" },
+    { label: t("dashboard.pipeline_value"), value: `$${revenue.totalValue.toLocaleString()}`, icon: DollarSign, color: "var(--accent)" },
+    { label: t("dashboard.won_deals"), value: `$${revenue.wonValue.toLocaleString()}`, icon: Target, color: "var(--success)" },
+    { label: t("dashboard.open_deals"), value: String(revenue.openDeals), icon: BarChart3, color: "var(--info)" },
+    { label: t("dashboard.conversion"), value: `${revenue.conversionRate}%`, icon: ArrowUpRight, color: "var(--warning)" },
   ] : [];
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1>Dashboard</h1>
-          <p>Resumen general del sistema</p>
+          <h1>{t("dashboard.title")}</h1>
+          <p>{t("dashboard.subtitle")}</p>
         </div>
       </div>
 
@@ -69,11 +71,9 @@ export default function Dashboard() {
       )}
 
       <div className="card !p-6">
-        <h2 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>Bienvenido a WhatsApp Panel CRM</h2>
+        <h2 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{t("dashboard.welcome_title")}</h2>
         <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-          Comienza creando tu primer <a href="/bots" style={{ color: "var(--accent)" }} className="font-medium hover:underline">bot</a>,
-          gestiona tu <a href="/pipeline" style={{ color: "var(--accent)" }} className="font-medium hover:underline">pipeline de ventas</a>,
-          o revisa el <a href="/leadscoring" style={{ color: "var(--accent)" }} className="font-medium hover:underline">lead scoring</a>.
+          {t("dashboard.welcome_text")}
         </p>
       </div>
     </div>

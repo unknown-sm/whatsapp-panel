@@ -969,3 +969,24 @@ model NpsResponse {
   @@index([campaignId])
   @@index([respondedAt])
 }
+
+// ═══════════════════════════════════════════════════════════
+// WEBHOOKS Y AUTOMATIZACION (n8n)
+// ═══════════════════════════════════════════════════════════
+
+model WebhookConfig {
+  id             String   @id @default(uuid())
+  orgId          String
+  secretHash     String
+  isEnabled      Boolean  @default(true)
+  allowedActions Json     @default("[\"create_contact\",\"update_contact\",\"create_deal\",\"move_deal\",\"add_score\",\"send_template\",\"add_note\",\"add_tags\"]")
+  lastTriggered  DateTime?
+  triggerCount   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId])
+  @@index([orgId])
+}

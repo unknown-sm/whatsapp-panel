@@ -1,0 +1,69 @@
+{
+  "name": "CRM: Formulario web -> Crear Deal en Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "form-to-deal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook (Formulario)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transforma datos del formulario a payload CRM\nconst body = $input.first().json;\nreturn {\n  orgId: $env.CRM_ORG_ID,\n  secret: $env.CRM_WEBHOOK_SECRET,\n  action: \"create_deal\",\n  payload: {\n    contactPhone: body.phone || body.telefono,\n    title: `Lead: ${body.nombre || body.name || \"Sin nombre\"} - ${body.asunto || \"Nuevo lead\"}`,\n    value: parseFloat(body.valor || body.value || 0),\n    priority: body.prioridad || \"MEDIUM\"\n  }\n};"
+      },
+      "id": "transform-code",
+      "name": "Transformar payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_URL }}/api/webhooks/trigger",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "http-crm-trigger",
+      "name": "Enviar a CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ success: true, deal: $json }"
+      },
+      "id": "response-node",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook (Formulario)": { "main": [[ { "node": "Transformar payload", "type": "main", "index": 0 } ]] },
+    "Transformar payload": { "main": [[ { "node": "Enviar a CRM", "type": "main", "index": 0 } ]] },
+    "Enviar a CRM": { "main": [[ { "node": "Responder", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "saveManualExecutions": true }
+}

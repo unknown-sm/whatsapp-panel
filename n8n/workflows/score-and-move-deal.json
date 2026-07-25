@@ -1,0 +1,77 @@
+{
+  "name": "CRM: Webhook -> Score + Move Deal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "score-move",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook externo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json;\nconst contactPhone = body.contactPhone || body.phone;\n\nreturn [\n  // Paso 1: sumar score\n  {\n    json: { orgId: $env.CRM_ORG_ID, secret: $env.CRM_WEBHOOK_SECRET, action: \"add_score\",\n      payload: { contactPhone, condition: body.event || \"EXTERNAL\", points: body.points || 10, description: body.description } }\n  },\n  // Paso 2: mover deal\n  {\n    json: { orgId: $env.CRM_ORG_ID, secret: $env.CRM_WEBHOOK_SECRET, action: \"move_deal\",\n      payload: { dealId: body.dealId, stageId: body.targetStageId } }\n  }\n].filter(i => i.json.payload.dealId || i.json.action === \"add_score\" ? i.json.payload.contactPhone : true);"
+      },
+      "id": "transform-code",
+      "name": "Preparar acciones",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_URL }}/api/webhooks/trigger",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "http-execute",
+      "name": "Ejecutar accion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nreturn { json: { executed: results.length, results } };"
+      },
+      "id": "summary-node",
+      "name": "Agrupar resultados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "response-node",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook externo": { "main": [[ { "node": "Preparar acciones", "type": "main", "index": 0 } ]] },
+    "Preparar acciones": { "main": [[ { "node": "Ejecutar accion", "type": "main", "index": 0 } ]] },
+    "Ejecutar accion": { "main": [[ { "node": "Agrupar resultados", "type": "main", "index": 0 } ]] },
+    "Agrupar resultados": { "main": [[ { "node": "Responder", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "saveManualExecutions": true }
+}

@@ -1,0 +1,78 @@
+{
+  "name": "CRM: Google Sheets -> Sincronizar Contactos",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 1 }]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cada 1 hora",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GSHEETS_DOC_ID }}",
+        "sheetName": "Contactos",
+        "options": {}
+      },
+      "id": "gsheets-read",
+      "name": "Leer Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convierte filas de Google Sheets a payloads CRM\nconst rows = $input.first().json.data || [];\nreturn rows.slice(1).map(row => ({\n  json: {\n    orgId: $env.CRM_ORG_ID,\n    secret: $env.CRM_WEBHOOK_SECRET,\n    action: \"create_contact\",\n    payload: {\n      phone: String(row[0] || \"\").trim(),\n      name: String(row[1] || \"\").trim(),\n      tags: row[2] ? String(row[2]).split(\",\").map(t => t.trim()).filter(Boolean) : []\n    }\n  }\n})).filter(r => r.json.payload.phone);"
+      },
+      "id": "transform-rows",
+      "name": "Transformar filas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_URL }}/api/webhooks/trigger",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "http-sync-contacts",
+      "name": "Sincronizar contacto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst created = results.filter(r => r.created).length;\nconst existed = results.filter(r => r.existed).length;\nreturn { json: { synced: results.length, created, existed, timestamp: new Date().toISOString() } };"
+      },
+      "id": "summary-node",
+      "name": "Resumen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Cada 1 hora": { "main": [[ { "node": "Leer Google Sheet", "type": "main", "index": 0 } ]] },
+    "Leer Google Sheet": { "main": [[ { "node": "Transformar filas", "type": "main", "index": 0 } ]] },
+    "Transformar filas": { "main": [[ { "node": "Sincronizar contacto", "type": "main", "index": 0 } ]] },
+    "Sincronizar contacto": { "main": [[ { "node": "Resumen", "type": "main", "index": 0 } ]] }
+  },
+  "settings": { "saveManualExecutions": true }
+}

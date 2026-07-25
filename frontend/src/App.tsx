@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/authStore";
+import { useTranslation } from "react-i18next";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import BotGrid from "./pages/BotGrid";
@@ -28,11 +29,12 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const fetchMe = useAuthStore((s) => s.fetchMe);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const { t } = useTranslation();
   useEffect(() => { fetchMe(); }, [fetchMe]);
   if (isLoading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#1a202c", color: "#e2e8f0", fontSize: 18 }}>
-        Cargando...
+        {t("app.loading")}
       </div>
     );
   }

@@ -29,6 +29,7 @@ import templateRoutes from "./routes/template.routes";
 import metaOAuthRoutes from "./routes/meta-oauth.routes";
 import reportsRoutes from "./routes/reports.routes";
 import npsRoutes from "./routes/nps.routes";
+import webhookRoutes from "./routes/webhook.routes";
 import { checkFollowUps } from "./services/followup.service";
 import * as reportsService from "./services/reports.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
@@ -344,6 +345,7 @@ app.use("/api/templates", templateRoutes);
 app.use("/api/whatsapp", metaOAuthRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/nps", npsRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {

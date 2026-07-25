@@ -1,0 +1,79 @@
+{
+  "name": "CRM: Deal Won -> Notificar por Email + Slack",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 5 }]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cada 5 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CRM_URL }}/api/pipeline?status=WON&sort=-updatedAt&limit=5",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.CRM_API_TOKEN }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-check-deals",
+      "name": "Buscar deals WON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const deals = $input.first().json;\n// Filtra deals cerrados en los ultimos 5 min\nconst now = new Date();\nconst recent = (deals.data || deals).filter(d => {\n  const closed = new Date(d.closedAt || d.updatedAt);\n  return (now - closed) < 5 * 60 * 1000;\n});\nreturn recent.map(d => ({\n  json: {\n    dealTitle: d.title,\n    dealValue: d.value,\n    contactName: d.contact?.name || \"N/A\",\n    contactPhone: d.contact?.phone || \"N/A\",\n    agent: d.assignedAgent?.name || \"No asignado\",\n    closedAt: d.closedAt\n  }\n}));"
+      },
+      "id": "filter-recent",
+      "name": "Filtrar recientes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "subject": "\\ud83c\\udf89 Deal cerrado: {{ $json.dealTitle }}",
+        "text": "Se cerro un deal!\\n\\nTitulo: {{ $json.dealTitle }}\\nValor: ${{ $json.dealValue }}\\nContacto: {{ $json.contactName }} ({{ $json.contactPhone }})\\nAgente: {{ $json.agent }}",
+        "fromEmail": "={{ $env.SMTP_FROM }}",
+        "toEmail": "={{ $env.NOTIFY_EMAIL }}"
+      },
+      "id": "send-email",
+      "name": "Notificar Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "text": "\\ud83c\\udf89 *Deal cerrado:* {{ $json.dealTitle }}\\nValor: ${{ $json.dealValue }} | Agente: {{ $json.agent }}",
+        "sendTo": "notificaciones"
+      },
+      "id": "send-slack",
+      "name": "Notificar Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [850, 450]
+    }
+  ],
+  "connections": {
+    "Cada 5 min": { "main": [[ { "node": "Buscar deals WON", "type": "main", "index": 0 } ]] },
+    "Buscar deals WON": { "main": [[ { "node": "Filtrar recientes", "type": "main", "index": 0 } ]] },
+    "Filtrar recientes": { "main": [
+      [ { "node": "Notificar Email", "type": "main", "index": 0 } ],
+      [ { "node": "Notificar Slack", "type": "main", "index": 0 } ]
+    ] }
+  },
+  "settings": { "saveManualExecutions": true }
+}

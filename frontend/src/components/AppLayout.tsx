@@ -1,35 +1,49 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { useTranslation } from "react-i18next";
 import ThemeToggle from "./ThemeToggle";
 import {
   LayoutDashboard, Bot, MessageSquare, Clock, Settings, LogOut,
   Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3, FileText,
-  FlaskConical, Send, Star, ClipboardList,
+  FlaskConical, Send, Star, ClipboardList, Globe,
 } from "lucide-react";
 
-const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/conversations", icon: MessageSquare, label: "Conversaciones" },
-  { to: "/bots", icon: Bot, label: "Bots" },
-  { to: "/pipeline", icon: KanbanSquare, label: "Pipeline" },
-  { to: "/followup", icon: Clock, label: "Seguimiento" },
-  { to: "/leadscoring", icon: Target, label: "Lead Scoring" },
-  { to: "/broadcasts", icon: Megaphone, label: "Broadcasts" },
-  { to: "/templates", icon: Send, label: "Templates" },
-  { to: "/lab", icon: FlaskConical, label: "Laboratorio" },
-  { to: "/nps", icon: Star, label: "NPS" },
-  { to: "/reports", icon: ClipboardList, label: "Reportes" },
-  { to: "/analytics", icon: BarChart3, label: "Analytics" },
-  { to: "/logs", icon: FileText, label: "Logs" },
-  { to: "/settings", icon: Settings, label: "Configuracion" },
-];
+const languages: Record<string, { label: string; flag: string }> = {
+  es: { label: "ES", flag: "\ud83c\uddea\ud83c\uddf8" },
+  "pt-BR": { label: "PT", flag: "\ud83c\udde7\ud83c\uddf7" },
+  en: { label: "EN", flag: "\ud83c\uddec\ud83c\udde7" },
+};
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const { t, i18n } = useTranslation();
+
+  const navItems = [
+    { to: "/", icon: LayoutDashboard, label: t("sidebar.dashboard") },
+    { to: "/conversations", icon: MessageSquare, label: t("sidebar.conversations") },
+    { to: "/bots", icon: Bot, label: t("sidebar.bots") },
+    { to: "/pipeline", icon: KanbanSquare, label: t("sidebar.pipeline") },
+    { to: "/followup", icon: Clock, label: t("sidebar.followup") },
+    { to: "/leadscoring", icon: Target, label: t("sidebar.leadscoring") },
+    { to: "/broadcasts", icon: Megaphone, label: t("sidebar.broadcasts") },
+    { to: "/templates", icon: Send, label: t("sidebar.templates") },
+    { to: "/lab", icon: FlaskConical, label: t("sidebar.lab") },
+    { to: "/nps", icon: Star, label: t("sidebar.nps") },
+    { to: "/reports", icon: ClipboardList, label: t("sidebar.reports") },
+    { to: "/analytics", icon: BarChart3, label: t("sidebar.analytics") },
+    { to: "/logs", icon: FileText, label: t("sidebar.logs") },
+    { to: "/settings", icon: Settings, label: t("sidebar.settings") },
+  ];
+
+  const changeLanguage = (lng: string) => {
+    i18n.changeLanguage(lng);
+    setLangMenuOpen(false);
+  };
 
   return (
     <div className="flex h-screen" style={{ background: "var(--bg-base)" }}>
@@ -38,7 +52,6 @@ export default function AppLayout() {
         className={`${sidebarOpen ? "w-[260px]" : "w-[72px]"} hidden md:flex flex-col transition-all duration-300 ease-in-out flex-shrink-0`}
         style={{ background: "var(--bg-surface)", borderRight: "1px solid var(--border-default)" }}
       >
-        {/* Logo + org */}
         <div className="h-16 flex items-center gap-3 px-5 border-b flex-shrink-0" style={{ borderColor: "var(--border-default)" }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "var(--accent)" }}>
             <MessageSquare size={16} className="text-white" />
@@ -47,13 +60,12 @@ export default function AppLayout() {
             <div className="min-w-0">
               <p className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{user?.org?.name || "WhatsApp Panel"}</p>
               <p className="text-[10px] font-medium truncate" style={{ color: "var(--text-tertiary)" }}>
-                {user?.org ? `Plan ${user.org.plan}` : "CRM"}
+                {user?.org ? t("app.plan", { plan: user.org.plan }) : "CRM"}
               </p>
             </div>
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {navItems.map((item) => {
             const isActive = location.pathname === item.to || (item.to !== "/" && location.pathname.startsWith(item.to));
@@ -74,7 +86,6 @@ export default function AppLayout() {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="p-2 border-t flex flex-col gap-1" style={{ borderColor: "var(--border-default)" }}>
           {sidebarOpen && user && (
             <div className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "var(--bg-muted)" }}>
@@ -83,19 +94,37 @@ export default function AppLayout() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate" style={{ color: "var(--text-primary)" }}>{user.name || user.email}</p>
-                <p className="text-[10px] truncate" style={{ color: "var(--text-tertiary)" }}>{user.role === "ADMIN" ? "Administrador" : "Agente"}</p>
+                <p className="text-[10px] truncate" style={{ color: "var(--text-tertiary)" }}>{user.role === "ADMIN" ? t("roles.admin") : t("roles.agent")}</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between px-1">
+            {/* Language switcher */}
+            <div className="relative">
+              <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] flex items-center gap-1"
+                style={{ color: "var(--text-tertiary)" }} title={t("sidebar.collapse")}>
+                <Globe size={16} />
+                {sidebarOpen && <span className="text-[10px] font-medium">{languages[i18n.language]?.label || "ES"}</span>}
+              </button>
+              {langMenuOpen && (
+                <div className="absolute bottom-full left-0 mb-1 w-28 rounded-lg border shadow-lg z-50" style={{ background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
+                  {Object.entries(languages).map(([code, info]) => (
+                    <button key={code} onClick={() => changeLanguage(code)}
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors hover:opacity-80 ${i18n.language === code ? "font-bold" : ""}`}
+                      style={{ color: i18n.language === code ? "var(--accent)" : "var(--text-secondary)" }}>
+                      <span>{info.flag}</span> {info.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <ThemeToggle />
-            <button onClick={logout} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)]" style={{ color: "var(--text-tertiary)" }} title="Cerrar sesion">
+            <button onClick={logout} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)]" style={{ color: "var(--text-tertiary)" }} title={t("sidebar.logout")}>
               <LogOut size={16} />
             </button>
           </div>
         </div>
 
-        {/* Collapse button */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="absolute -right-3 top-20 w-6 h-6 rounded-full border flex items-center justify-center transition-transform duration-300 z-10"
@@ -147,7 +176,29 @@ export default function AppLayout() {
               {navItems.find((i) => location.pathname === i.to || (i.to !== "/" && location.pathname.startsWith(i.to)))?.label || "Dashboard"}
             </span>
           </div>
-          <ThemeToggle />
+
+          {/* Language switcher in header (mobile) */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="p-1.5 rounded-lg transition-colors hover:bg-[var(--bg-hover)] flex items-center gap-1"
+                style={{ color: "var(--text-tertiary)" }}>
+                <Globe size={16} />
+                <span className="text-[10px] font-medium">{languages[i18n.language]?.label || "ES"}</span>
+              </button>
+              {langMenuOpen && (
+                <div className="absolute top-full right-0 mt-1 w-28 rounded-lg border shadow-lg z-50" style={{ background: "var(--bg-surface)", borderColor: "var(--border-default)" }}>
+                  {Object.entries(languages).map(([code, info]) => (
+                    <button key={code} onClick={() => changeLanguage(code)}
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors hover:opacity-80 ${i18n.language === code ? "font-bold" : ""}`}
+                      style={{ color: i18n.language === code ? "var(--accent)" : "var(--text-secondary)" }}>
+                      <span>{info.flag}</span> {info.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <ThemeToggle />
+          </div>
         </header>
         <div className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />

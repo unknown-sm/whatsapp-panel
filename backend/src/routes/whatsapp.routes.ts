@@ -5,8 +5,8 @@ import { authMiddleware } from "../middleware/auth";
 const router = Router();
 
 // Public webhook endpoints (no auth required for Meta)
-router.get("/verify", webhookVerify);
-router.post("/incoming", webhookIncoming);
+router.get("/", webhookVerify);
+router.post("/", webhookIncoming);
 
 // Protected API endpoints
 router.get("/status", authMiddleware, getStatus);

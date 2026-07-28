@@ -29,5 +29,5 @@ EXPOSE 4000
 ENV NODE_ENV=production
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 CMD wget -qO- http://localhost:4000/api/health || exit 1
 USER root
-# Inicia Express y luego ngrok en background (tuneliza el puerto 4000)
-CMD ["sh", "-c", "node backend/dist/index.js & NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN} ngrok http 4000 --log /tmp/ngrok.log & wait"]
+# Inicia Express y luego ngrok en background con subdominio fijo
+CMD ["sh", "-c", "node backend/dist/index.js & NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN} ngrok http 4000 --domain=${NGROK_DOMAIN} --log /tmp/ngrok.log & wait"]

@@ -23,6 +23,7 @@ export async function webhookVerify(req: Request, res: Response) {
 }
 
 export async function webhookIncoming(req: Request, res: Response) {
+  console.log("[WEBHOOK] Recibido:", JSON.stringify(req.body).slice(0, 300));
   try {
     let payload = req.body;
 

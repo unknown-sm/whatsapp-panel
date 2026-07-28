@@ -1,0 +1,12 @@
+{
+        email tu-email@ejemplo.com
+}
+
+crm.seiva.com.py {
+        reverse_proxy backend:4000
+        encode gzip
+}
+
+www.crm.seiva.com.py {
+        redir https://crm.seiva.com.py{uri} permanent
+}

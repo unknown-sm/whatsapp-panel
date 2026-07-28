@@ -1,0 +1,32 @@
+version: "3.8"
+
+# Template para Dokploy
+# En Dokploy:
+#   1. Crear proyecto "whatsapp-crm"
+#   2. Crear servicio tipo "App" desde Git (rama: master)
+#   3. Build: Dockerfile (no docker-compose)
+#   4. Puerto: 4000
+#   5. Dominio: crm.seiva.com.py (HTTPS auto via Traefik)
+#   6. Variables de entorno (ver DOKPLOY.md)
+
+services:
+  whatsapp-panel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-panel
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://whatsapp:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_panel
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 7d
+      FRONTEND_URL: ${FRONTEND_URL}
+      WEBHOOK_BASE_URL: ${FRONTEND_URL}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3

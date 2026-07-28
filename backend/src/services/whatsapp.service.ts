@@ -41,15 +41,9 @@ export async function processIncomingMessage(data: any) {
       const text = msg.text?.body || media?.caption || (media ? `[${media.type}]` : "");
 
       if (!text && !media) continue;
-      // Buscar orgId: primero del whatsappConfig, sino el primer org disponible
-      let orgId: string | null = null;
-      const config = await prisma.whatsappConfig.findFirst();
-      if (config?.orgId) {
-        orgId = config.orgId;
-      } else {
-        const firstOrg = await prisma.organization.findFirst();
-        orgId = firstOrg?.id || null;
-      }
+      // Tomar el primer orgId disponible
+      const firstOrg = await prisma.organization.findFirst();
+      const orgId = firstOrg?.id || null;
       let contact = await prisma.contact.findUnique({ where: { phone } });
       if (!contact) {
         contact = await prisma.contact.create({ data: { phone, orgId: orgId || undefined } });

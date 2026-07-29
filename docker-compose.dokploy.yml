@@ -16,6 +16,12 @@ services:
       dockerfile: Dockerfile
     container_name: whatsapp-panel
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whatsapp.rule=Host(`crm.seiva.com.py`)"
+      - "traefik.http.routers.whatsapp.entrypoints=websecure"
+      - "traefik.http.routers.whatsapp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.whatsapp.loadbalancer.server.port=4000"
     environment:
       NODE_ENV: production
       PORT: 4000

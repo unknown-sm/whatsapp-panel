@@ -45,16 +45,19 @@ if (!process.env.DATABASE_URL) {
   console.warn("DATABASE_URL no definida, usando fallback interno");
 }
 
-async function seedDatabase() {
-  console.log("=== Iniciando seed ===");
-
-  // Apply schema changes
-  try {
-    execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
-    console.log("Schema aplicado correctamente");
-  } catch (e) {
-    console.error("Schema push error (continuing):", e instanceof Error ? e.message : e);
+async function seedDatabaseIfEmpty() {
+  // Solo correr el seed si la DB está vacía (sin usuarios)
+  const userCount = await prisma.user.count();
+  if (userCount > 0) {
+    console.log("=== Seed omitido (DB ya tiene datos) ===");
+    return;
   }
+  console.log("=== Iniciando seed (DB vacía) ===");
+  await seedDatabase();
+}
+
+async function seedDatabase() {
+  console.log("=== Ejecutando seed ===");
 
   // Migration: create default org for existing data without orgId
   try {
@@ -416,7 +419,7 @@ async function start() {
   } catch (e) {
     console.error("Error en prisma db push:", e instanceof Error ? e.message : e);
   }
-  await seedDatabase();
+  await seedDatabaseIfEmpty();
   server.listen(PORT, () => {
     console.log(`Backend corriendo en http://localhost:${PORT}`);
     console.log(`Socket.io listo`);

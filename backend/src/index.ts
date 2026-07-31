@@ -31,6 +31,7 @@ import reportsRoutes from "./routes/reports.routes";
 import npsRoutes from "./routes/nps.routes";
 import webhookRoutes from "./routes/webhook.routes";
 import agentChatRoutes from "./routes/agent-chat.routes";
+import n8nAdminRoutes from "./routes/n8n.routes";
 import { checkFollowUps } from "./services/followup.service";
 import * as reportsService from "./services/reports.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
@@ -352,6 +353,7 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/nps", npsRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/agent-chat", agentChatRoutes);
+app.use("/api/n8n", n8nAdminRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {

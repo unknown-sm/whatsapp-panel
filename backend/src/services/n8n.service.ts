@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
+const N8N_API_URL = process.env.N8N_API_URL || "https://n8n.seiva.com.py";
+const N8N_API_KEY = process.env.N8N_API_KEY || "";
 
 export type N8nEventType =
   | "deal.won"
@@ -21,7 +22,7 @@ export interface N8nEvent<T = any> {
 }
 
 export async function emitN8nEvent<T>(type: N8nEventType, data: T, orgId?: string): Promise<void> {
-  if (!N8N_WEBHOOK_URL) return;
+  if (!N8N_API_KEY) return;
 
   const event: N8nEvent<T> = {
     type,
@@ -31,8 +32,12 @@ export async function emitN8nEvent<T>(type: N8nEventType, data: T, orgId?: strin
   };
 
   try {
-    await axios.post(N8N_WEBHOOK_URL, event, {
-      headers: { "X-N8n-Event": type },
+    await axios.post(`${N8N_API_URL}/webhook/crm-events`, event, {
+      headers: {
+        "X-N8N-API-KEY": N8N_API_KEY,
+        "X-N8n-Event": type,
+        "Content-Type": "application/json",
+      },
       timeout: 5000,
     });
   } catch (err: any) {

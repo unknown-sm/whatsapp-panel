@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as pipelineService from "../services/pipeline.service";
 import { addScoreByCondition } from "../services/leadscore.service";
-import * as npsService from "../services/nps.service";
+import { emitN8nEvent } from "../services/n8n.service";
 import prisma from "../lib/prisma";
 
 function getOrgId(req: Request): string | undefined {
@@ -97,6 +97,15 @@ export async function createDeal(req: Request, res: Response) {
       addScoreByCondition(deal.orgId || "", deal.contactId, "DEAL_CREATED", `Deal creado: ${deal.name}`).catch(() => {});
     }
 
+    // Emitir evento deal.created a n8n
+    emitN8nEvent("deal.created", {
+      dealId: deal.id,
+      dealName: deal.name,
+      dealValue: deal.value,
+      contactId: deal.contactId,
+      agentId: deal.assignedToId,
+    }, deal.orgId || undefined);
+
     res.status(201).json(deal);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -138,16 +147,32 @@ export async function moveDeal(req: Request, res: Response) {
 
     // Lead scoring: DEAL_WON
     if (deal.status === "WON" && deal.contactId) {
-        addScoreByCondition(deal.orgId || "", deal.contactId, "DEAL_WON", `Deal ganado: ${deal.name}`).catch(() => {});
+      addScoreByCondition(deal.orgId || "", deal.contactId, "DEAL_WON", `Deal ganado: ${deal.name}`).catch(() => {});
 
-      // NPS auto-trigger: send NPS if deal_won campaign active
+      // Emitir evento a n8n: NPS, notificaciones, integraciones externas
       try {
-        const npsCampaigns = await prisma.npsCampaign.findMany({
-          where: { triggerType: "deal_won", isActive: true },
-        });
-        for (const campaign of npsCampaigns) {
-          npsService.sendNpsToContact(campaign.id, deal.contactId).catch(() => {});
-        }
+        const contact = await prisma.contact.findUnique({ where: { id: deal.contactId } });
+        emitN8nEvent("deal.won", {
+          dealId: deal.id,
+          dealName: deal.name,
+          dealValue: deal.value,
+          contactId: deal.contactId,
+          contactName: contact?.name,
+          contactPhone: contact?.phone,
+          agentId: deal.assignedToId,
+        }, deal.orgId || undefined);
+      } catch {}
+    } else if (deal.status === "LOST" && deal.contactId) {
+      // Emitir evento deal.lost
+      try {
+        const contact = await prisma.contact.findUnique({ where: { id: deal.contactId } });
+        emitN8nEvent("deal.lost", {
+          dealId: deal.id,
+          dealName: deal.name,
+          contactId: deal.contactId,
+          contactName: contact?.name,
+          agentId: deal.assignedToId,
+        }, deal.orgId || undefined);
       } catch {}
     }
 

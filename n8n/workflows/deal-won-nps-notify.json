@@ -1,0 +1,91 @@
+{
+  "name": "CRM: Deal Won → NPS + Notificación",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-deal-won",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook (Deal Won)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $input.first().json;\nconst deal = event.data;\nconst headers = $input.first().headers;\nconst eventType = headers['x-n8n-event'] || event.type;\n\n// Esperar 24 horas antes de enviar NPS\nconst sendAt = new Date();\nsendAt.setHours(sendAt.getHours() + 24);\n\nreturn {\n  json: {\n    eventType,\n    contactId: deal.contactId,\n    contactName: deal.contactName,\n    contactPhone: deal.contactPhone,\n    dealId: deal.dealId,\n    dealName: deal.dealName,\n    dealValue: deal.dealValue,\n    agentId: deal.agentId,\n    orgId: event.orgId,\n    sendAt: sendAt.toISOString()\n  }\n};"
+      },
+      "id": "transform",
+      "name": "Transformar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "amount": 24,
+        "unit": "hours"
+      },
+      "id": "wait-24h",
+      "name": "Esperar 24h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_API_URL }}/api/nps/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.CRM_API_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contactId\": {{ JSON.stringify($json.contactId) }},\n  \"triggerType\": \"deal_won\"\n}",
+        "options": {}
+      },
+      "id": "send-nps",
+      "name": "Enviar NPS al cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"🎉 Deal cerrado: *{{ $json.dealName }}*\\nValor: ${{ $json.dealValue }}\\nContacto: {{ $json.contactName }} ({{ $json.contactPhone }})\\nNPS enviado en 24hs.\"\n}",
+        "options": {}
+      },
+      "id": "notify-slack",
+      "name": "Notificar a Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [850, 500]
+    }
+  ],
+  "connections": {
+    "Webhook (Deal Won)": { "main": [[ { "node": "Transformar evento", "type": "main", "index": 0 } ]] },
+    "Transformar evento": { "main": [[ { "node": "Esperar 24h", "type": "main", "index": 0 } ]] },
+    "Esperar 24h": { "main": [
+      [ { "node": "Enviar NPS al cliente", "type": "main", "index": 0 } ],
+      [ { "node": "Notificar a Slack", "type": "main", "index": 0 } ]
+    ] }
+  },
+  "settings": { "saveManualExecutions": true }
+}

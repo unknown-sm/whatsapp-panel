@@ -207,12 +207,12 @@ export async function setupEverything(req: Request, res: Response) {
     // 2. Crear/actualizar workflow de deal-won
     const dealWon = await createOrUpdateWorkflow(dealWonNpsWorkflow);
     await activateWorkflow(dealWon.id);
-    results.steps.push({ step: "deal_won_workflow", status: "ok", ...dealWon });
+    results.steps.push({ step: "deal_won_workflow", result: "ok", action: dealWon.status, id: dealWon.id });
 
     // 3. Crear/actualizar router universal
     const router = await createOrUpdateWorkflow(crmEventRouter);
     await activateWorkflow(router.id);
-    results.steps.push({ step: "event_router", status: "ok", ...router });
+    results.steps.push({ step: "event_router", result: "ok", action: router.status, id: router.id });
 
     // 4. Configurar variable de entorno en n8n
     try {

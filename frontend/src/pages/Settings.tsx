@@ -1177,9 +1177,9 @@ function CustomFieldsSettings() {
       setImporting(true);
       setResult("");
       try {
-        const { data } = await api.post("/api/n8n/import", {});
-        const summary = (data.results || []).map((r: any) => `${r.file}: ${r.status}`).join(", ");
-        setResult(`OK — ${summary}`);
+        const { data } = await api.post("/api/n8n/setup", {});
+        const summary = (data.steps || []).map((s: any) => `${s.step}: ${s.status}`).join("\n");
+        setResult(`Setup completo:\n${summary}`);
         await fetchWorkflows();
       } catch (err: any) {
         setResult(`Error: ${err.response?.data?.error || err.message}`);
@@ -1198,7 +1198,7 @@ function CustomFieldsSettings() {
             Importá los workflows de la carpeta <code>n8n/workflows/</code> a tu instancia de n8n con un click.
           </p>
           <button onClick={handleImport} disabled={importing} className="btn-primary disabled:opacity-50">
-            {importing ? "Importando..." : "Importar Workflows"}
+            {importing ? "Configurando..." : "Setup Completo (crea todo en n8n)"}
           </button>
           <button onClick={fetchWorkflows} disabled={loading} className="btn-secondary ml-2 text-sm disabled:opacity-50">
             {loading ? "..." : "Refrescar"}

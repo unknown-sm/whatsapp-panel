@@ -12,8 +12,9 @@ function N8nSettings() {
 
   useEffect(() => {
     api.get("/api/n8n/workflows").then(({ data }) => {
-      setWorkflows(data.data || data || []);
-    }).catch(() => {});
+      const list = data?.data || data;
+      setWorkflows(Array.isArray(list) ? list : []);
+    }).catch(() => setWorkflows([]));
   }, []);
 
   async function handleSetup() {
@@ -23,7 +24,8 @@ function N8nSettings() {
       const { data } = await api.post("/api/n8n/setup", {});
       setResult((data.steps || []).map((s: any) => s.step + ": " + (s.status || s.result || "ok")).join("\n"));
       const wf = await api.get("/api/n8n/workflows");
-      setWorkflows(wf.data.data || wf.data || []);
+      const list = wf.data?.data || wf.data;
+      setWorkflows(Array.isArray(list) ? list : []);
     } catch (err: any) {
       setResult("Error: " + (err.response?.data?.error || err.message));
     } finally { setImporting(false); }

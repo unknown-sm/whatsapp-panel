@@ -9,12 +9,16 @@ function N8nSettings() {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    setLoading(true);
     api.get("/api/n8n/workflows").then(({ data }) => {
       const list = data?.data || data;
       setWorkflows(Array.isArray(list) ? list : []);
-    }).catch(() => setWorkflows([]));
+    }).catch((err: any) => {
+      setError(err.response?.data?.error || "No se pudo conectar con n8n");
+    }).finally(() => setLoading(false));
   }, []);
 
   async function handleSetup() {
@@ -41,7 +45,12 @@ function N8nSettings() {
         <p className="text-sm mb-4" style={{ color: "var(--text-tertiary)" }}>
           Crea credenciales, workflows, los activa y configura variables en n8n. Un click.
         </p>
-        <button onClick={handleSetup} disabled={importing} className="btn-primary disabled:opacity-50">
+        {error ? (
+          <div className="p-4 rounded-lg mb-4 text-sm" style={{ background: "var(--danger-muted)", color: "var(--danger)" }}>
+            {error}. Agrega N8N_API_KEY y N8N_API_URL en las variables de entorno de Dokploy y redeploya.
+          </div>
+        ) : null}
+        <button onClick={handleSetup} disabled={importing || !!error} className="btn-primary disabled:opacity-50">
           {importing ? "Configurando..." : "Setup Completo en n8n"}
         </button>
         {result ? (

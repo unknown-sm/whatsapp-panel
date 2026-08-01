@@ -2,98 +2,12 @@ import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { useTranslation } from "react-i18next";
-import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff, Zap } from "lucide-react";
-
-function N8nSettings() {
-  const [workflows, setWorkflows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<string>("");
-
-  async function fetchWorkflows() {
-    setLoading(true);
-    try {
-      const { data } = await api.get("/api/n8n/workflows");
-      setWorkflows(data.data || data || []);
-    } catch (err: any) {
-      setResult(`Error: ${err.response?.data?.error || err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleImport() {
-    setImporting(true);
-    setResult("");
-    try {
-      const { data } = await api.post("/api/n8n/setup", {});
-      const summary = (data.steps || []).map((s: any) => `${s.step}: ${s.status || s.result}`).join("\n");
-      setResult(`Setup completo:\n${summary}`);
-      await fetchWorkflows();
-    } catch (err: any) {
-      setResult(`Error: ${err.response?.data?.error || err.message}`);
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  useEffect(() => { fetchWorkflows(); }, []);
-
-  return (
-    <div className="max-w-2xl">
-      <div className="card mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <Zap size={20} style={{ color: "var(--accent)" }} />
-          <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>n8n Automatización</h3>
-        </div>
-        <p className="text-sm mb-4" style={{ color: "var(--text-tertiary)" }}>
-          Setup completo: crea credenciales, workflows, los activa y configura las variables. Todo en un click.
-        </p>
-        <button onClick={handleImport} disabled={importing} className="btn-primary disabled:opacity-50">
-          {importing ? "Configurando..." : "Setup Completo en n8n"}
-        </button>
-        <button onClick={fetchWorkflows} disabled={loading} className="btn-secondary ml-2 text-sm disabled:opacity-50">
-          {loading ? "..." : "Refrescar"}
-        </button>
-        {result && (
-          <pre className="mt-4 p-3 rounded text-xs whitespace-pre-wrap" style={{ background: "var(--bg-muted)", color: "var(--text-primary)" }}>
-            {result}
-          </pre>
-        )}
-      </div>
-
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Workflows en n8n ({workflows.length})</h3>
-        {workflows.length === 0 ? (
-          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
-            {loading ? "Cargando..." : "Sin workflows. Click Setup Completo para crear todo."}
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {workflows.map((w: any) => (
-              <div key={w.id} className="p-3 rounded-lg flex items-center justify-between" style={{ background: "var(--bg-muted)" }}>
-                <div>
-                  <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{w.name}</p>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                    {w.nodes?.length || 0} nodos · {w.active ? "Activo" : "Inactivo"}
-                  </p>
-                </div>
-                <a href={`${w.id}`} target="_blank" rel="noreferrer" className="text-xs" style={{ color: "var(--accent)" }}>
-                  Abrir
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff } from "lucide-react";
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const user = useAuthStore((s) => s.user);
-const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots" | "users" | "customfields" | "webhooks" | "n8n">("whatsapp");
+const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots" | "users" | "customfields" | "webhooks">("whatsapp");
 
   const tabs = [
     { id: "whatsapp" as const, label: t("settings.tabs.whatsapp") },
@@ -103,7 +17,6 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
     ...(user?.role === "ADMIN" ? [{ id: "users" as const, label: t("settings.tabs.users") }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "customfields" as const, label: t("settings.tabs.custom_fields") }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "webhooks" as const, label: t("settings.tabs.webhooks") }] : []),
-    ...(user?.role === "ADMIN" ? [{ id: "n8n" as const, label: "n8n" }] : []),
   ];
 
   return (
@@ -136,7 +49,6 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
       {activeTab === "users" && user?.role === "ADMIN" && <UserSettings />}
       {activeTab === "customfields" && user?.role === "ADMIN" && <CustomFieldsSettings />}
       {activeTab === "webhooks" && user?.role === "ADMIN" && <WebhookSettings />}
-      {activeTab === "n8n" && user?.role === "ADMIN" && <N8nSettings />}
     </div>
   );
 }
@@ -1240,9 +1152,3 @@ function CustomFieldsSettings() {
       </div>
     );
   }
-
-  function N8nSettings() {
-    return <div />;
-  }
-}
-

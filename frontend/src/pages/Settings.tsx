@@ -1044,8 +1044,10 @@ function CustomFieldsSettings() {
       </div>
     );
   }
+}
 
-  function WebhookSettings() {
+function WebhookSettings() {
+    const { t, i18n } = useTranslation();
     const [config, setConfig] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -1073,7 +1075,8 @@ function CustomFieldsSettings() {
       try {
         const { data } = await api.get("/api/webhooks/config");
         setConfig(data);
-        if (data.allowedActions) setSelectedActions(data.allowedActions);
+        const actions = data?.allowedActions;
+        if (Array.isArray(actions)) setSelectedActions(actions);
       } catch {} finally { setLoading(false); }
     }
 

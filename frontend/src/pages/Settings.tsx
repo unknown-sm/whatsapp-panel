@@ -2,12 +2,32 @@ import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { useTranslation } from "react-i18next";
-import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff } from "lucide-react";
+import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff, Zap } from "lucide-react";
+
+function N8nSettings() {
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => { api.get("/api/n8n/workflows").then(({ data }) => { const list = data?.data || data; setWorkflows(Array.isArray(list) ? list : []); }).catch((err: any) => setError(err.response?.data?.error || "n8n no disponible")); }, []);
+
+  return (
+    <div className="max-w-2xl">
+      <div className="card mb-6">
+        <div className="flex items-center gap-2 mb-2"><Zap size={20} style={{ color: "var(--accent)" }} /><h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>n8n Automatizacion</h3></div>
+        {error ? <div className="p-4 rounded-lg mb-4 text-sm" style={{ background: "var(--danger-muted)", color: "var(--danger)" }}>{error}. Agrega N8N_API_KEY en Dokploy.</div> : null}
+        <button onClick={async () => { setImporting(true); try { const { data } = await api.post("/api/n8n/setup", {}); setResult((data.steps || []).map((s: any) => s.step + ": ok").join("\n")); const wf = await api.get("/api/n8n/workflows"); const list = wf.data?.data || wf.data; setWorkflows(Array.isArray(list) ? list : []); } catch (err: any) { setResult("Error: " + (err.response?.data?.error || err.message)); } finally { setImporting(false); } }} disabled={importing || !!error} className="btn-primary disabled:opacity-50">{importing ? "Configurando..." : "Setup Completo en n8n"}</button>
+        {result ? <pre className="mt-4 p-3 rounded text-xs whitespace-pre-wrap" style={{ background: "var(--bg-muted)", color: "var(--text-primary)" }}>{result}</pre> : null}
+      </div>
+    </div>
+  );
+}
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const user = useAuthStore((s) => s.user);
-const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots" | "users" | "customfields" | "webhooks">("whatsapp");
+const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots" | "users" | "customfields" | "webhooks" | "n8n">("whatsapp");
 
   const tabs = [
     { id: "whatsapp" as const, label: t("settings.tabs.whatsapp") },
@@ -16,7 +36,7 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
     { id: "bots" as const, label: t("settings.tabs.bots") },
     ...(user?.role === "ADMIN" ? [{ id: "users" as const, label: t("settings.tabs.users") }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "customfields" as const, label: t("settings.tabs.custom_fields") }] : []),
-    ...(user?.role === "ADMIN" ? [{ id: "webhooks" as const, label: t("settings.tabs.webhooks") }] : []),
+    ...(user?.role === "ADMIN" ? [{ id: "n8n" as const, label: "n8n" }] : []),
   ];
 
   return (
@@ -48,7 +68,7 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
       {activeTab === "bots" && <BotSettings />}
       {activeTab === "users" && user?.role === "ADMIN" && <UserSettings />}
       {activeTab === "customfields" && user?.role === "ADMIN" && <CustomFieldsSettings />}
-      {activeTab === "webhooks" && user?.role === "ADMIN" && <WebhookSettings />}
+      {activeTab === "n8n" && user?.role === "ADMIN" && <N8nSettings />}
     </div>
   );
 }
@@ -965,7 +985,10 @@ function CustomFieldsSettings() {
     );
   }
 
-  function WebhookSettings() {
+}
+
+function WebhookSettings() {
+    const { t, i18n } = useTranslation();
     const [config, setConfig] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);

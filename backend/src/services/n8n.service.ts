@@ -1,7 +1,14 @@
 import axios from "axios";
+import prisma from "../lib/prisma";
 
-const N8N_API_URL = process.env.N8N_API_URL || "https://n8n.seiva.com.py";
-const N8N_API_KEY = process.env.N8N_API_KEY || "";
+async function getN8nConfig() {
+  const key = await prisma.setting.findUnique({ where: { key: "n8n_api_key" } });
+  const url = await prisma.setting.findUnique({ where: { key: "n8n_api_url" } });
+  return {
+    apiKey: key?.value || process.env.N8N_API_KEY || "",
+    apiUrl: url?.value || process.env.N8N_API_URL || "https://n8n.seiva.com.py"
+  };
+}
 
 export type N8nEventType =
   | "deal.won"
@@ -22,22 +29,14 @@ export interface N8nEvent<T = any> {
 }
 
 export async function emitN8nEvent<T>(type: N8nEventType, data: T, orgId?: string): Promise<void> {
-  if (!N8N_API_KEY) return;
+  const { apiKey, apiUrl } = await getN8nConfig();
+  if (!apiKey) return;
 
-  const event: N8nEvent<T> = {
-    type,
-    orgId,
-    timestamp: new Date().toISOString(),
-    data,
-  };
+  const event: N8nEvent<T> = { type, orgId, timestamp: new Date().toISOString(), data };
 
   try {
-    await axios.post(`${N8N_API_URL}/webhook/crm-events`, event, {
-      headers: {
-        "X-N8N-API-KEY": N8N_API_KEY,
-        "X-N8n-Event": type,
-        "Content-Type": "application/json",
-      },
+    await axios.post(`${apiUrl}/webhook/crm-events`, event, {
+      headers: { "X-N8N-API-KEY": apiKey, "X-N8n-Event": type, "Content-Type": "application/json" },
       timeout: 5000,
     });
   } catch (err: any) {

@@ -1,14 +1,5 @@
 version: "3.8"
 
-# Template para Dokploy
-# En Dokploy:
-#   1. Crear proyecto "whatsapp-crm"
-#   2. Crear servicio tipo "App" desde Git (rama: master)
-#   3. Build: Dockerfile (no docker-compose)
-#   4. Puerto: 4000
-#   5. Dominio: crm.seiva.com.py (HTTPS auto via Traefik)
-#   6. Variables de entorno (ver DOKPLOY.md)
-
 services:
   whatsapp-panel:
     build:
@@ -36,3 +27,9 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

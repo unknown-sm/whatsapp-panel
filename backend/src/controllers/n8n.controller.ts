@@ -2,38 +2,50 @@ import { Request, Response } from "express";
 import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
+import prisma from "../lib/prisma";
 
-const N8N_API_URL = process.env.N8N_API_URL || "https://n8n.seiva.com.py";
-const N8N_API_KEY = process.env.N8N_API_KEY || "";
+async function getN8nApiKey(): Promise<string> {
+  const s = await prisma.setting.findUnique({ where: { key: "n8n_api_key" } });
+  return s?.value || process.env.N8N_API_KEY || "";
+}
 
-const headers = () => ({
-  "X-N8N-API-KEY": N8N_API_KEY,
+async function getN8nApiUrl(): Promise<string> {
+  const s = await prisma.setting.findUnique({ where: { key: "n8n_api_url" } });
+  return s?.value || process.env.N8N_API_URL || "https://n8n.seiva.com.py";
+}
+
+const headers = (apiKey: string) => ({
+  "X-N8N-API-KEY": apiKey,
   "Content-Type": "application/json",
 });
 
 async function createCredential(credential: any) {
-  return axios.post(`${N8N_API_URL}/api/v1/credentials`, credential, { headers: headers() });
+  const key = await getN8nApiKey(); const url = await getN8nApiUrl();
+  return axios.post(`${url}/api/v1/credentials`, credential, { headers: headers(key) });
 }
 
 async function listWorkflows() {
-  const r = await axios.get(`${N8N_API_URL}/api/v1/workflows`, { headers: headers() });
+  const key = await getN8nApiKey(); const url = await getN8nApiUrl();
+  const r = await axios.get(`${url}/api/v1/workflows`, { headers: headers(key) });
   return r.data.data || [];
 }
 
 async function createOrUpdateWorkflow(workflow: any) {
+  const key = await getN8nApiKey(); const url = await getN8nApiUrl(); const h = headers(key);
   const existing = await listWorkflows();
   const found = existing.find((w: any) => w.name === workflow.name);
   if (found) {
-    await axios.put(`${N8N_API_URL}/api/v1/workflows/${found.id}`, workflow, { headers: headers() });
+    await axios.put(`${url}/api/v1/workflows/${found.id}`, workflow, { headers: h });
     return { id: found.id, status: "updated" };
   } else {
-    const r = await axios.post(`${N8N_API_URL}/api/v1/workflows`, workflow, { headers: headers() });
+    const r = await axios.post(`${url}/api/v1/workflows`, workflow, { headers: h });
     return { id: r.data.id, status: "created" };
   }
 }
 
 async function activateWorkflow(id: string) {
-  await axios.post(`${N8N_API_URL}/api/v1/workflows/${id}/activate`, null, { headers: headers() });
+  const key = await getN8nApiKey(); const url = await getN8nApiUrl();
+  await axios.post(`${url}/api/v1/workflows/${id}/activate`, null, { headers: headers(key) });
 }
 
 // Workflow definitions hardcoded para no depender de archivos
@@ -182,9 +194,9 @@ const crmEventRouter = {
 
 export async function setupEverything(req: Request, res: Response) {
   try {
-    if (!N8N_API_KEY) {
-      return res.status(400).json({ error: "N8N_API_KEY no configurada" });
-    }
+    const key = await getN8nApiKey();
+    const url = await getN8nApiUrl();
+    if (!key) return res.status(400).json({ error: "N8N_API_KEY no configurada. Guardala en la pestaña n8n." });
 
     const results: any = { steps: [] };
 
@@ -216,16 +228,9 @@ export async function setupEverything(req: Request, res: Response) {
 
     // 4. Configurar variable de entorno en n8n
     try {
-      await axios.post(
-        `${N8N_API_URL}/api/v1/variables`,
-        { key: "CRM_API_URL", value: process.env.CRM_API_URL || "https://crm.seiva.com.py" },
-        { headers: headers() }
-      );
-      await axios.post(
-        `${N8N_API_URL}/api/v1/variables`,
-        { key: "CRM_API_TOKEN", value: process.env.CRM_ADMIN_TOKEN || "" },
-        { headers: headers() }
-      );
+      const h = headers(key);
+      await axios.post(`${url}/api/v1/variables`, { key: "CRM_API_URL", value: process.env.CRM_API_URL || "https://crm.seiva.com.py" }, { headers: h });
+      await axios.post(`${url}/api/v1/variables`, { key: "CRM_API_TOKEN", value: process.env.CRM_ADMIN_TOKEN || "" }, { headers: h });
       results.steps.push({ step: "set_n8n_variables", status: "ok" });
     } catch (err: any) {
       results.steps.push({ step: "set_n8n_variables", status: "error", error: err.message });
@@ -239,9 +244,8 @@ export async function setupEverything(req: Request, res: Response) {
 
 export async function importWorkflows(req: Request, res: Response) {
   try {
-    if (!N8N_API_KEY) {
-      return res.status(400).json({ error: "N8N_API_KEY no configurada" });
-    }
+    const key = await getN8nApiKey();
+    if (!key) return res.status(400).json({ error: "N8N_API_KEY no configurada" });
 
     const workflowsDir = path.join(__dirname, "../../n8n/workflows");
     const files = fs.readdirSync(workflowsDir).filter((f) => f.endsWith(".json"));
@@ -266,11 +270,32 @@ export async function importWorkflows(req: Request, res: Response) {
 
 export async function listN8nWorkflows(req: Request, res: Response) {
   try {
-    if (!N8N_API_KEY) {
-      return res.status(400).json({ error: "N8N_API_KEY no configurada" });
-    }
-    const r = await axios.get(`${N8N_API_URL}/api/v1/workflows`, { headers: headers() });
+    const key = await getN8nApiKey();
+    const url = await getN8nApiUrl();
+    if (!key) return res.status(400).json({ error: "N8N_API_KEY no configurada" });
+    const r = await axios.get(`${url}/api/v1/workflows`, { headers: headers(key) });
     res.json(r.data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function saveConfig(req: Request, res: Response) {
+  try {
+    const { apiKey, apiUrl } = req.body;
+    if (apiKey) await prisma.setting.upsert({ where: { key: "n8n_api_key" }, create: { key: "n8n_api_key", value: apiKey }, update: { value: apiKey } });
+    if (apiUrl) await prisma.setting.upsert({ where: { key: "n8n_api_url" }, create: { key: "n8n_api_url", value: apiUrl }, update: { value: apiUrl } });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+export async function getConfig(req: Request, res: Response) {
+  try {
+    const apiKey = await getN8nApiKey();
+    const apiUrl = await getN8nApiUrl();
+    res.json({ apiKey: apiKey ? "***" + apiKey.slice(-4) : "", apiUrl, configured: !!apiKey });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

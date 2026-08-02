@@ -3,7 +3,24 @@ import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { useTranslation } from "react-i18next";
 import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff, Zap } from "lucide-react";
-function N8n(){const[w,sw]=useState<any[]>([]);const[i,si]=useState(false);const[r,sr]=useState("");const[e,se]=useState("");useEffect(()=>{api.get("/api/n8n/workflows").then(({data})=>{const l=data?.data||data;sw(Array.isArray(l)?l:[])}).catch((er:any)=>se(er.response?.data?.error||"n8n no disponible"))},[]);return(<div className="max-w-2xl"><div className="card mb-6"><div className="flex items-center gap-2 mb-2"><Zap size={20}style={{color:"var(--accent)"}}/><h3 className="text-lg font-semibold"style={{color:"var(--text-primary)"}}>n8n</h3></div>{e?<div className="p-4 rounded-lg mb-4 text-sm"style={{background:"var(--danger-muted)",color:"var(--danger)"}}>{e}</div>:null}<button onClick={async()=>{si(true);try{const{data}=await api.post("/api/n8n/setup",{});sr((data.steps||[]).map((s:any)=>s.step+":ok").join("\n"));const wf=await api.get("/api/n8n/workflows");const l=wf.data?.data||wf.data;sw(Array.isArray(l)?l:[])}catch(er:any){sr("Error: "+(er.response?.data?.error||er.message))}finally{si(false)}}}disabled={i||!!e}className="btn-primary disabled:opacity-50">{i?"Configurando...":"Setup n8n"}</button>{r?<pre className="mt-4 p-3 rounded text-xs"style={{background:"var(--bg-muted)",color:"var(--text-primary)"}}>{r}</pre>:null}</div></div>);}
+function N8n(){
+  const[w,sw]=useState<any[]>([]);const[i,si]=useState(false);const[r,sr]=useState("");const[e,se]=useState("");
+  const[ak,sak]=useState("");const[au,sau]=useState("");const[sc,ssc]=useState(false);
+  useEffect(()=>{api.get("/api/n8n/config").then(({data})=>{sak(data.apiKey||"");sau(data.apiUrl||"");se(data.configured?"":"API key no configurada")}).catch(()=>se("n8n no disponible"))},[]);
+  async function save(){ssc(true);try{await api.put("/api/n8n/config",{apiKey:ak,apiUrl:au});se("");sak("");ssc(false);api.get("/api/n8n/workflows").then(({data})=>{const l=data?.data||data;sw(Array.isArray(l)?l:[])}).catch(()=>{})}catch(er:any){se(er.response?.data?.error||"Error al guardar");ssc(false)}}
+  return(<div className="max-w-2xl">
+    <div className="card mb-6">
+      <h3 className="text-lg font-semibold mb-2"style={{color:"var(--text-primary)"}}>n8n API Key</h3>
+      <input value={ak}onChange={e=>sak(e.target.value)}className="input mb-2"placeholder="eyJhbGciOiJIUzI1NiIs..."type="password"/>
+      <input value={au}onChange={e=>sau(e.target.value)}className="input mb-4"placeholder="https://n8n.seiva.com.py"/>
+      <button onClick={save}disabled={sc||!ak}className="btn-primary disabled:opacity-50">{sc?"Guardando...":"Guardar"}</button>
+      {e?<div className="mt-4 p-4 rounded-lg text-sm"style={{background:"var(--danger-muted)",color:"var(--danger)"}}>{e}</div>:null}
+    </div>
+    <div className="card mb-6">
+      <button onClick={async()=>{si(true);try{const{data}=await api.post("/api/n8n/setup",{});sr((data.steps||[]).map((s:any)=>s.step+":ok").join("\n"))}catch(er:any){sr("Error:"+(er.response?.data?.error||er.message))}finally{si(false)}}}disabled={i}className="btn-primary disabled:opacity-50">{i?"Configurando...":"Setup Completo"}</button>
+      {r?<pre className="mt-4 p-3 rounded text-xs"style={{background:"var(--bg-muted)",color:"var(--text-primary)"}}>{r}</pre>:null}
+    </div>
+  </div>);}
 
 export default function Settings() {
   const { t, i18n } = useTranslation();

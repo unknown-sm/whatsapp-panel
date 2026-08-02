@@ -9,5 +9,7 @@ router.use(requireAdmin);
 router.get("/workflows", ctrl.listN8nWorkflows);
 router.post("/import", ctrl.importWorkflows);
 router.post("/setup", ctrl.setupEverything);
+router.put("/config", ctrl.saveConfig);
+router.get("/config", ctrl.getConfig);
 
 export default router;

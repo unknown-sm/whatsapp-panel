@@ -40,6 +40,8 @@ export async function processIncomingMessage(data: any) {
       // Extract media info if present
       const media = mediaService.extractMediaFromPayload(msg);
       const text = msg.text?.body || media?.caption || (media ? `[${media.type}]` : "");
+      // Get contact name from Meta webhook
+      const contactName = value.contacts?.[0]?.profile?.name || null;
 
       if (!text && !media) continue;
       // Tomar el primer orgId disponible
@@ -47,9 +49,11 @@ export async function processIncomingMessage(data: any) {
       const orgId = firstOrg?.id || null;
       let contact = await prisma.contact.findUnique({ where: { phone } });
       if (!contact) {
-        contact = await prisma.contact.create({ data: { phone, orgId: orgId || undefined } });
+        contact = await prisma.contact.create({ data: { phone, name: contactName, orgId: orgId || undefined } });
       } else if (!contact.orgId && orgId) {
-        contact = await prisma.contact.update({ where: { id: contact.id }, data: { orgId } });
+        const update: any = { orgId };
+        if (contactName && !contact.name) update.name = contactName;
+        contact = await prisma.contact.update({ where: { id: contact.id }, data: update });
       }
 
       await prisma.contact.update({ where: { id: contact.id }, data: { lastActivity: new Date() } });

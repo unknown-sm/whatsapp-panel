@@ -32,6 +32,7 @@ import npsRoutes from "./routes/nps.routes";
 import webhookRoutes from "./routes/webhook.routes";
 import agentChatRoutes from "./routes/agent-chat.routes";
 import n8nAdminRoutes from "./routes/n8n.routes";
+import tagRoutes from "./routes/tag.routes";
 import { checkFollowUps } from "./services/followup.service";
 import * as reportsService from "./services/reports.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
@@ -278,6 +279,29 @@ async function seedDatabase() {
     throw e;
   }
 
+  // Tags (etiquetas Meta estandar + personalizadas)
+  try {
+    const tagCount = await prisma.tag.count();
+    if (tagCount === 0) {
+      await prisma.tag.createMany({
+        data: [
+          { name: "New Customer", color: "#3B82F6" },
+          { name: "New Order", color: "#F59E0B" },
+          { name: "Pending Payment", color: "#EF4444" },
+          { name: "Paid", color: "#10B981" },
+          { name: "Order Complete", color: "#8B5CF6" },
+          { name: "blacklist", color: "#000000" },
+          { name: "vip", color: "#EC4899" },
+          { name: "spam", color: "#6B7280" },
+        ],
+      });
+      console.log("8 etiquetas creadas");
+    }
+    console.log("Seed: Tags OK");
+  } catch (e) {
+    console.error("Seed ERROR en Tags:", e instanceof Error ? e.message : e);
+  }
+
   // Sales Playbooks
   try {
     await seedPlaybooks();
@@ -354,6 +378,7 @@ app.use("/api/nps", npsRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/agent-chat", agentChatRoutes);
 app.use("/api/n8n", n8nAdminRoutes);
+app.use("/api/tags", tagRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {

@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma";
 import { z } from "zod";
 import { sendWhatsAppMessage } from "./whatsapp.service";
+import { isBlacklisted } from "./blacklist.service";
 import { addScoreByCondition } from "./leadscore.service";
 import { io } from "../index";
 
@@ -83,6 +84,9 @@ export async function checkFollowUps() {
         io.emit("conversation:updated", { id: conv.id, status: "waiting_agent" });
         continue;
       }
+
+      // Skip blacklisted contacts
+      if (await isBlacklisted(conv.contactId)) continue;
 
       // Send follow-up message
       const sent = await sendWhatsAppMessage(conv.contact.phone, rule.message);

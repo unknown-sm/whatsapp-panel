@@ -5,6 +5,7 @@ import { generateResponse, classifyIntent } from "./ai.service";
 import { resolveEngine } from "./whatsapp-engine";
 import { findBotByKeyword } from "./bot.service";
 import { addScoreByCondition } from "./leadscore.service";
+import { isBlacklisted } from "./blacklist.service";
 import * as sessionService from "./session.service";
 import * as attributionService from "./attribution.service";
 import * as mediaService from "./media.service";
@@ -156,7 +157,8 @@ export async function processIncomingMessage(data: any) {
       });
 
       if (conversation.botId && conversation.status === "active") {
-        await processBotFlow(conversation, text);
+        const blocked = await isBlacklisted(contact.id);
+        if (!blocked) await processBotFlow(conversation, text);
       }
     }
   }

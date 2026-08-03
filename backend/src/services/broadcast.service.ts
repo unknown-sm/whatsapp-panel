@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma";
 import { sendWhatsAppMessage } from "./whatsapp.service";
+import { isBlacklisted } from "./blacklist.service";
 
 // ─── Templates ─────────────────────────────────────
 
@@ -145,6 +146,7 @@ export async function sendBroadcast(broadcastId: string) {
   let failedCount = 0;
 
   for (const contact of contacts) {
+    if (await isBlacklisted(contact.id)) { failedCount++; continue; }
     const message = broadcast.content;
     const success = await sendWhatsAppMessage(contact.phone, message);
 

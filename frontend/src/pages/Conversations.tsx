@@ -101,7 +101,7 @@ export default function Conversations() {
   }, [showContactPanel]);
 
   function setupSocket() {
-    const socket = io(import.meta.env.VITE_API_URL || "http://localhost:4000");
+    const socket = io(import.meta.env.VITE_API_URL || "");
     socketRef.current = socket;
     socket.on("message:new", (msg: any) => {
       if (selectedConv?.id === msg.conversationId) setMessages((prev) => [...prev, msg]);

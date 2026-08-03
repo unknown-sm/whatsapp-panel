@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as pipelineService from "../services/pipeline.service";
 import { addScoreByCondition } from "../services/leadscore.service";
 import { emitN8nEvent } from "../services/n8n.service";
+import { sendPurchaseEvent, sendLeadEvent } from "../services/meta-conversions.service";
 import prisma from "../lib/prisma";
 
 function getOrgId(req: Request): string | undefined {
@@ -106,6 +107,12 @@ export async function createDeal(req: Request, res: Response) {
       agentId: deal.assignedToId,
     }, deal.orgId || undefined);
 
+    // Enviar evento Lead a Meta Conversions API
+    try {
+      const contact = await prisma.contact.findUnique({ where: { id: deal.contactId || "" } });
+      if (contact) sendLeadEvent({ contactPhone: contact.phone || "", contactName: contact.name || undefined });
+    } catch {}
+
     res.status(201).json(deal);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -161,6 +168,23 @@ export async function moveDeal(req: Request, res: Response) {
           contactPhone: contact?.phone,
           agentId: deal.assignedToId,
         }, deal.orgId || undefined);
+
+        // Enviar evento Purchase a Meta Conversions API (pixel tracking)
+        try {
+          const attribution = await prisma.adAttribution.findFirst({
+            where: { contactId: deal.contactId },
+            orderBy: { createdAt: "desc" },
+          });
+          sendPurchaseEvent({
+            contactPhone: contact?.phone || "",
+            contactName: contact?.name || undefined,
+            dealValue: deal.value,
+            dealName: deal.name,
+            currency: deal.currency,
+            adId: attribution?.adId || undefined,
+            campaignId: attribution?.campaignId || undefined,
+          });
+        } catch {}
       } catch {}
     } else if (deal.status === "LOST" && deal.contactId) {
       // Emitir evento deal.lost

@@ -63,7 +63,7 @@ export async function processIncomingMessage(data: any) {
       }
 
       let conversation = await prisma.conversation.findFirst({
-        where: { contactId: contact.id, status: "active" },
+        where: { contactId: contact.id, status: { in: ["active", "waiting_agent"] } },
         orderBy: { updatedAt: "desc" },
       });
 

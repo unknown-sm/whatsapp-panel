@@ -71,7 +71,7 @@ export async function processIncomingMessage(data: any) {
         const matchedBot = await findBotByKeyword(text);
 
         conversation = await prisma.conversation.create({
-          data: { contactId: contact.id, botId: matchedBot?.id || null, status: matchedBot ? "active" : "waiting_agent" },
+          data: { contactId: contact.id, botId: matchedBot?.id || null, status: matchedBot ? "active" : "waiting_agent", orgId: contact.orgId },
         });
       }
 

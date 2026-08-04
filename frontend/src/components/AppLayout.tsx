@@ -224,7 +224,7 @@ export default function AppLayout() {
             <ThemeToggle />
           </div>
         </header>
-        <div className="flex-1 overflow-auto p-4 md:p-6">
+        <div className="flex-1 overflow-auto p-4 md:p-6" style={{ overflowX: "hidden" }}>
           <Outlet />
         </div>
       </main>

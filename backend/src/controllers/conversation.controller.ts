@@ -288,3 +288,16 @@ export async function importContacts(req: Request, res: Response) {
     res.status(500).json({ error: err.message });
   }
 }
+
+export async function deleteContact(req: Request, res: Response) {
+  try {
+    await prisma.message.deleteMany({ where: { conversation: { contactId: req.params.id } } });
+    await prisma.conversation.deleteMany({ where: { contactId: req.params.id } });
+    await prisma.contactTags.deleteMany({ where: { contactId: req.params.id } });
+    await prisma.contactNote.deleteMany({ where: { contactId: req.params.id } });
+    await prisma.contact.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}

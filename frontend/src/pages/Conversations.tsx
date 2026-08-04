@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import api from "../services/api";
 import { io } from "socket.io-client";
 import {
-  Search, Send, Users, Download, MessageSquare, Phone, Sparkles,
+  Search, Send, Users, Download, MessageSquare, Phone, Sparkles, Trash2,
   Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
   AlertCircle, UserCheck, ArrowRight, Hash, Plus, Loader2,
   Image, Film, FileText, Music, Mic, Download, FileAudio,
@@ -184,6 +184,12 @@ export default function Conversations() {
     a.click();
   }
 
+  async function deleteContact(contactId: string) {
+    if (!confirm("Eliminar contacto y todas sus conversaciones?")) return;
+    await api.delete(`/api/conversations/contacts/${contactId}`);
+    fetchData();
+  }
+
   function getWindowBadge(conv: Conversation) {
     if (!conv.windowOpen) return null;
     if (!conv.windowExpiresAt) return null;
@@ -236,6 +242,9 @@ export default function Conversations() {
                     <p className="text-[13px] font-medium truncate text-ink">{contact.name || contact.phone}</p>
                     <p className="text-[11px] truncate text-ink-3">{contact.phone}</p>
                   </div>
+                  <button onClick={(e) => { e.stopPropagation(); deleteContact(contact.id); }} className="p-1 rounded hover:bg-red-50" title="Eliminar contacto">
+                    <Trash2 size={14} className="text-ink-3 hover:text-red-500" />
+                  </button>
                   <span className="text-[11px] text-ink-3">{contact._count.conversations}</span>
                 </div>
                 {contact.tags.length > 0 && (

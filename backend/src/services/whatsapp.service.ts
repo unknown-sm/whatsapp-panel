@@ -50,10 +50,13 @@ export async function processIncomingMessage(data: any) {
       let contact = await prisma.contact.findUnique({ where: { phone } });
       if (!contact) {
         contact = await prisma.contact.create({ data: { phone, name: contactName, orgId: orgId || undefined } });
-      } else if (!contact.orgId && orgId) {
-        const update: any = { orgId };
+      } else {
+        const update: any = {};
+        if (!contact.orgId && orgId) update.orgId = orgId;
         if (contactName && !contact.name) update.name = contactName;
-        contact = await prisma.contact.update({ where: { id: contact.id }, data: update });
+        if (Object.keys(update).length > 0) {
+          contact = await prisma.contact.update({ where: { id: contact.id }, data: update });
+        }
       }
 
       await prisma.contact.update({ where: { id: contact.id }, data: { lastActivity: new Date() } });

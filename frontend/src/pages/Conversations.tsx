@@ -429,6 +429,7 @@ export default function Conversations() {
             customValues={selectedConv ? contactCustomValues : []}
             messages={messages}
             onClose={() => setShowContactPanel(false)}
+            onTagsChanged={fetchData}
           />
         </div>
       )}
@@ -470,7 +471,39 @@ function ContactEmptyState({ contact, customValues, onClose }: { contact: Contac
   );
 }
 
-function ContactPanel({ conversation, contact, customValues, messages, onClose }: { conversation: Conversation | null; contact: any; customValues: any[]; messages: any[]; onClose: () => void }) {
+function ContactPanel({ conversation, contact, customValues, messages, onClose, onTagsChanged }: { conversation: Conversation | null; contact: any; customValues: any[]; messages: any[]; onClose: () => void; onTagsChanged?: () => void }) {
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showTagDropdown) {
+      api.get("/api/tags").then(({ data }) => setAvailableTags(data)).catch(() => {});
+    }
+  }, [showTagDropdown]);
+
+  useEffect(() => {
+    if (!showTagDropdown) return;
+    function handleClick(e: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) setShowTagDropdown(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showTagDropdown]);
+
+  async function toggleTag(tagId: string) {
+    if (!contact) return;
+    const hasTag = contact.tags?.some((ct: any) => ct.tag.id === tagId);
+    try {
+      if (hasTag) {
+        await api.delete("/api/tags/assign", { data: { contactId: contact.id, tagId } });
+      } else {
+        await api.post("/api/tags/assign", { contactId: contact.id, tagId });
+      }
+      setShowTagDropdown(false);
+      onTagsChanged?.();
+    } catch {}
+  }
   if (!contact) return null;
   const inbound = messages.filter((m) => m.direction === "inbound").length;
   const outbound = messages.filter((m) => m.direction === "outbound").length;
@@ -512,9 +545,29 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose }
         )}
 
         <div>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 relative">
             <h4 className="section-label">Etiquetas</h4>
-            <button className="text-ink-3 hover:text-ink transition-colors" title="Agregar tag"><Plus size={12} /></button>
+            <button onClick={() => setShowTagDropdown(!showTagDropdown)} className="text-ink-3 hover:text-ink transition-colors" title="Agregar tag"><Plus size={12} /></button>
+            {showTagDropdown && (
+              <div ref={tagDropdownRef} className="absolute right-0 top-6 z-50 w-52 rounded-lg border border-border shadow-lg py-1" style={{ background: "var(--bg-card)" }}>
+                {availableTags.length === 0 ? (
+                  <p className="px-3 py-2 text-[11px] text-ink-3">Sin etiquetas disponibles</p>
+                ) : (
+                  availableTags.map((tag) => {
+                    const assigned = contact.tags?.some((ct: any) => ct.tag.id === tag.id);
+                    return (
+                      <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                        className="w-full px-3 py-1.5 flex items-center gap-2 text-left text-[12px] hover:bg-atlas-hover transition-colors"
+                        style={{ color: assigned ? tag.color : "var(--text-primary)" }}>
+                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: tag.color }} />
+                        <span className="flex-1 truncate">{tag.name}</span>
+                        {assigned && <Check size={12} />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
           {contact.tags?.length > 0 ? (
             <div className="flex flex-wrap gap-1">

@@ -100,7 +100,8 @@
       "bots": "Bots",
       "users": "Users",
       "custom_fields": "Custom Fields",
-      "webhooks": "n8n Webhooks"
+      "webhooks": "n8n Webhooks",
+      "tags": "Tags"
     },
     "whatsapp": {
       "connect_meta": "Connect with Meta (Embedded Signup)",

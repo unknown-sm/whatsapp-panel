@@ -100,7 +100,8 @@
       "bots": "Bots",
       "users": "Usuarios",
       "custom_fields": "Campos Personalizados",
-      "webhooks": "Webhooks n8n"
+      "webhooks": "Webhooks n8n",
+      "tags": "Etiquetas"
     },
     "whatsapp": {
       "connect_meta": "Conectar con Meta (Embedded Signup)",

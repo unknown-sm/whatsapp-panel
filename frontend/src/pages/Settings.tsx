@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { useTranslation } from "react-i18next";
-import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff, Zap } from "lucide-react";
+import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff, Zap, Tag } from "lucide-react";
 function N8n(){
   const[w,sw]=useState<any[]>([]);const[i,si]=useState(false);const[r,sr]=useState("");const[e,se]=useState("");
   const[ak,sak]=useState("");const[au,sau]=useState("");const[sc,ssc]=useState(false);
@@ -22,6 +22,110 @@ function N8n(){
     </div>
   </div>);}
 
+function TagsManagement() {
+  const [tags, setTags] = useState<any[]>([]);
+  const [form, setForm] = useState({ name: "", color: "#3B82F6" });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", color: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetchTags(); }, []);
+
+  async function fetchTags() {
+    try {
+      const { data } = await api.get("/api/tags");
+      setTags(data);
+    } catch {}
+  }
+
+  async function handleCreate() {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await api.post("/api/tags", { name: form.name.trim(), color: form.color });
+      setForm({ name: "", color: "#3B82F6" });
+      fetchTags();
+    } catch (e: any) { alert(e.response?.data?.error || "Error al crear tag"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleUpdate(id: string) {
+    if (!editForm.name.trim()) return;
+    setSaving(true);
+    try {
+      await api.put(`/api/tags/${id}`, { name: editForm.name.trim(), color: editForm.color });
+      setEditingId(null);
+      fetchTags();
+    } catch (e: any) { alert(e.response?.data?.error || "Error al actualizar"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Eliminar esta etiqueta? Los contactos que la usan la perderan.")) return;
+    try { await api.delete(`/api/tags/${id}`); fetchTags(); } catch (e: any) { alert(e.response?.data?.error || "Error al eliminar"); }
+  }
+
+  const PRESET_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"];
+
+  return (
+    <div className="max-w-2xl">
+      <div className="card mb-6">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Crear Etiqueta</h3>
+        <div className="flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Nombre</label>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" placeholder="ej: lead, VIP, blacklist" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+          </div>
+          <div>
+            <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Color</label>
+            <div className="flex gap-1.5">
+              {PRESET_COLORS.map((c) => (
+                <button key={c} onClick={() => setForm({ ...form, color: c })}
+                  className="w-7 h-7 rounded-md border-2 transition-transform hover:scale-110"
+                  style={{ background: c, borderColor: form.color === c ? "var(--text-primary)" : "transparent" }} />
+              ))}
+              <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
+                className="w-7 h-7 rounded-md cursor-pointer border-0" />
+            </div>
+          </div>
+          <button onClick={handleCreate} disabled={saving || !form.name.trim()} className="btn-primary disabled:opacity-50 whitespace-nowrap">
+            <Plus size={16} /> {saving ? "..." : "Crear"}
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Etiquetas ({tags.length})</h3>
+        {tags.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Sin etiquetas. Crea una arriba.</p>
+        ) : (
+          <div className="space-y-2">
+            {tags.map((tag) => (
+              <div key={tag.id} className="p-3 rounded-lg flex items-center gap-3" style={{ background: "var(--bg-muted)" }}>
+                {editingId === tag.id ? (
+                  <>
+                    <input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} className="w-7 h-7 rounded cursor-pointer border-0" />
+                    <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="input flex-1 text-sm" onKeyDown={(e) => e.key === "Enter" && handleUpdate(tag.id)} autoFocus />
+                    <button onClick={() => handleUpdate(tag.id)} disabled={saving} className="btn-secondary text-xs px-2 py-1"><Check size={14} /></button>
+                    <button onClick={() => setEditingId(null)} className="btn-secondary text-xs px-2 py-1">Cancelar</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: tag.color }} />
+                    <span className="font-medium text-sm flex-1" style={{ color: "var(--text-primary)" }}>{tag.name}</span>
+                    <button onClick={() => { setEditingId(tag.id); setEditForm({ name: tag.name, color: tag.color }); }} className="btn-secondary text-xs px-2 py-1">Editar</button>
+                    <button onClick={() => handleDelete(tag.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: "var(--danger)" }}><Trash2 size={12} /></button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const user = useAuthStore((s) => s.user);
@@ -35,6 +139,7 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
     ...(user?.role === "ADMIN" ? [{ id: "users" as const, label: t("settings.tabs.users") }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "customfields" as const, label: t("settings.tabs.custom_fields") }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "webhooks" as const, label: t("settings.tabs.webhooks") }] : []),
+    ...(user?.role === "ADMIN" ? [{ id: "tags" as const, label: t("settings.tabs.tags") || "Etiquetas" }] : []),
     ...(user?.role === "ADMIN" ? [{ id: "n8n" as const, label: "n8n" }] : []),
   ];
 
@@ -68,6 +173,7 @@ const [activeTab, setActiveTab] = useState<"whatsapp" | "openwa" | "ai" | "bots"
       {activeTab === "users" && user?.role === "ADMIN" && <UserSettings />}
       {activeTab === "customfields" && user?.role === "ADMIN" && <CustomFieldsSettings />}
       {activeTab === "webhooks" && user?.role === "ADMIN" && <WebhookSettings />}
+      {activeTab === "tags" && user?.role === "ADMIN" && <TagsManagement />}
       {activeTab === "n8n" && user?.role === "ADMIN" && <N8n />}
     </div>
   );

@@ -10,7 +10,9 @@
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
     "db:generate": "cd backend && npx prisma generate",
     "db:push": "cd backend && npx prisma db push",
-    "db:seed": "cd backend && npx tsx prisma/seed.ts"
+    "db:seed": "cd backend && npx tsx prisma/seed.ts",
+    "graph": "graphify . --update --no-viz",
+    "graph:full": "graphify . --mode deep"
   },
   "devDependencies": {
     "concurrently": "^9.0.1"

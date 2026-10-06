@@ -18,10 +18,12 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://whatsapp:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_panel
       JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: ${FRONTEND_URL}
       WEBHOOK_BASE_URL: ${FRONTEND_URL}
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/api/health || exit 1"]
       interval: 15s

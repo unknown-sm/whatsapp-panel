@@ -1,22 +1,34 @@
 import crypto from "crypto";
+import { getJwtSecret } from "../lib/env";
 
 /* ── AES-256-GCM encryption for sensitive tokens ────────── */
 
 const ALGO = "aes-256-gcm";
 const IV_LENGTH = 12;
-const KEY = (() => {
+let warnedEncryptionKey = false;
+let cachedKey: Buffer | null = null;
+
+function getKey(): Buffer {
+  if (cachedKey) return cachedKey;
   const envKey = process.env.ENCRYPTION_KEY;
   if (envKey && envKey.length >= 32) {
-    return crypto.createHash("sha256").update(envKey).digest();
+    cachedKey = crypto.createHash("sha256").update(envKey).digest();
+    return cachedKey;
   }
-  // Fallback: derive from JWT_SECRET (insecure, but functional)
-  const fallback = process.env.JWT_SECRET || "fallback-key-change-in-prod";
-  return crypto.createHash("sha256").update(fallback).digest();
-})();
+  // Transitional fallback: derive from JWT_SECRET (never from a public literal).
+  // Setting ENCRYPTION_KEY is the recommended setup; changing it later requires
+  // re-saving stored tokens.
+  if (!warnedEncryptionKey) {
+    warnedEncryptionKey = true;
+    console.warn("[crypto] ENCRYPTION_KEY no definida (o menor a 32 chars): derivando clave de JWT_SECRET. Defini ENCRYPTION_KEY propia en produccion.");
+  }
+  cachedKey = crypto.createHash("sha256").update(getJwtSecret()).digest();
+  return cachedKey;
+}
 
 export function encrypt(plaintext: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGO, KEY, iv);
+  const cipher = crypto.createCipheriv(ALGO, getKey(), iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, encrypted]).toString("base64");
@@ -28,7 +40,7 @@ export function decrypt(ciphertext: string): string {
     const iv = buf.subarray(0, IV_LENGTH);
     const tag = buf.subarray(IV_LENGTH, IV_LENGTH + 16);
     const encrypted = buf.subarray(IV_LENGTH + 16);
-    const decipher = crypto.createDecipheriv(ALGO, KEY, iv);
+    const decipher = crypto.createDecipheriv(ALGO, getKey(), iv);
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
   } catch (err) {

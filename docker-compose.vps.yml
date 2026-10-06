@@ -45,10 +45,12 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://whatsapp:${POSTGRES_PASSWORD}@postgres:5432/whatsapp_panel
       JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: https://${DOMAIN}
       WEBHOOK_BASE_URL: https://${DOMAIN}
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET:-}
     volumes:
       - backend-uploads:/app/backend/uploads
     networks:

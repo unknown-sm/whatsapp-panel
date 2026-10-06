@@ -3,10 +3,26 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { getKnowledgeContent } from "./knowledge.service";
+import { encrypt, decrypt, isEncrypted } from "./crypto.service";
 
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const OPENCODE_BASE_URL = "https://api.opencode.ai/v1";
+
+const MASK_PREFIX = "••••";
+
+export function maskApiKey(key: string): string {
+  if (!key) return "";
+  return MASK_PREFIX + key.slice(-4);
+}
+
+export function isMaskedApiKey(value: unknown): boolean {
+  return typeof value === "string" && value.startsWith(MASK_PREFIX);
+}
+
+function resolveApiKey(key: string): string {
+  return isEncrypted(key) ? decrypt(key) : key;
+}
 
 export async function getAIConfigs() {
   return prisma.aIConfig.findMany({ orderBy: { createdAt: "desc" } });
@@ -29,11 +45,23 @@ export async function createAIConfig(data: any) {
     });
   }
 
-  return prisma.aIConfig.create({ data: { ...parsed, isDefault: true } });
+  return prisma.aIConfig.create({ data: { ...parsed, apiKey: encrypt(parsed.apiKey), isDefault: true } });
 }
 
+const UPDATABLE_FIELDS = ["name", "provider", "apiKey", "model", "endpoint", "isDefault", "isActive"] as const;
+
 export async function updateAIConfig(id: string, data: any) {
-  return prisma.aIConfig.update({ where: { id }, data });
+  const d: Record<string, unknown> = {};
+  for (const field of UPDATABLE_FIELDS) {
+    if (data[field] !== undefined) d[field] = data[field];
+  }
+  // Masked values come back from the UI unchanged: keep the stored key.
+  if (d.apiKey === "" || isMaskedApiKey(d.apiKey)) {
+    delete d.apiKey;
+  } else if (typeof d.apiKey === "string") {
+    d.apiKey = encrypt(d.apiKey);
+  }
+  return prisma.aIConfig.update({ where: { id }, data: d });
 }
 
 export async function deleteAIConfig(id: string) {
@@ -57,8 +85,9 @@ export async function generateResponse(
   messages: { role: string; content: string }[],
   options?: { systemPrompt?: string; maxTokens?: number; botId?: string }
 ): Promise<string> {
-  const config = await prisma.aIConfig.findUnique({ where: { id: configId } });
+  let config = await prisma.aIConfig.findUnique({ where: { id: configId } });
   if (!config) throw new Error("AI config not found");
+  config = { ...config, apiKey: resolveApiKey(config.apiKey) };
 
   let systemPrompt = options?.systemPrompt || "";
   const maxTokens = options?.maxTokens || 1024;
@@ -178,8 +207,9 @@ export async function generateResponse(
 }
 
 export async function classifyIntent(configId: string, text: string, intents: { label: string; samples: string[] }[]): Promise<{ label: string; confidence: number }> {
-  const config = await prisma.aIConfig.findUnique({ where: { id: configId } });
+  let config = await prisma.aIConfig.findUnique({ where: { id: configId } });
   if (!config) throw new Error("AI config not found");
+  config = { ...config, apiKey: resolveApiKey(config.apiKey) };
 
   const intentDescriptions = intents.map((i) =>
     `- "${i.label}": ejemplos: ${i.samples.join(", ")}`
@@ -252,10 +282,11 @@ Formato: label|confidence`;
 }
 
 export async function transcribeAudio(configId: string, audioBuffer: Buffer): Promise<string> {
-  const config = await prisma.aIConfig.findUnique({ where: { id: configId } });
+  let config = await prisma.aIConfig.findUnique({ where: { id: configId } });
   if (!config || config.provider !== "openai") {
     throw new Error("Transcripcion solo disponible con OpenAI (Whisper)");
   }
+  config = { ...config, apiKey: resolveApiKey(config.apiKey) };
 
   const openai = new OpenAI({ apiKey: config.apiKey });
   const blob = new Blob([audioBuffer], { type: "audio/mpeg" });

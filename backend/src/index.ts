@@ -40,11 +40,18 @@ import { seedPlaybooks } from "./services/playbook.service";
 import { seedRoutingRules } from "./services/routing.service";
 import prisma from "./lib/prisma";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { execSync } from "child_process";
+import { getJwtSecret } from "./lib/env";
 
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel";
-  console.warn("DATABASE_URL no definida, usando fallback interno");
+  if (process.env.NODE_ENV === "production") {
+    console.error("DATABASE_URL es obligatoria en produccion. El servidor no arranca sin ella.");
+    process.exit(1);
+  }
+  process.env.DATABASE_URL = "postgresql://whatsapp:whatsapp_secret@localhost:5432/whatsapp_panel";
+  console.warn("DATABASE_URL no definida, usando default de desarrollo local");
 }
 
 async function seedDatabaseIfEmpty() {
@@ -111,7 +118,9 @@ async function seedDatabase() {
   try {
     const existingAdmin = await prisma.user.findUnique({ where: { email: "admin@whatsapp-panel.com" } });
     if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash("admin123", 12);
+      // Random one-time password: never a known literal committed to the repo
+      const adminPassword = crypto.randomBytes(12).toString("base64url");
+      const hashedPassword = await bcrypt.hash(adminPassword, 12);
       const defaultOrg = await prisma.organization.findFirst();
       await prisma.user.create({
         data: {
@@ -122,7 +131,10 @@ async function seedDatabase() {
           memberships: defaultOrg ? { create: { orgId: defaultOrg.id, role: "ADMIN", isDefault: true } } : undefined,
         },
       });
-      console.log("Admin creado: admin@whatsapp-panel.com / admin123");
+      console.log("=".repeat(60));
+      console.log("Admin creado: admin@whatsapp-panel.com");
+      console.log(`Contraseña inicial (SOLO se muestra esta vez): ${adminPassword}`);
+      console.log("=".repeat(60));
     } else {
       console.log("Admin ya existe");
     }
@@ -335,7 +347,11 @@ const io = new Server(server, {
 app.use(helmet());
 app.set("trust proxy", 1);
 app.use(cors());
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({
+  limit: "50mb",
+  // Keep the raw body so the webhook can verify Meta's X-Hub-Signature-256 HMAC
+  verify: (req: any, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static("uploads"));
 
@@ -387,16 +403,49 @@ if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "tru
   });
 }
 
-// Socket.io
-io.on("connection", (socket) => {
-  console.log(`Cliente conectado: ${socket.id}`);
+// Socket.io — every connection must present a valid JWT; the socket is
+// auto-joined to its organization room so cross-org data never leaks.
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token || typeof token !== "string") {
+      return next(new Error("Token requerido"));
+    }
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as {
+      id: string; email: string; role: string; orgId?: string;
+    };
+    (socket as any).user = decoded;
+    next();
+  } catch {
+    next(new Error("Token invalido o expirado"));
+  }
+});
 
-  socket.on("join-conversation", (conversationId: string) => {
-    socket.join(conversationId);
+async function canAccessConversation(user: { orgId?: string }, conversationId: unknown): Promise<boolean> {
+  if (typeof conversationId !== "string" || !conversationId) return false;
+  if (!user?.orgId) return false;
+  const conv = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { orgId: true } });
+  return !!conv && conv.orgId === user.orgId;
+}
+
+io.on("connection", (socket) => {
+  const user = (socket as any).user as { id: string; role: string; orgId?: string };
+  console.log(`Cliente conectado: ${socket.id} (user ${user?.id || "?"}, org ${user?.orgId || "sin org"})`);
+
+  if (user?.orgId) {
+    socket.join(`org:${user.orgId}`);
+  }
+
+  socket.on("join-conversation", async (conversationId: string) => {
+    if (await canAccessConversation(user, conversationId)) {
+      socket.join(conversationId);
+    }
   });
 
   socket.on("message:send", async (data: { conversationId: string; content: string }) => {
     const { conversationId, content } = data;
+    if (!conversationId || typeof content !== "string") return;
+    if (!(await canAccessConversation(user, conversationId))) return;
     io.to(conversationId).emit("message:new", {
       conversationId,
       content,
@@ -405,10 +454,10 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Agent-to-agent chat
+  // Agent-to-agent chat — scoped to the sender's organization room
   socket.on("agent-chat:message", (msg) => {
-    // Broadcast to all connected clients (frontend filters by org)
-    socket.broadcast.emit("agent-chat:received", msg);
+    if (!user?.orgId) return;
+    socket.to(`org:${user.orgId}`).emit("agent-chat:received", msg);
   });
 
   socket.on("disconnect", () => {

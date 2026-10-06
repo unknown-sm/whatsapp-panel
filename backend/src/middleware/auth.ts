@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "../lib/env";
 
 export interface AuthRequest extends Request {
   user?: { id: string; email: string; role: string; orgId?: string };
@@ -14,7 +15,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   }
   const token = header.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback-secret") as { id: string; email: string; role: string; orgId?: string };
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as { id: string; email: string; role: string; orgId?: string };
     req.user = decoded;
     next();
   } catch {

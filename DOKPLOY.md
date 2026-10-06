@@ -28,12 +28,20 @@ NODE_ENV=production
 PORT=4000
 POSTGRES_PASSWORD=tu_password_postgres
 JWT_SECRET=tu_secreto_jwt_64_chars
+ENCRYPTION_KEY=tu_clave_cifrado_32_chars_min
 FRONTEND_URL=https://crm.seiva.com.py
 WEBHOOK_BASE_URL=https://crm.seiva.com.py
-WHATSAPP_VERIFY_TOKEN=seiva2026
+WHATSAPP_VERIFY_TOKEN=tu_verify_token
+META_APP_SECRET=app_secret_de_meta
 ```
 
 Generá `JWT_SECRET` con: `openssl rand -hex 32`
+Generá `ENCRYPTION_KEY` con: `openssl rand -hex 32`
+
+> `META_APP_SECRET` es el **App Secret** de tu app en developers.facebook.com
+> (App Dashboard → Settings → Basic). Con esta variable definida, el webhook
+> verifica la firma `X-Hub-Signature-256` de cada POST de Meta. Sin ella, los
+> payloads se aceptan sin verificar (el backend lo loguea como error en producción).
 
 ## 4. Dominio
 
@@ -76,7 +84,7 @@ Debe responder `{"status":"ok",...}`
 ## 8. Meta webhook
 
 - Callback URL: `https://crm.seiva.com.py/webhook`
-- Verify token: `seiva2026`
+- Verify token: el mismo que `WHATSAPP_VERIFY_TOKEN` (generá uno aleatorio largo, p. ej. `openssl rand -hex 16`)
 - Suscribirse a `messages`
 
 ## DNS en Cloudflare

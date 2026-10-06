@@ -3,10 +3,13 @@ import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import prisma from "../lib/prisma";
+import { encrypt, decrypt, isEncrypted } from "../services/crypto.service";
 
 async function getN8nApiKey(): Promise<string> {
   const s = await prisma.setting.findUnique({ where: { key: "n8n_api_key" } });
-  return s?.value || process.env.N8N_API_KEY || "";
+  const stored = s?.value;
+  const key = stored ? (isEncrypted(stored) ? decrypt(stored) : stored) : "";
+  return key || process.env.N8N_API_KEY || "";
 }
 
 async function getN8nApiUrl(): Promise<string> {
@@ -283,7 +286,7 @@ export async function listN8nWorkflows(req: Request, res: Response) {
 export async function saveConfig(req: Request, res: Response) {
   try {
     const { apiKey, apiUrl } = req.body;
-    if (apiKey) await prisma.setting.upsert({ where: { key: "n8n_api_key" }, create: { key: "n8n_api_key", value: apiKey }, update: { value: apiKey } });
+    if (apiKey) await prisma.setting.upsert({ where: { key: "n8n_api_key" }, create: { key: "n8n_api_key", value: encrypt(apiKey) }, update: { value: encrypt(apiKey) } });
     if (apiUrl) await prisma.setting.upsert({ where: { key: "n8n_api_url" }, create: { key: "n8n_api_url", value: apiUrl }, update: { value: apiUrl } });
     res.json({ ok: true });
   } catch (err: any) {

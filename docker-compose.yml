@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: whatsapp
-      POSTGRES_PASSWORD: whatsapp_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD en el entorno}
       POSTGRES_DB: whatsapp_panel
     volumes:
       - whatsapp-db-data:/var/lib/postgresql/data
@@ -12,23 +12,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  openwa:
-    image: ghcr.io/rmyndharis/openwa:latest
-    container_name: openwa
-    restart: unless-stopped
-    environment:
-      - OA_BASE_URL=http://localhost:2785
-      - OA_CONFIG_PATH=/config
-      - OA_HEADLESS=true
-      - OA_RECONNECTION=true
-      - OA_RECONNECTION_INTERVAL=5000
-      - OA_RECOVERY_TOKEN=false
-      - OA_QRCODE_LOG=true
-      - WA_BROWSER_PATH=/usr/bin/chromium-browser
-      - WA_CHROMIUM_REVISION=119
-    volumes:
-      - openwa-data:/config
 
   whatsapp-panel:
     build:
@@ -39,18 +22,18 @@ services:
       NODE_ENV: production
       SERVE_FRONTEND: "true"
       PORT: "4000"
-      DATABASE_URL: postgresql://whatsapp:whatsapp_secret@whatsapp-db:5432/whatsapp_panel
-      JWT_SECRET: ${JWT_SECRET:-whatsapp-panel-jwt-secret-2024}
+      DATABASE_URL: postgresql://whatsapp:${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD en el entorno}@whatsapp-db:5432/whatsapp_panel
+      JWT_SECRET: ${JWT_SECRET:?Definir JWT_SECRET en el entorno}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_EXPIRES_IN: 7d
-      FRONTEND_URL: https://whatsapp-cmr-crm-whatsapp.zwpkae.easypanel.host
-      WHATSAPP_ENGINE: ${WHATSAPP_ENGINE:-openwa}
-      WEBHOOK_BASE_URL: https://whatsapp-cmr-crm-whatsapp.zwpkae.easypanel.host
+      FRONTEND_URL: ${FRONTEND_URL:?Definir FRONTEND_URL (origen del frontend)}
+      WHATSAPP_ENGINE: ${WHATSAPP_ENGINE:-meta}
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
-      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-whatsapp-panel-verify}
-      OPENWA_BASE_URL: ${OPENWA_BASE_URL:-http://openwa:2785}
-      OPENWA_API_KEY: ${OPENWA_API_KEY}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET:-}
     depends_on:
       whatsapp-db:
         condition: service_healthy
@@ -62,4 +45,3 @@ services:
 
 volumes:
   whatsapp-db-data:
-  openwa-data:

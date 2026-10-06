@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
+import { getJwtSecret } from "../lib/env";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -38,7 +39,7 @@ export async function login(req: Request, res: Response) {
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, orgId },
-      process.env.JWT_SECRET || "fallback-secret",
+      getJwtSecret(),
       { expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as any }
     );
     res.json({
@@ -92,7 +93,7 @@ export async function register(req: Request, res: Response) {
 
     const token = jwt.sign(
       { id: result.user.id, email: result.user.email, role: result.user.role, orgId: result.org.id },
-      process.env.JWT_SECRET || "fallback-secret",
+      getJwtSecret(),
       { expiresIn: (process.env.JWT_EXPIRES_IN || "7d") as any }
     );
 

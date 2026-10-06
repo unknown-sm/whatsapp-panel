@@ -2,10 +2,27 @@ import { Request, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
 import { writeLog } from "../services/logs.service";
+import { encrypt, decrypt, isEncrypted } from "../services/crypto.service";
 import * as fs from "fs";
 import * as path from "path";
 
 const WEBHOOK_EVENTS = ["message.received", "message.sent", "session.status", "session.disconnected"];
+const MASK_PREFIX = "••••";
+
+function resolveStoredApiKey(key: string): string {
+  return isEncrypted(key) ? decrypt(key) : key;
+}
+
+function maskApiKey(key: string): string {
+  return key ? MASK_PREFIX + resolveStoredApiKey(key).slice(-4) : "";
+}
+
+/** Config with the stored apiKey decrypted for use as request header. */
+async function getConfigDecrypted() {
+  const config = await prisma.openwaConfig.findFirst();
+  if (!config) return null;
+  return { ...config, apiKey: config.apiKey ? resolveStoredApiKey(config.apiKey) : "" };
+}
 
 // Cooldown: 60 segundos entre intentos de crear sesión
 const SESSION_START_COOLDOWN_MS = 60_000;
@@ -37,19 +54,32 @@ function cleanChromeLocks() {
 }
 
 export async function getConfig(_req: Request, res: Response) {
-  let config = await prisma.openwaConfig.findFirst();
-  res.json({ config: config || { baseUrl: "http://openwa:2785", apiKey: "", sessionId: "", status: "disconnected" } });
+  const config = await prisma.openwaConfig.findFirst();
+  res.json({
+    config: config
+      ? { ...config, apiKey: maskApiKey(config.apiKey) }
+      : { baseUrl: "http://openwa:2785", apiKey: "", sessionId: "", status: "disconnected" },
+  });
 }
 
 export async function saveConfig(req: Request, res: Response) {
   const { baseUrl, apiKey, sessionId } = req.body;
-  let config = await prisma.openwaConfig.findFirst();
-  if (config) {
-    config = await prisma.openwaConfig.update({ where: { id: config.id }, data: { baseUrl, apiKey, sessionId: sessionId || "" } });
+  const existing = await prisma.openwaConfig.findFirst();
+  // A masked value comes back from the UI unchanged: keep the stored key
+  let apiKeyValue: string;
+  if (!apiKey || apiKey.startsWith(MASK_PREFIX)) {
+    const prev = existing?.apiKey || "";
+    apiKeyValue = prev && !isEncrypted(prev) ? encrypt(prev) : prev;
   } else {
-    config = await prisma.openwaConfig.create({ data: { baseUrl, apiKey, sessionId: sessionId || "" } });
+    apiKeyValue = encrypt(apiKey);
   }
-  res.json({ config });
+  let config;
+  if (existing) {
+    config = await prisma.openwaConfig.update({ where: { id: existing.id }, data: { baseUrl, apiKey: apiKeyValue, sessionId: sessionId || "" } });
+  } else {
+    config = await prisma.openwaConfig.create({ data: { baseUrl, apiKey: apiKeyValue, sessionId: sessionId || "" } });
+  }
+  res.json({ config: { ...config, apiKey: maskApiKey(config.apiKey) } });
 }
 
 export async function testConnection(req: Request, res: Response) {
@@ -74,7 +104,7 @@ export async function testConnection(req: Request, res: Response) {
 }
 
 export async function getOpenwaStatus(req: Request, res: Response) {
-  let config = await prisma.openwaConfig.findFirst();
+  let config = await getConfigDecrypted();
   if (!config || !config.apiKey) {
     return res.json({ status: "not_configured", session: null, sessions: [], diagnostics: { hint: "Configurar API Key en el formulario" } });
   }
@@ -119,7 +149,7 @@ export async function getOpenwaStatus(req: Request, res: Response) {
 }
 
 export async function getQrCode(req: Request, res: Response) {
-  let config = await prisma.openwaConfig.findFirst();
+  let config = await getConfigDecrypted();
   if (!config || !config.apiKey || !config.sessionId) {
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
@@ -208,7 +238,7 @@ async function createAndStart(cfg: { baseUrl: string; apiKey: string }): Promise
 }
 
 export async function startSession(req: Request, res: Response) {
-  let config = await prisma.openwaConfig.findFirst();
+  let config = await getConfigDecrypted();
   if (!config || !config.apiKey) {
     await writeLog("warn", "openwa", "start_session", "OpenWA no configurado");
     return res.status(400).json({ error: "OpenWA no configurado" });
@@ -316,7 +346,7 @@ export async function startSession(req: Request, res: Response) {
 }
 
 export async function resetConnection(req: Request, res: Response) {
-  let config = await prisma.openwaConfig.findFirst();
+  let config = await getConfigDecrypted();
   if (!config || !config.apiKey) {
     return res.status(400).json({ error: "OpenWA no configurado" });
   }
@@ -337,7 +367,7 @@ export async function resetConnection(req: Request, res: Response) {
 }
 
 export async function setupWebhook(req: Request, res: Response) {
-  let config = await prisma.openwaConfig.findFirst();
+  let config = await getConfigDecrypted();
   if (!config || !config.apiKey || !config.sessionId) {
     return res.status(400).json({ error: "OpenWA no configurado" });
   }

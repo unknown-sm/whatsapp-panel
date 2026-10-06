@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireAdmin } from "../middleware/auth";
 import * as labController from "../controllers/lab.controller";
 
+// Lab runs consume AI credits from the global config — admin only
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, requireAdmin);
 
 router.get("/personas", labController.getPersonas);
 router.get("/runs", labController.getRecentRuns);

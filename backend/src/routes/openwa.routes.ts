@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import {
   getConfig,
   saveConfig,
@@ -12,7 +12,8 @@ import {
 } from "../controllers/openwa.controller";
 
 const router = Router();
-router.use(authMiddleware);
+// OpenWA admin operations: config, QR (session takeover), reset — admin only
+router.use(authMiddleware, requireAdmin);
 
 router.get("/config", getConfig);
 router.put("/config", saveConfig);

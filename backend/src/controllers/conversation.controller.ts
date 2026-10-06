@@ -6,7 +6,7 @@ import * as convService from "../services/conversation.service";
 import { addScoreByCondition } from "../services/leadscore.service";
 import { resolveEngine } from "../services/whatsapp-engine";
 import prisma from "../lib/prisma";
-import { io } from "../index";
+import { getIo } from "../lib/socket";
 import { z } from "zod";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
@@ -56,7 +56,7 @@ export async function sendMessage(req: Request, res: Response) {
   try {
     const { content } = z.object({ content: z.string().min(1) }).parse(req.body);
     const message = await convService.sendMessage(req.params.id, content);
-    io.to(req.params.id).emit("message:new", message);
+    getIo().to(req.params.id).emit("message:new", message);
     // Lead scoring: MESSAGE_SENT
     try {
       const conv = await prisma.conversation.findUnique({ where: { id: req.params.id }, select: { contactId: true } });
@@ -75,7 +75,7 @@ export async function assignAgent(req: Request, res: Response) {
   try {
     const { agentId } = z.object({ agentId: z.string().uuid() }).parse(req.body);
     const conv = await convService.assignAgent(req.params.id, agentId);
-    io.emit("agent:assigned", { conversationId: req.params.id, agentId });
+    getIo().emit("agent:assigned", { conversationId: req.params.id, agentId });
     res.json({ conversation: conv });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
@@ -87,7 +87,7 @@ export async function updateStatus(req: Request, res: Response) {
   try {
     const { status } = z.object({ status: z.string() }).parse(req.body);
     const conv = await convService.updateStatus(req.params.id, status);
-    io.emit("conversation:updated", { id: req.params.id, status });
+    getIo().emit("conversation:updated", { id: req.params.id, status });
 
     // Lead scoring: CONVERSATION_CLOSED
     if (status === "closed" && conv?.contactId) {
@@ -235,11 +235,11 @@ export async function sendMedia(req: Request, res: Response) {
       data: { updatedAt: new Date() },
     });
 
-    io.to(conversation.id).emit("message:new", {
+    getIo().to(conversation.id).emit("message:new", {
       ...message,
       timestamp: message.timestamp.toISOString(),
     });
-    io.emit("conversation:updated", { id: conversation.id, updatedAt: new Date() });
+    getIo().emit("conversation:updated", { id: conversation.id, updatedAt: new Date() });
 
     res.json({ success: true, message });
   } catch (err: any) {

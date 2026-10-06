@@ -3,7 +3,7 @@ import { z } from "zod";
 import { sendWhatsAppMessage } from "./whatsapp.service";
 import { isBlacklisted } from "./blacklist.service";
 import { addScoreByCondition } from "./leadscore.service";
-import { io } from "../index";
+import { getIo } from "../lib/socket";
 
 export async function getFollowUpRules(botId?: string, orgId?: string) {
   const where: any = {};
@@ -81,7 +81,7 @@ export async function checkFollowUps() {
           where: { id: conv.id },
           data: { status: "waiting_agent" },
         });
-        io.emit("conversation:updated", { id: conv.id, status: "waiting_agent" });
+        getIo().emit("conversation:updated", { id: conv.id, status: "waiting_agent" });
         continue;
       }
 
@@ -108,7 +108,7 @@ export async function checkFollowUps() {
           },
         });
 
-        io.emit("message:new", {
+        getIo().emit("message:new", {
           conversationId: conv.id,
           content: rule.message,
           direction: "outbound",

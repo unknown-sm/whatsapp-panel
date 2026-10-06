@@ -1,6 +1,6 @@
 import axios from "axios";
 import prisma from "../lib/prisma";
-import { io } from "../index";
+import { getIo } from "../lib/socket";
 import { generateResponse, classifyIntent } from "./ai.service";
 import { resolveEngine } from "./whatsapp-engine";
 import { findBotByKeyword } from "./bot.service";
@@ -143,7 +143,7 @@ export async function processIncomingMessage(data: any) {
         }
       } catch {}
 
-      io.emit("message:new", {
+      getIo().emit("message:new", {
         conversationId: conversation.id,
         phone,
         content: text,
@@ -155,7 +155,7 @@ export async function processIncomingMessage(data: any) {
         timestamp: new Date().toISOString(),
       });
 
-      io.emit("conversation:updated", {
+      getIo().emit("conversation:updated", {
         id: conversation.id,
         contactId: contact.id,
         phone,
@@ -204,7 +204,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: step.message },
           });
-          io.emit("message:new", {
+          getIo().emit("message:new", {
             conversationId: conversation.id,
             content: step.message,
             direction: "outbound",
@@ -222,7 +222,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
         where: { id: conversation.id },
         data: { status: "silenced", silencedUntil: silenceUntil },
       });
-      io.emit("conversation:updated", {
+      getIo().emit("conversation:updated", {
         id: conversation.id,
         status: "silenced",
         silencedUntil: silenceUntil.toISOString(),
@@ -267,7 +267,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: response },
           });
-          io.emit("message:new", {
+          getIo().emit("message:new", {
             conversationId: conversation.id,
             content: response,
             direction: "outbound",
@@ -336,7 +336,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
       const updateData: any = { status: "waiting_agent", contextVars };
       if (cfg.agentId) updateData.assignedAgentId = cfg.agentId;
       await prisma.conversation.update({ where: { id: conversation.id }, data: updateData });
-      io.emit("conversation:updated", { id: conversation.id, status: "waiting_agent", assignedAgentId: cfg.agentId || null });
+      getIo().emit("conversation:updated", { id: conversation.id, status: "waiting_agent", assignedAgentId: cfg.agentId || null });
       return;
     }
   }

@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer } from "http";
-import { Server } from "socket.io";
+import { initSocket } from "./lib/socket";
 import path from "path";
 import cors from "cors";
 import helmet from "helmet";
@@ -337,12 +337,7 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 4000;
 
-const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "POST"],
-  },
-});
+const io = initSocket(server);
 
 app.use(helmet());
 app.set("trust proxy", 1);
@@ -484,10 +479,7 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
-export { io };
-
-async function start() {
-  console.log("=== Iniciando prisma db push ===");
+async function start() {  console.log("=== Iniciando prisma db push ===");
   console.log("DATABASE_URL set:", !!process.env.DATABASE_URL);
   try {
     execSync("npx prisma db push --accept-data-loss", { cwd: __dirname + "/../", stdio: "inherit" });

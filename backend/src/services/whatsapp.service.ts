@@ -341,6 +341,17 @@ async function processBotFlow(conversation: any, userMessage: string) {
     }
   }
 
+  // AI_AGENT es un paso "pegajoso": el agente IA atiende todos los mensajes de la
+  // conversacion en lugar de consumirse. Sin esto, avanzaria al siguiente paso tras la
+  // primera respuesta y el bot dejaria de responder (no hay reset de currentStepIndex).
+  if (step.stepType === "AI_AGENT") {
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { contextVars },
+    });
+    return;
+  }
+
   const nextIndex = currentStepIndex + 1;
   await prisma.conversation.update({
     where: { id: conversation.id },

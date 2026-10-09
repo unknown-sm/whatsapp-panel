@@ -33,7 +33,7 @@ function App() {
   useEffect(() => { fetchMe(); }, [fetchMe]);
   if (isLoading) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#1a202c", color: "#e2e8f0", fontSize: 18 }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "var(--bg)", color: "var(--text)", fontSize: 18 }}>
         {t("app.loading")}
       </div>
     );

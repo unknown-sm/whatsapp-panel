@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 import {
   Search, Send, Users, Download, MessageSquare, Phone, Sparkles, Trash2,
   Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
-  AlertCircle, UserCheck, ArrowRight, Hash, Plus, Loader2,
+  AlertCircle, UserCheck, ArrowRight, ArrowLeft, Hash, Plus, Loader2,
   Image, Film, FileText, Music, Mic, Download, FileAudio,
   Paperclip,
 } from "lucide-react";
@@ -205,15 +205,15 @@ export default function Conversations() {
   return (
     <div className="flex h-[calc(100vh-3.5rem)] -m-4 md:-m-6 bg-background">
       {/* ── Left column: conversation list (360px) ──────────── */}
-      <div className="w-[360px] flex flex-col flex-shrink-0 border-r border-border bg-background">
+      <div className={`${selectedConv || selectedContact ? "hidden md:flex" : "flex"} w-full md:w-[360px] flex-col flex-shrink-0 border-r border-border bg-background`}>
         <div className="p-3 border-b border-border flex-shrink-0">
           <div className="flex items-center justify-between mb-2.5">
             <h2 className="text-[15px] font-[650] tracking-tight text-ink">Conversaciones</h2>
             <div className="flex gap-1">
-              <button onClick={() => setShowContacts(!showContacts)} className="btn-icon !w-7 !h-7" title="Contactos">
+              <button onClick={() => setShowContacts(!showContacts)} className="btn-icon" title="Contactos">
                 <Users size={14} />
               </button>
-              <button onClick={exportContacts} className="btn-icon !w-7 !h-7" title="Exportar CSV">
+              <button onClick={exportContacts} className="btn-icon" title="Exportar CSV">
                 <Download size={14} />
               </button>
             </div>
@@ -245,7 +245,7 @@ export default function Conversations() {
                     <p className="text-[11px] truncate text-ink-3">{contact.phone}</p>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); deleteContact(contact.id); }} className="p-1 rounded hover:bg-red-50" title="Eliminar contacto">
-                    <Trash2 size={14} className="text-ink-3 hover:text-red-500" />
+                    <Trash2 size={14} className="text-ink-3 hover:text-danger" />
                   </button>
                   <span className="text-[11px] text-ink-3">{contact._count.conversations}</span>
                 </div>
@@ -294,7 +294,7 @@ export default function Conversations() {
       </div>
 
       {/* ── Center column: thread ────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`${selectedConv || selectedContact ? "flex" : "hidden md:flex"} flex-1 flex-col min-w-0`}>
         {selectedContact && selectedContact.id !== selectedConv?.contact.id ? (
           <ContactEmptyState
             contact={selectedContact}
@@ -305,6 +305,9 @@ export default function Conversations() {
           <>
             <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0 bg-background">
               <div className="flex items-center gap-3 min-w-0">
+                <button onClick={() => { setSelectedConv(null); setSelectedContact(null); }} className="md:hidden btn-icon !w-8 !h-8 flex-shrink-0" title="Volver">
+                  <ArrowLeft size={16} />
+                </button>
                 <Avatar id={selectedConv.contact.id} name={selectedConv.contact.name || selectedConv.contact.phone} size="md" />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -326,7 +329,7 @@ export default function Conversations() {
                   <option value="silenced">Silenciada</option>
                   <option value="closed">Cerrada</option>
                 </select>
-                <button onClick={() => setShowContactPanel(!showContactPanel)} className="btn-icon !w-8 !h-8" title="Panel de contacto">
+                <button onClick={() => setShowContactPanel(!showContactPanel)} className="btn-icon !w-8 !h-8 hidden lg:flex" title="Panel de contacto">
                   <ChevronRight size={14} className={`transition-transform ${showContactPanel ? "rotate-180" : ""}`} />
                 </button>
               </div>
@@ -354,7 +357,7 @@ export default function Conversations() {
                         {msg.transcription}
                       </div>
                     )}
-                    <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px]" style={{ color: msg.direction === "outbound" ? "rgba(51,65,79,0.5)" : "var(--text-3)" }}>
+                    <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px]" style={{ color: "var(--text-3)" }}>
                       <span>{new Date(msg.timestamp).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
                       {msg.direction === "outbound" && (msg.aiGenerated ? <Sparkles size={10} /> : <CheckCheck size={12} />)}
                     </div>
@@ -424,7 +427,7 @@ export default function Conversations() {
 
       {/* ── Right column: contact panel (320px, collapsible) ── */}
       {showContactPanel && (selectedConv || selectedContact) && (
-        <div className="w-[320px] flex flex-col flex-shrink-0 border-l border-border bg-background">
+        <div className="hidden lg:flex w-[320px] flex-col flex-shrink-0 border-l border-border bg-background">
           <ContactPanel
             conversation={selectedConv}
             contact={selectedContact || selectedConv?.contact}
@@ -514,7 +517,7 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
     <>
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <h3 className="section-label">Contacto</h3>
-        <button onClick={onClose} className="btn-icon !w-7 !h-7"><X size={14} /></button>
+        <button onClick={onClose} className="btn-icon"><X size={14} /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="flex flex-col items-center text-center pb-3 border-b border-border">
@@ -793,7 +796,7 @@ function Composer({ newMessage, setNewMessage, sendMessage, conversationId }: {
               className="input text-[12px] mt-1.5 h-8"
             />
           </div>
-          <button onClick={clearPending} className="btn-icon !w-7 !h-7" title="Quitar">
+          <button onClick={clearPending} className="btn-icon" title="Quitar">
             <X size={13} />
           </button>
         </div>

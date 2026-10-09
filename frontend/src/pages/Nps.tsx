@@ -180,10 +180,10 @@ export default function Nps() {
                   <Button size="sm" variant="outline" onClick={() => sendNow(c.id)} disabled={sendingId === c.id}>
                     {sendingId === c.id ? <Loader2 className="animate-spin" size={12} /> : <Send size={12} />}
                   </Button>
-                  <button onClick={() => toggle(c.id, c.isActive)} className="btn-icon !w-7 !h-7" title={c.isActive ? "Pausar" : "Activar"}>
+                  <button onClick={() => toggle(c.id, c.isActive)} className="btn-icon" title={c.isActive ? "Pausar" : "Activar"}>
                     {c.isActive ? <PowerOff size={12} /> : <Power size={12} />}
                   </button>
-                  <button onClick={() => deleteCamp(c.id)} className="btn-icon !w-7 !h-7" title="Eliminar">
+                  <button onClick={() => deleteCamp(c.id)} className="btn-icon" title="Eliminar">
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -198,7 +198,7 @@ export default function Nps() {
           <div className="modal max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="text-[15px] font-[650] text-ink tracking-tight">Nueva campana NPS</h3>
-              <button onClick={() => setShowForm(false)} className="btn-icon !w-7 !h-7"><PowerOff size={14} /></button>
+              <button onClick={() => setShowForm(false)} className="btn-icon"><PowerOff size={14} /></button>
             </div>
             <div className="modal-body space-y-3">
               <div>

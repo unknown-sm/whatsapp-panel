@@ -54,15 +54,15 @@ export default function Logs() {
   }
 
   function levelIcon(l: string) {
-    if (l === "error") return <AlertCircle size={14} style={{ color: "#EF4444" }} />;
-    if (l === "warn") return <AlertTriangle size={14} style={{ color: "#F59E0B" }} />;
+    if (l === "error") return <AlertCircle size={14} style={{ color: "var(--danger)" }} />;
+    if (l === "warn") return <AlertTriangle size={14} style={{ color: "var(--warning)" }} />;
     if (l === "debug") return <Bug size={14} style={{ color: "var(--text-tertiary)" }} />;
-    return <Info size={14} style={{ color: "#3B82F6" }} />;
+    return <Info size={14} style={{ color: "var(--info)" }} />;
   }
 
   function levelColor(l: string) {
-    if (l === "error") return "rgba(239, 68, 68, 0.1)";
-    if (l === "warn") return "rgba(245, 158, 11, 0.1)";
+    if (l === "error") return "var(--danger-muted)";
+    if (l === "warn") return "var(--warning-muted)";
     return "transparent";
   }
 

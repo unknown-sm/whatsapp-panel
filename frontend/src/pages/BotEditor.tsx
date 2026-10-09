@@ -350,7 +350,7 @@ export default function BotEditor() {
           <Eye size={18} style={{ color: "var(--text-tertiary)" }} />
           <h3 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Vista previa WhatsApp</h3>
         </div>
-        <div className="flex-1 overflow-y-auto p-4" style={{ background: "#0b141a" }}>
+        <div className="flex-1 overflow-y-auto p-4" style={{ background: "var(--chat-bg)" }}>
           <div className="flex items-center gap-3 mb-4 pb-3 border-b" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: "var(--accent)" }}>
               {bot.name.charAt(0)}
@@ -435,10 +435,10 @@ function StepCard({ step, index, isSelected, onSelect, onUpdate, onDelete, botId
         <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>#{index + 1}</span>
         {typeInfo && <typeInfo.icon size={16} style={{ color: "var(--accent)" }} />}
         <span className="text-sm font-medium flex-1" style={{ color: "var(--text-primary)" }}>{typeInfo?.label}</span>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="btn-icon !w-7 !h-7 hover:!bg-red-500/20 hover:!text-red-400">
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="btn-icon hover:!bg-[var(--danger-muted)] hover:!text-[var(--danger)]">
           <Trash2 size={12} />
         </button>
-        <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="btn-icon !w-7 !h-7">
+        <button onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }} className="btn-icon">
           <ChevronDown size={12} className={`transition-transform ${expanded ? "" : "-rotate-90"}`} />
         </button>
       </div>

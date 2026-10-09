@@ -135,7 +135,8 @@ export default function Templates() {
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
-          <table className="w-full text-[12.5px]">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-[12.5px]">
             <thead>
               <tr className="border-b border-border bg-atlas-subtle">
                 <th className="text-left px-4 py-2.5 text-[11px] uppercase tracking-wide text-ink-3 font-medium">Nombre</th>
@@ -183,6 +184,7 @@ export default function Templates() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -223,7 +225,7 @@ function TemplateForm({ onClose, onSave }: { onClose: () => void; onSave: () => 
       <div className="modal max-w-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="text-[15px] font-[650] text-ink tracking-tight">Nuevo template</h3>
-          <button onClick={onClose} className="btn-icon !w-7 !h-7"><X size={14} /></button>
+          <button onClick={onClose} className="btn-icon"><X size={14} /></button>
         </div>
         <div className="modal-body space-y-3">
           <div className="p-3 rounded-md bg-warn-chip-bg border border-warn-chip-border flex items-start gap-2">

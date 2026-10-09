@@ -454,8 +454,8 @@ function OpenwaSettings() {
 
   const statusColor =
     status?.status === "ready" ? "var(--accent)" :
-    status?.status === "authenticating" ? "#3B82F6" :
-    status?.status === "initializing" || status?.status === "qr_ready" || status?.status === "created" ? "#F59E0B" :
+    status?.status === "authenticating" ? "var(--info)" :
+    status?.status === "initializing" || status?.status === "qr_ready" || status?.status === "created" ? "var(--warning)" :
     "var(--danger)";
   const statusLabel =
     status?.status === "ready" ? "Conectado" :
@@ -468,8 +468,8 @@ function OpenwaSettings() {
 
   return (
     <div className="max-w-2xl">
-      <div className="card mb-4" style={{ borderColor: "#F59E0B", background: "#FEF3C7" }}>
-        <p className="text-sm font-medium" style={{ color: "#92400E" }}>
+      <div className="card mb-4" style={{ borderColor: "var(--warn-chip-border)", background: "var(--warn-chip-bg)" }}>
+        <p className="text-sm font-medium" style={{ color: "var(--warn-chip-text)" }}>
           ⚠ Solo para WhatsApp personal. No usar con WhatsApp Business API. Meta detecta y banea cuentas Business que usan clientes no oficiales.
         </p>
       </div>

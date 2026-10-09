@@ -18,8 +18,8 @@
   /* ── Text ──────────────────────────────────────────── */
   --text:         #1a1a1e;
   --text-2:       #56565e;
-  --text-3:       #8c8c95;
-  --text-4:       #aeaeb6;
+  --text-3:       #71717a; /* 4.84:1 sobre #fff (AA) */
+  --text-4:       #767680; /* 4.50:1 sobre #fff (AA) */
   --text-inverse: #ffffff;
 
   /* ── Borders ───────────────────────────────────────── */
@@ -39,6 +39,7 @@
   --accent-soft:   #e8eef4;
   --accent-tint:   #f0f4f8;
   --accent-text:   #3f5972;
+  --accent-ring:   rgba(63, 89, 114, 0.28);
 
   /* ── Status (desaturated) ──────────────────────────── */
   --success:   #5f8f74;
@@ -81,8 +82,8 @@
   /* ── Text ──────────────────────────────────────────── */
   --text:         #e4e4e7;
   --text-2:       #a4a4ad;
-  --text-3:       #74747e;
-  --text-4:       #54545d;
+  --text-3:       #7e7e88; /* 4.80:1 sobre #0e0e11 (AA) */
+  --text-4:       #7a7a84; /* 4.53:1 sobre #0e0e11 (AA) */
   --text-inverse: #0e0e11;
 
   /* ── Borders ───────────────────────────────────────── */
@@ -114,6 +115,22 @@
   /* ── Accent-soft/tint need to be darker in dark mode ── */
   --accent-soft: #2a3645;
   --accent-tint: #1e2835;
+  --accent-ring: rgba(140, 175, 210, 0.40);
+}
+
+/* Accent tints + focus ring derivados del accent white-label.
+   Los hex de arriba son el fallback para navegadores sin color-mix. */
+@supports (color: color-mix(in srgb, red 50%, transparent)) {
+  :root {
+    --accent-soft:  color-mix(in srgb, var(--accent) 12%, #ffffff);
+    --accent-tint:  color-mix(in srgb, var(--accent) 6%, #ffffff);
+    --accent-ring:  color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .dark {
+    --accent-soft:  color-mix(in srgb, var(--accent) 63%, #000000);
+    --accent-tint:  color-mix(in srgb, var(--accent) 46%, #000000);
+    --accent-ring:  color-mix(in srgb, var(--accent) 45%, transparent);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -135,6 +152,13 @@
 
   --accent-muted:  var(--accent-soft);
   --accent-subtle: var(--accent-tint);
+
+  /* Aliases usados por páginas legacy (Settings, Conversations, BotEditor…) */
+  --bg-card:    var(--bg);
+  --bg-input:   var(--bg);
+  --ink:        var(--text);
+  --ink-2:      var(--text-2);
+  --ink-3:      var(--text-3);
 
   --danger-hover:  #8a423e;
   --danger-muted:  rgba(162, 80, 76, 0.08);
@@ -211,12 +235,6 @@
     border-color: var(--border-strong);
     box-shadow: var(--shadow-md);
   }
-  .card-elevated {
-    @apply rounded-[var(--radius-lg)] p-5;
-    background: var(--bg-subtle);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-md);
-  }
 
   /* ── Buttons ───────────────────────────────────────── */
   .btn-primary {
@@ -241,14 +259,6 @@
   }
   .btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
 
-  .btn-danger {
-    @apply font-medium px-4 py-2 rounded-[var(--radius-md)] transition-all duration-200 inline-flex items-center gap-2 text-sm;
-    background: var(--danger); color: var(--text-inverse);
-  }
-  .btn-danger:hover { background: var(--danger-hover); box-shadow: var(--shadow-sm); }
-
-  .btn-sm { @apply px-3 py-1.5 text-xs; }
-
   .btn-icon {
     @apply w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] transition-all duration-200;
     color: var(--text-2);
@@ -265,7 +275,7 @@
     border: 1px solid var(--border);
   }
   .input:hover { border-color: var(--border-strong); }
-  .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+  .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
   .input::placeholder { color: var(--text-4); }
 
   /* ── Pills / Chips ──────────────────────────────────── */
@@ -273,10 +283,6 @@
     @apply inline-flex items-center gap-1.5 text-sm px-3 py-1 rounded-full transition-colors;
     background: var(--bg-muted); color: var(--text-2);
     border: 1px solid var(--border);
-  }
-  .pill-accent {
-    background: var(--accent-soft); color: var(--accent-text);
-    border: 1px solid transparent;
   }
 
   /* ── Status dots ────────────────────────────────────── */
@@ -357,23 +363,6 @@
     @apply flex items-center justify-end gap-2 px-6 pb-5 pt-3;
     border-top: 1px solid var(--border);
   }
-
-  /* ── Toast ──────────────────────────────────────────── */
-  .toast-container {
-    position: fixed; bottom: 1rem; right: 1rem; z-index: 2000;
-    display: flex; flex-direction: column; gap: 0.5rem;
-  }
-  .toast {
-    @apply px-4 py-3 rounded-[var(--radius-lg)] text-sm font-medium flex items-center gap-3 min-w-[320px];
-    animation: slideIn 0.3s ease;
-    background: var(--bg); color: var(--text);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-pop);
-  }
-  .toast-success { border-left: 3px solid var(--success); }
-  .toast-error { border-left: 3px solid var(--danger); }
-  .toast-warning { border-left: 3px solid var(--warning); }
-  .toast-info { border-left: 3px solid var(--info); }
 
   /* ── Page header ────────────────────────────────────── */
   .page-header { @apply flex items-center justify-between mb-6; }

@@ -52,7 +52,7 @@ export default function DealCard({ deal, onDragStart, onEdit, onDelete }: DealCa
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(deal.id); }}
-              className="p-1 rounded transition-colors hover:text-red-500"
+              className="p-1 rounded transition-colors hover:text-danger"
               style={{ color: "var(--text-tertiary)" }}
             >
               <Trash2 size={12} />

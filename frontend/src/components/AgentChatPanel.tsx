@@ -31,7 +31,7 @@ export default function AgentChatPanel() {
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 z-40 flex" style={{ width: 380 }}>
+    <div className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[380px]">
       {/* Backdrop */}
       <div className="fixed inset-0 z-30" onClick={close} />
 

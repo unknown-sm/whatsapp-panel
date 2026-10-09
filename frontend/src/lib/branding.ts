@@ -87,15 +87,17 @@ export function resolveAccentSet(accentHex: string): AccentSet {
   };
 }
 
-/* ── CSS variables string for injection ─────────────────── */
+/* ── CSS variables for injection ──────────────────────────
+   Solo se inyectan las que NO tienen variante .dark propia.
+   --accent-soft / --accent-tint se derivan en index.css con
+   color-mix(), para que el modo oscuro siga funcionando:
+   un style inline en <html> gana siempre sobre una clase.   */
 
 export function accentToCssVars(accentHex: string): string {
   const set = resolveAccentSet(accentHex);
   return [
     `--accent:${set.accent}`,
     `--accent-hover:${set.hover}`,
-    `--accent-soft:${set.soft}`,
-    `--accent-tint:${set.tint}`,
     `--accent-text:${set.text}`,
   ].join(";");
 }
@@ -103,8 +105,13 @@ export function accentToCssVars(accentHex: string): string {
 /* ── Inject into <html> before first render ────────────── */
 
 export function injectAccent(accentHex: string): void {
-  const vars = accentToCssVars(accentHex);
-  document.documentElement.setAttribute("style", vars);
+  // setProperty (y no setAttribute("style")) para no pisar
+  // otros estilos inline que pueda tener <html>.
+  const root = document.documentElement;
+  for (const decl of accentToCssVars(accentHex).split(";")) {
+    const i = decl.indexOf(":");
+    if (i > 0) root.style.setProperty(decl.slice(0, i).trim(), decl.slice(i + 1).trim());
+  }
 }
 
 /* ── Presets ────────────────────────────────────────────── */

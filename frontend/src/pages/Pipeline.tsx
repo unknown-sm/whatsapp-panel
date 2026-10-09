@@ -189,7 +189,7 @@ export default function Pipeline() {
           <div className="modal max-w-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="text-[15px] font-[650] text-ink tracking-tight">{editingDeal ? "Editar deal" : "Nuevo deal"}</h3>
-              <button onClick={() => setShowModal(false)} className="btn-icon !w-7 !h-7"><XCircle size={14} /></button>
+              <button onClick={() => setShowModal(false)} className="btn-icon"><XCircle size={14} /></button>
             </div>
             <div className="modal-body space-y-3">
               <div>

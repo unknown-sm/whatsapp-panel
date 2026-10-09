@@ -138,7 +138,7 @@ export default function BotGrid() {
                   <button onClick={() => navigate(`/bots/${bot.id}`)} className="btn-icon !w-8 !h-8" title="Editar">
                     <Pencil size={14} />
                   </button>
-                  <button onClick={() => handleDelete(bot.id)} className="btn-icon !w-8 !h-8 hover:!bg-red-500/20 hover:!text-red-400" title="Eliminar">
+                  <button onClick={() => handleDelete(bot.id)} className="btn-icon !w-8 !h-8 hover:!bg-[var(--danger-muted)] hover:!text-[var(--danger)]" title="Eliminar">
                     <Trash2 size={14} />
                   </button>
                 </div>

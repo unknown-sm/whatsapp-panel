@@ -8,6 +8,7 @@ import { encrypt, decrypt, isEncrypted } from "./crypto.service";
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const OPENCODE_BASE_URL = "https://api.opencode.ai/v1";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 const MASK_PREFIX = "••••";
 
@@ -31,7 +32,7 @@ export async function getAIConfigs() {
 export async function createAIConfig(data: any) {
   const parsed = z.object({
     name: z.string().min(1),
-    provider: z.enum(["openai", "anthropic", "nvidia", "deepseek", "opencode", "custom"]),
+    provider: z.enum(["openai", "anthropic", "nvidia", "deepseek", "opencode", "openrouter", "custom"]),
     apiKey: z.string().min(1),
     model: z.string().min(1),
     endpoint: z.string().optional(),
@@ -185,6 +186,24 @@ export async function generateResponse(
     return response.choices[0]?.message?.content || "";
   }
 
+  // OpenRouter (OpenAI-compatible, agrega modelos de muchos proveedores)
+  if (config.provider === "openrouter") {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: OPENROUTER_BASE_URL });
+    const chatMessages: any[] = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+    if (!systemPrompt) {
+      systemPrompt = messages.find((m) => m.role === "system")?.content || "";
+    }
+    if (systemPrompt) {
+      chatMessages.unshift({ role: "system", content: systemPrompt });
+    }
+    const response = await openai.chat.completions.create({
+      model: config.model,
+      messages: chatMessages,
+      max_tokens: maxTokens,
+    });
+    return response.choices[0]?.message?.content || "";
+  }
+
   // Custom endpoint (OpenAI-compatible)
   if (config.endpoint) {
     const openai = new OpenAI({ apiKey: config.apiKey, baseURL: config.endpoint });
@@ -259,6 +278,14 @@ Formato: label|confidence`;
     response = res.choices[0]?.message?.content || "";
   } else if (config.provider === "opencode") {
     const openai = new OpenAI({ apiKey: config.apiKey, baseURL: OPENCODE_BASE_URL });
+    const res = await openai.chat.completions.create({
+      model: config.model,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 50,
+    });
+    response = res.choices[0]?.message?.content || "";
+  } else if (config.provider === "openrouter") {
+    const openai = new OpenAI({ apiKey: config.apiKey, baseURL: OPENROUTER_BASE_URL });
     const res = await openai.chat.completions.create({
       model: config.model,
       messages: [{ role: "user", content: prompt }],

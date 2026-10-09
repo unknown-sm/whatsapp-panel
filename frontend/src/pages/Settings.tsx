@@ -590,7 +590,7 @@ function OpenwaSettings() {
 }
 function AISettings() {
   const [configs, setConfigs] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "", provider: "openai", apiKey: "", model: "", endpoint: "" });
+  const [form, setForm] = useState({ name: "", provider: "openrouter", apiKey: "", model: "", endpoint: "https://openrouter.ai/api/v1" });
   const [editingId, setEditingId] = useState(null);
   const [testMsg, setTestMsg] = useState("");
   const [testResult, setTestResult] = useState("");
@@ -612,7 +612,7 @@ function AISettings() {
       } else {
         await api.post("/api/ai", form);
       }
-      setForm({ name: "", provider: "openai", apiKey: "", model: "", endpoint: "" });
+      setForm({ name: "", provider: "openrouter", apiKey: "", model: "", endpoint: "https://openrouter.ai/api/v1" });
       setEditingId(null);
       fetchConfigs();
     } catch (e: any) { alert(e.response?.data?.error || "Error al guardar"); }
@@ -644,18 +644,21 @@ function AISettings() {
   }
 
   const providers = [
+    { value: "openrouter", label: "OpenRouter" },
     { value: "opencode", label: "OpenCode Zen" },
     { value: "deepseek", label: "DeepSeek" },
     { value: "custom", label: "Custom Endpoint" },
   ];
 
   const modelSuggestions: Record<string, string[]> = {
-    opencode: ["mimo-2.5-flash", "deepseek-v4-flash", "qwen3-coder-480b", "llama-3.1-70b"],
+    openrouter: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "mimo-2.5-flash", "deepseek/deepseek-chat", "openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash"],
+    opencode: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "mimo-2.5-flash", "deepseek-v4-flash", "qwen3-coder-480b", "llama-3.1-70b"],
     deepseek: ["deepseek-chat", "deepseek-reasoner"],
-    custom: ["mimo-2.5-flash", "deepseek-v4-flash", "llama-3.1-70b", "gemini-2.0-flash"],
+    custom: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "mimo-2.5-flash", "deepseek-v4-flash", "llama-3.1-70b", "gemini-2.0-flash"],
   };
 
   const endpointSuggestions: Record<string, string> = {
+    openrouter: "https://openrouter.ai/api/v1",
     opencode: "https://api.opencode.ai/v1",
     deepseek: "https://api.deepseek.com/v1",
     custom: "",

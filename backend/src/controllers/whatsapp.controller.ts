@@ -148,9 +148,18 @@ export async function testConnection(req: Request, res: Response) {
     });
     await prisma.whatsappConfig.updateMany({ data: { status: "online", lastPing: new Date() } });
     res.json({ status: "ok", message: "Conexion exitosa" });
-  } catch {
+  } catch (err: any) {
     await prisma.whatsappConfig.updateMany({ data: { status: "offline" } });
-    res.status(500).json({ error: "No se pudo conectar a WhatsApp" });
+    // Devolver el motivo real: sin esto solo se ve "No se pudo conectar" y no se
+    // puede distinguir token vencido de phoneNumberId malo o de un bloqueo de red.
+    const apiDetail =
+      err.response?.data?.error?.error_user_msg ||
+      err.response?.data?.error?.message ||
+      err.response?.data?.error?.migrate_message ||
+      err.message ||
+      "error desconocido";
+    console.error("Meta testConnection error:", err.response?.status, apiDetail);
+    res.status(500).json({ error: "No se pudo conectar a WhatsApp", detail: apiDetail, httpStatus: err.response?.status || null });
   }
 }
 

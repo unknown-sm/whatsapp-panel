@@ -81,6 +81,23 @@ export async function processIncomingMessage(data: any) {
         conversation = await prisma.conversation.create({
           data: { contactId: contact.id, botId: matchedBot?.id || null, status: matchedBot ? "active" : "waiting_agent", orgId: contact.orgId },
         });
+      } else if (!conversation.botId && !conversation.assignedAgentId) {
+        // La conversacion pudo haberse creado antes de que existiera ningun bot activo
+        // (o sin bot por defecto). Sin reintentar aqui, botId quedaria en null para
+        // siempre y el gate de processBotFlow (linea ~185) nunca se cumpliria.
+        const matchedBot = await findBotByKeyword(text);
+        if (matchedBot) {
+          conversation = await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: {
+              botId: matchedBot.id,
+              // waiting_agent significa "ningun bot la tomo"; si ahora si hay, activarla.
+              // No toca conversaciones con agente asignado ni silenciadas (silencedUntil
+              // las sigue frenando en isBlacklisted).
+              ...(conversation.status === "waiting_agent" ? { status: "active" } : {}),
+            },
+          });
+        }
       }
 
       // Download + save media locally (if any)

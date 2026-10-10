@@ -200,13 +200,23 @@ function WhatsappSettings() {
 
   async function handleSave() {
     setSaving(true);
-    try { await api.put("/webhook/config", config); fetchStatus(); } finally { setSaving(false); }
+    try {
+      await api.put("/webhook/config", config);
+      fetchStatus();
+    } catch (e: any) {
+      alert("No se pudo guardar: " + (e.response?.data?.error || e.message));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleTest() {
     setTesting(true);
     try { await api.post("/webhook/test"); fetchStatus(); alert("Conexion exitosa!"); }
-    catch (e: any) { alert(e.response?.data?.error || "Error de conexion"); }
+    catch (e: any) {
+      const d = e.response?.data;
+      alert(d?.detail ? `${d.error}\n\n${d.detail}` : (d?.error || "Error de conexion"));
+    }
     finally { setTesting(false); }
   }
 

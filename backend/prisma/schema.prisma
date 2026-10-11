@@ -87,15 +87,22 @@ model User {
 // ═══════════════════════════════════════════════════════════
 
 model WhatsappConfig {
-  id            String   @id @default(uuid())
-  phoneNumberId String
-  accessToken   String
-  verifyToken   String
-  status        String   @default("offline")
-  lastPing      DateTime?
-  webhookUrl    String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  phoneNumberId      String
+  accessToken        String
+  verifyToken        String
+  status             String   @default("offline")
+  lastPing           DateTime?
+  webhookUrl         String
+  // ── Coexistence (Meta): el numero corre a la vez en la WhatsApp Business App
+  //    y en Cloud API. Se detecta via GET /{phoneNumberId}?fields=is_on_biz_app,platform_type
+  isOnBizApp         Boolean  @default(false)
+  platformType       String?
+  displayPhoneNumber String?
+  verifiedName       String?
+  qualityRating      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model Setting {
@@ -408,8 +415,19 @@ model FollowUpAttempt {
 }
 
 // ═══════════════════════════════════════════════════════════
-// CONFIGURACION DE OPENWA
+// CONFIGURACION DE OPENWA  —  DEPRECATED
 // ═══════════════════════════════════════════════════════════
+//
+// OpenWA fue eliminado del stack (solo Meta Cloud API). El modelo se MANTIENE
+// a proposito: `prisma db push` (backend/entrypoint.sh) aborta ante cualquier
+// cambio destructivo, y ese abort silencia tambien las altas de columnas nuevas
+// (p. ej. las de Coexistence en WhatsappConfig). Borrar este modelo romperia el
+// deploy en silencio.
+//
+// Cuando se haga una migracion versionada, se dropea la tabla openwaconfig y
+// se elimina este bloque.
+//
+// Ya no hay ningun codigo que lo referencie (antes: openwa.controller.ts).
 
 model OpenwaConfig {
   id         String   @id @default(uuid())

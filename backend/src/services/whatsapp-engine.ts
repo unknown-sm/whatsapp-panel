@@ -1,4 +1,4 @@
-import axios from "axios";
+﻿import axios from "axios";
 import FormData from "form-data";
 import prisma from "../lib/prisma";
 import { decrypt, isEncrypted } from "./crypto.service";
@@ -25,8 +25,7 @@ export interface IWhatsAppEngine {
 }
 
 export function resolveEngine(): IWhatsAppEngine {
-  const engine = process.env.WHATSAPP_ENGINE || "meta";
-  if (engine === "openwa") return new OpenWAEngine();
+  // Un solo canal: Meta Cloud API. OpenWA fue eliminado del stack.
   return new MetaEngine();
 }
 
@@ -114,68 +113,5 @@ class MetaEngine implements IWhatsAppEngine {
   async getStatus() {
     const config = await getDecryptedConfig();
     return { status: config?.status || "offline", lastPing: config?.lastPing?.toISOString() || null, configured: !!config?.phoneNumberId };
-  }
-}
-
-class OpenWAEngine implements IWhatsAppEngine {
-  private baseUrl = process.env.OPENWA_BASE_URL || "http://openwa:2785";
-  private apiKey = process.env.OPENWA_API_KEY || "";
-
-  private getHeaders() {
-    return { "x-api-key": this.apiKey, "Content-Type": "application/json" };
-  }
-
-  async sendText(phone: string, message: string): Promise<boolean> {
-    try {
-      await axios.post(`${this.baseUrl}/sendText`, { phone, message }, { headers: this.getHeaders() });
-      return true;
-    } catch (error: any) {
-      console.error("OpenWA sendText error:", error.response?.data || error.message);
-      return false;
-    }
-  }
-
-  async uploadMedia(buffer: Buffer, mimeType: string, filename: string): Promise<string | null> {
-    try {
-      const FormDataMod = (await import("form-data")).default;
-      const form = new FormDataMod();
-      form.append("file", buffer, { contentType: mimeType, filename });
-      const res = await axios.post(`${this.baseUrl}/upload`, form, {
-        headers: { "x-api-key": this.apiKey, ...form.getHeaders() },
-      });
-      return res.data?.id || res.data?.url || null;
-    } catch (err: any) {
-      console.error("OpenWA uploadMedia error:", err.response?.data || err.message);
-      return null;
-    }
-  }
-
-  async sendMediaById(phone: string, mediaId: string, type: MediaType, caption?: string, filename?: string): Promise<boolean> {
-    try {
-      const endpoint = type === "video" ? "sendVideo" : type === "document" ? "sendDocument" : "sendImage";
-      const payload: any = { phone, mediaId };
-      if (caption) payload.caption = caption;
-      if (filename) payload.filename = filename;
-      await axios.post(`${this.baseUrl}/${endpoint}`, payload, { headers: this.getHeaders() });
-      return true;
-    } catch (err: any) {
-      console.error("OpenWA sendMediaById error:", err.response?.data || err.message);
-      return false;
-    }
-  }
-
-  async sendMedia(phone: string, buffer: Buffer, mimeType: string, type: MediaType, caption?: string, filename?: string): Promise<boolean> {
-    const mediaId = await this.uploadMedia(buffer, mimeType, filename || "file");
-    if (!mediaId) return false;
-    return this.sendMediaById(phone, mediaId, type, caption, filename);
-  }
-
-  async getStatus() {
-    try {
-      const { data } = await axios.get(`${this.baseUrl}/session/status`, { headers: this.getHeaders() });
-      return { status: data.status || "unknown", lastPing: null, configured: !!this.apiKey };
-    } catch {
-      return { status: "offline", lastPing: null, configured: !!this.apiKey };
-    }
   }
 }

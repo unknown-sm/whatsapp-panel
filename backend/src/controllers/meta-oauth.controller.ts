@@ -47,10 +47,16 @@ export async function listPhoneNumbers(req: Request, res: Response) {
 
 export async function completeSignup(req: Request, res: Response) {
   try {
-    const { code, wabaId, verifyToken } = req.body;
-    if (!code) return res.status(400).json({ error: "code requerido" });
+    const { code, accessToken, wabaId, phoneNumberId, verifyToken } = req.body;
+    if (!code && !accessToken) return res.status(400).json({ error: "code o accessToken requerido" });
 
-    const result = await metaOAuth.completeEmbeddedSignup({ code, wabaId, verifyToken });
+    const result = await metaOAuth.completeEmbeddedSignup({
+      code,
+      accessToken,
+      wabaId,
+      phoneNumberId,
+      verifyToken,
+    });
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -72,6 +78,12 @@ export async function getCurrentConfig(req: Request, res: Response) {
       status: config.status,
       lastPing: config.lastPing,
       webhookUrl: config.webhookUrl,
+      displayPhoneNumber: config.displayPhoneNumber ?? null,
+      verifiedName: config.verifiedName ?? null,
+      qualityRating: config.qualityRating ?? null,
+      coexistence: !!(config.isOnBizApp && config.platformType === "CLOUD_API"),
+      isOnBizApp: config.isOnBizApp ?? false,
+      platformType: config.platformType ?? null,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

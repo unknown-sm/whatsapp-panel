@@ -18,7 +18,6 @@ import leadScoreRoutes from "./routes/leadscore.routes";
 import broadcastRoutes from "./routes/broadcast.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import customFieldRoutes from "./routes/customfield.routes";
-import openwaRoutes from "./routes/openwa.routes";
 import knowledgeRoutes from "./routes/knowledge.routes";
 import logsRoutes from "./routes/logs.routes";
 import playbookRoutes from "./routes/playbook.routes";
@@ -376,7 +375,6 @@ app.use("/api/leadscore", leadScoreRoutes);
 app.use("/api/broadcast", broadcastRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/customfields", customFieldRoutes);
-app.use("/api/openwa", openwaRoutes);
 app.use("/api/logs", logsRoutes);
 app.use("/api/playbooks", playbookRoutes);
 app.use("/api/push", pushRoutes);
@@ -488,6 +486,17 @@ async function start() {  console.log("=== Iniciando prisma db push ===");
     console.error("Error en prisma db push:", e instanceof Error ? e.message : e);
   }
   await seedDatabaseIfEmpty();
+
+  // Embedded Signup y el subscribeWebhook de Meta necesitan la URL publica absoluta.
+  // Antes habia un hardcode a un host muerto (easypanel) que dejaba los signups
+  // "exitosos" pero con el webhook apuntando a un 404.
+  if (!process.env.WEBHOOK_BASE_URL) {
+    console.error(
+      "[CONFIG] WEBHOOK_BASE_URL no configurada. Embedded Signup fallara y el webhook de Meta no podra suscribirse.\n" +
+        "         Definila en el entorno con el dominio publico, ej. WEBHOOK_BASE_URL=https://crm.seiva.com.py"
+    );
+  }
+
   server.listen(PORT, () => {
     console.log(`Backend corriendo en http://localhost:${PORT}`);
     console.log(`Socket.io listo`);

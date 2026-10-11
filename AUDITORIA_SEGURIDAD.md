@@ -9,7 +9,7 @@
 
 La base del stack es sólida (Prisma sin SQL raw, bcrypt-12, AES-256-GCM, helmet, rate limiting, healthchecks, Postgres nunca expuesto), pero hay **fallas graves que exponen toda la plataforma**: secretos con valores por defecto públicos que permiten forjar tokens de ADMIN, webhook de Meta que acepta mensajes forjados de cualquiera, Socket.io sin autenticación que filtra conversaciones, IDOR multi-tenant que cruza datos entre organizaciones, y uploads públicos sin filtrar que habilitan stored XSS.
 
-**Además:** el compose de producción (`docker-compose.yml:47`) arranca con `WHATSAPP_ENGINE: openwa` por defecto — contradice la decisión de no usar openwa en producción. Si el deploy no define esa variable, el engine activo es openwa, no Meta.
+**Además (RESUELTO 2026-10-10):** el canal ahora es **exclusivamente Meta Cloud API**. Se eliminó OpenWA del stack completo: engine, controller, rutas, modelo Prisma (tabla `openwaconfig` retenida para no romper `prisma db push`), UI en Settings, directorio `openwa/` y la variable `WHATSAPP_ENGINE`. El webhook solo acepta formato Meta.
 
 ---
 
@@ -19,7 +19,7 @@ La base del stack es sólida (Prisma sin SQL raw, bcrypt-12, AES-256-GCM, helmet
 `backend/src/controllers/whatsapp.controller.ts:25-78` (ruta pública en `whatsapp.routes.ts:9` → `index.ts:359`)
 
 `webhookIncoming` procesa `req.body` directo. No existe verificación de `X-Hub-Signature-256` en ningún archivo del backend (grep: 0 resultados; `META_APP_SECRET` nunca se usa para autenticar payloads). Cualquiera que conozca la URL puede:
-- Inyectar mensajes falsos de cualquier teléfono (formato Meta u OpenWA — ambos aceptados).
+- Inyectar mensajes falsos de cualquier teléfono (formato Meta).
 - Disparar bots/IA que gastan créditos y responden a números reales.
 - Envenenar analytics, lead scoring y knowledge.
 
@@ -162,11 +162,11 @@ Todo tiene fix con `npm audit fix` (salvo vite de frontend, requiere upgrade a 8
 1. **Fail-fast con secretos:** eliminados los fallbacks `"fallback-secret"` (auth.ts, auth.controller.ts) y `"fallback-key-change-in-prod"` (crypto.service.ts, ahora deriva de JWT_SECRET real con warning si falta ENCRYPTION_KEY); `jwt.verify` con `algorithms: ["HS256"]`; producción exige JWT_SECRET y DATABASE_URL (exit 1); dev genera secreto efímero. Compose sin defaults de secretos (`:?required`). ⏳ falta: definir `ENCRYPTION_KEY` propia en producción.
 2. **Firma del webhook de Meta:** verificación `X-Hub-Signature-256` con HMAC-SHA256 + `timingSafeEqual` sobre el raw body (capturado con `express.json({ verify })`). Con `META_APP_SECRET` seteada la firma es obligatoria; sin ella, producción acepta pero loguea error visible cada minuto. Verify token con comparación timing-safe y `updateMany` acotado al config verificado. ⏳ falta: setear `META_APP_SECRET` en Dokploy.
 3. **Auth en Socket.io:** middleware `io.use()` con JWT en el handshake (el frontend actualizado envía `auth.token`); auto-join a room `org:{orgId}`; `join-conversation` y `message:send` validan contra la DB que la conversación pertenece a la org del usuario; `agent-chat:message` emite solo al room de la org (adiós broadcast global).
-4. **`requireAdmin` faltantes:** whatsapp `PUT /config` y `POST /test`; todo el router openwa (config/QR/reset/test); logs `DELETE`; todo lab; AI create/update/delete/default/test-generate (listado queda autenticado con keys enmascaradas; suggest-responses queda para agentes).
-5. **No devolver apiKeys:** `GET /api/ai` y `openwa GET/PUT /config` devuelven máscara `••••abcd`; al guardar, valor enmascarado = conservar el guardado. Cifrado en reposo con `encrypt()` para `aIConfig.apiKey`, `Setting[n8n_api_key]` y `openwaConfig.apiKey`, con `decrypt()` (vía `isEncrypted`) en todos los lectores. `PUT /api/whatsapp/config` ya no devuelve ciphertext.
+4. **`requireAdmin` faltantes:** whatsapp `PUT /config` y `POST /test`; logs `DELETE`; todo lab; AI create/update/delete/default/test-generate (listado queda autenticado con keys enmascaradas; suggest-responses queda para agentes). (El router openwa ya no existe.)
+5. **No devolver apiKeys:** `GET /api/ai` devuelve máscara `••••abcd`; al guardar, valor enmascarado = conservar el guardado. Cifrado en reposo con `encrypt()` para `aIConfig.apiKey` y `Setting[n8n_api_key]`, con `decrypt()` (vía `isEncrypted`) en todos los lectores. `PUT /api/whatsapp/config` ya no devuelve ciphertext.
 6. **Credenciales commiteadas:** seed (index.ts y prisma/seed.ts) ahora genera contraseña aleatoria impresa una sola vez (nunca `admin123`); `DOKPLOY.md` sin el token real (`seiva2026` → placeholder); compose prod sin `whatsapp_secret` ni defaults de JWT/verify. ⏳ falta (en producción, lo hace el usuario): rotar POSTGRES_PASSWORD, WHATSAPP_VERIFY_TOKEN en el panel de Meta, y la contraseña del admin si aún es la vieja.
 7. **`npm audit fix`:** backend 14→0 vulns (bcrypt 5→6 elimina tar critical; hash/compare verificado en runtime); dashboard 14→0; frontend 16→5 (quedan 4 moderate + 1 high que requieren breaking changes: react-router 7.18 y vite 8.3 — dejar para bloque 2). Frontend build OK pese a errores de tsc preexistentes (vite no typechequea).
-8. **`WHATSAPP_ENGINE=meta`** como default en todos los compose; openwa eliminado del stack de producción (docker-compose.yml) junto a sus vars OA_*/OPENWA_*; el directorio openwa/ queda solo para pruebas locales.
+8. **✅ RESUELTO (2026-10-10):** OpenWA eliminado por completo del stack — engine (`resolveEngine` siempre devuelve MetaEngine), controller y rutas `/api/openwa`, conversión de formato OpenWA en el webhook, modelo `OpenwaConfig` (tabla retenida a propósito: dropearla haría abortar `prisma db push` y con ello las altas de columnas nuevas), pestaña "WhatsApp personal" en Settings, directorio `openwa/` y la variable `WHATSAPP_ENGINE` del compose.
 
 ### Después (días)
 9. **orgId obligatorio** en conversation (get/send/media/status), contactos (list/export/delete), tags/customfields, bots (update/delete), templates — y convertir `orgId ? filter : undefined` en 403 si falta.
@@ -174,7 +174,7 @@ Todo tiene fix con `npm audit fix` (salvo vite de frontend, requiere upgrade a 8
 11. **`prisma migrate deploy`** como paso de deploy; eliminar ambos `db push` del arranque; fail-closed.
 12. **JWT a cookie httpOnly** (o CSP estricta + aceptar riesgo), revocación básica, y cargar el usuario desde BD en el middleware.
 13. **CORS con origin** + bajar el límite de JSON + headers de seguridad en Caddy.
-14. **Higiene de repo/build:** `.dockerignore` (+`.env`, `backups/`, `*.sql`, `uploads/`), `backups/` al `.gitignore`, `USER node`, pin de imagen openwa (o eliminarla), quitar `seiva2026` de DOKPLOY.md.
+14. **Higiene de repo/build:** `.dockerignore` (+`.env`, `backups/`, `*.sql`, `uploads/`), `backups/` al `.gitignore`, `USER node`, quitar `seiva2026` de DOKPLOY.md. (La imagen openwa ya fue eliminada del repo.)
 
 ---
 

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import { processIncomingMessage } from "../services/whatsapp.service";
 import * as mediaService from "../services/media.service";
+import * as metaOAuth from "../services/meta-oauth.service";
 import { encrypt, decrypt, isEncrypted } from "../services/crypto.service";
 import prisma from "../lib/prisma";
 
@@ -72,37 +73,13 @@ export async function webhookIncoming(req: Request, res: Response) {
   }
   console.log("[WEBHOOK] Recibido:", JSON.stringify(req.body).slice(0, 300));
   try {
-    let payload = req.body;
+    const payload = req.body;
 
-    // Detect and convert OpenWA webhook format
-    if (payload.event === "message.received" && payload.data) {
-      const d = payload.data;
-      const type = d.type || "text";
-      const msgObj: any = {
-        from: d.from?.replace("@c.us", "") || d.chatId?.replace("@c.us", ""),
-        type,
-        timestamp: d.timestamp ? String(d.timestamp * 1000) : undefined,
-      };
-      if (type === "text") {
-        msgObj.text = { body: d.body || "" };
-      } else if (["image", "audio", "voice", "video", "document", "sticker"].includes(type)) {
-        const mediaObj: any = { id: d.mediaKey || d.id || d.body };
-        if (d.mimetype) mediaObj.mime_type = d.mimetype;
-        if (d.caption) mediaObj.caption = d.caption;
-        if (d.filename) mediaObj.filename = d.filename;
-        msgObj[type] = mediaObj;
-      } else {
-        msgObj.text = { body: d.body || `[${type}]` };
-      }
-      payload = {
-        entry: [{
-          changes: [{
-            value: { messages: [msgObj] },
-          }],
-        }],
-      };
-    } else if (payload.event && !payload.entry) {
-      // Ignore non-message events for now (session.status, session.qr, etc.)
+    // Solo formato Meta (entry[].changes[].value.messages[]).
+    // El soporte OpenWA fue eliminado del stack.
+    if (!payload?.entry) {
+      // Eventos de estado u otros payloads sin mensajes: ack y salir.
+      // (status updates de mensajes salientes, etc.)
       return res.sendStatus(200);
     }
 
@@ -130,6 +107,14 @@ export async function getStatus(req: Request, res: Response) {
     status: config?.status || "offline",
     lastPing: config?.lastPing,
     configured: !!config,
+    phoneNumberId: config?.phoneNumberId,
+    displayPhoneNumber: config?.displayPhoneNumber ?? null,
+    verifiedName: config?.verifiedName ?? null,
+    qualityRating: config?.qualityRating ?? null,
+    // Coexistence: true = el numero corre tambien en la WhatsApp Business App del celular
+    coexistence: !!(config?.isOnBizApp && config?.platformType === "CLOUD_API"),
+    isOnBizApp: config?.isOnBizApp ?? false,
+    platformType: config?.platformType ?? null,
   });
 }
 
@@ -142,12 +127,32 @@ export async function testConnection(req: Request, res: Response) {
   const accessToken = isEncrypted(config.accessToken) ? decrypt(config.accessToken) : config.accessToken;
 
   try {
-    const axios = await import("axios");
-    await axios.default.get(`https://graph.facebook.com/v21.0/${config.phoneNumberId}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    // Pedimos is_on_biz_app + platform_type: si el token o la version de la Graph API
+    // no los soportan, getPhoneNumberDetails reintenta sin ellos y devuelve coexistence=false.
+    const details = await metaOAuth.getPhoneNumberDetails(config.phoneNumberId, accessToken);
+    await prisma.whatsappConfig.updateMany({
+      data: {
+        status: "online",
+        lastPing: new Date(),
+        isOnBizApp: details.isOnBizApp,
+        platformType: details.platformType,
+        displayPhoneNumber: details.displayPhoneNumber ?? config.displayPhoneNumber,
+        verifiedName: details.verifiedName ?? config.verifiedName,
+        qualityRating: details.qualityRating ?? config.qualityRating,
+      },
     });
-    await prisma.whatsappConfig.updateMany({ data: { status: "online", lastPing: new Date() } });
-    res.json({ status: "ok", message: "Conexion exitosa" });
+    res.json({
+      status: "ok",
+      message: details.coexistence
+        ? "Conexion exitosa (Coexistence activo: el numero tambien esta en la app del celular)"
+        : "Conexion exitosa",
+      displayPhoneNumber: details.displayPhoneNumber,
+      verifiedName: details.verifiedName,
+      qualityRating: details.qualityRating,
+      coexistence: details.coexistence,
+      isOnBizApp: details.isOnBizApp,
+      platformType: details.platformType,
+    });
   } catch (err: any) {
     await prisma.whatsappConfig.updateMany({ data: { status: "offline" } });
     // Devolver el motivo real: sin esto solo se ve "No se pudo conectar" y no se
@@ -189,7 +194,7 @@ export async function updateConfig(req: Request, res: Response) {
       phoneNumberId,
       accessToken: encryptedToken,
       verifyToken: encryptedVerify || verifyToken,
-      webhookUrl: "/webhook/incoming",
+      webhookUrl: "/webhook",
     },
   });
   res.status(201).json({ config: { id: config.id, phoneNumberId: config.phoneNumberId, status: config.status, configured: true } });

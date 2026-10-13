@@ -24,7 +24,7 @@ services:
       PORT: "4000"
       DATABASE_URL: postgresql://whatsapp:${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD en el entorno}@whatsapp-db:5432/whatsapp_panel
       JWT_SECRET: ${JWT_SECRET:?Definir JWT_SECRET en el entorno}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Definir ENCRYPTION_KEY en el entorno (32+ chars)}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       JWT_EXPIRES_IN: 7d
       FRONTEND_URL: ${FRONTEND_URL:?Definir FRONTEND_URL (origen del frontend)}
@@ -34,10 +34,18 @@ services:
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
       WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN}
-      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_APP_SECRET: ${META_APP_SECRET:?Definir META_APP_SECRET (el webhook rechaza payloads sin firma en produccion)}
+      # Embedded Signup con 1 click (opcional; si falta, la UI ofrece pegado manual del code)
+      META_APP_ID: ${META_APP_ID:-}
+      META_CONFIG_ID: ${META_CONFIG_ID:-}
+      META_REDIRECT_URI: ${META_REDIRECT_URI:-}
+      # Orígenes permitidos para CORS (separados por comas). Ej: https://crm.seiva.com.py
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://crm.seiva.com.py}
     depends_on:
       whatsapp-db:
         condition: service_healthy
+    volumes:
+      - whatsapp-uploads:/app/backend/uploads
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/api/health || exit 1"]
       interval: 10s
@@ -46,3 +54,4 @@ services:
 
 volumes:
   whatsapp-db-data:
+  whatsapp-uploads:

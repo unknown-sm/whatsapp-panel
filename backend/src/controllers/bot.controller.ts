@@ -4,14 +4,13 @@ import * as flowService from "../services/flow.service";
 import * as aiService from "../services/ai.service";
 import prisma from "../lib/prisma";
 import { z } from "zod";
-
-function getOrgId(req: Request): string | undefined {
-  return (req as any).user?.orgId;
-}
+import { requireOrgId } from "../lib/tenant";
 
 export async function listBots(req: Request, res: Response) {
   try {
-    const bots = await botService.getAllBots(getOrgId(req));
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const bots = await botService.getAllBots(orgId);
     res.json({ bots });
   } catch {
     res.status(500).json({ error: "Error al obtener bots" });
@@ -20,7 +19,9 @@ export async function listBots(req: Request, res: Response) {
 
 export async function getBot(req: Request, res: Response) {
   try {
-    const bot = await botService.getBotById(req.params.id, getOrgId(req));
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const bot = await botService.getBotById(req.params.id, orgId);
     if (!bot) return res.status(404).json({ error: "Bot no encontrado" });
     res.json({ bot });
   } catch {
@@ -30,7 +31,9 @@ export async function getBot(req: Request, res: Response) {
 
 export async function createBot(req: Request, res: Response) {
   try {
-    const bot = await botService.createBot({ ...req.body, orgId: getOrgId(req) });
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const bot = await botService.createBot({ ...req.body, orgId });
     res.status(201).json({ bot });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
@@ -40,7 +43,10 @@ export async function createBot(req: Request, res: Response) {
 
 export async function updateBot(req: Request, res: Response) {
   try {
-    const bot = await botService.updateBot(req.params.id, req.body);
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const bot = await botService.updateBot(req.params.id, req.body, orgId);
+    if (!bot) return res.status(404).json({ error: "Bot no encontrado" });
     res.json({ bot });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
@@ -50,7 +56,10 @@ export async function updateBot(req: Request, res: Response) {
 
 export async function deleteBot(req: Request, res: Response) {
   try {
-    await botService.deleteBot(req.params.id);
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const deleted = await botService.deleteBot(req.params.id, orgId);
+    if (!deleted) return res.status(404).json({ error: "Bot no encontrado" });
     res.json({ message: "Bot eliminado" });
   } catch {
     res.status(500).json({ error: "Error al eliminar bot" });
@@ -59,8 +68,11 @@ export async function deleteBot(req: Request, res: Response) {
 
 export async function addKeyword(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
     const { keyword } = z.object({ keyword: z.string().min(1) }).parse(req.body);
-    const kw = await botService.addKeyword(req.params.id, keyword);
+    const kw = await botService.addKeyword(req.params.id, keyword, orgId);
+    if (!kw) return res.status(404).json({ error: "Bot no encontrado" });
     res.status(201).json({ keyword: kw });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
@@ -70,7 +82,10 @@ export async function addKeyword(req: Request, res: Response) {
 
 export async function removeKeyword(req: Request, res: Response) {
   try {
-    await botService.removeKeyword(req.params.keywordId);
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const removed = await botService.removeKeyword(req.params.keywordId, orgId);
+    if (!removed) return res.status(404).json({ error: "Keyword no encontrada" });
     res.json({ message: "Keyword eliminada" });
   } catch {
     res.status(500).json({ error: "Error al eliminar keyword" });
@@ -79,7 +94,10 @@ export async function removeKeyword(req: Request, res: Response) {
 
 export async function setDefault(req: Request, res: Response) {
   try {
-    const bot = await botService.setDefault(req.params.id);
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const bot = await botService.setDefault(req.params.id, orgId);
+    if (!bot) return res.status(404).json({ error: "Bot no encontrado" });
     res.json({ bot });
   } catch {
     res.status(500).json({ error: "Error al setear default" });
@@ -90,8 +108,10 @@ export async function testBot(req: Request, res: Response) {
   try {
     const { message, systemPrompt } = req.body;
     const botId = req.params.id;
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
 
-    const bot = await botService.getBotById(botId);
+    const bot = await botService.getBotById(botId, orgId);
     if (!bot) return res.status(404).json({ error: "Bot no encontrado" });
 
     const steps = await flowService.getFlowSteps(botId);

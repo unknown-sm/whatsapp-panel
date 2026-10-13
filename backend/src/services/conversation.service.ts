@@ -1,9 +1,8 @@
 import prisma from "../lib/prisma";
 import { z } from "zod";
 
-export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string; page?: number; pageSize?: number; orgId?: string }) {
-  const where: any = {};
-  if (filters.orgId) where.orgId = filters.orgId;
+export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string; page?: number; pageSize?: number; orgId: string }) {
+  const where: any = { orgId: filters.orgId };
   if (filters.status) where.status = filters.status;
   if (filters.botId) where.botId = filters.botId;
   if (filters.agentId) where.assignedAgentId = filters.agentId;
@@ -42,9 +41,9 @@ export async function getConversations(filters: { status?: string; botId?: strin
   };
 }
 
-export async function getConversation(id: string) {
-  return prisma.conversation.findUnique({
-    where: { id },
+export async function getConversation(id: string, orgId: string) {
+  return prisma.conversation.findFirst({
+    where: { id, orgId },
     include: {
       contact: { include: { tags: { include: { tag: true } }, notes: { include: { agent: true } } } },
       bot: true,
@@ -97,8 +96,16 @@ export async function removeTag(contactId: string, tagId: string) {
   return prisma.contactTags.delete({ where: { contactId_tagId: { contactId, tagId } } });
 }
 
-export async function getContacts(search?: string, page?: number, pageSize?: number) {
-  const where: any = {};
+export async function getOwnedConversation(id: string, orgId: string) {
+  return prisma.conversation.findFirst({ where: { id, orgId }, select: { id: true, contactId: true } });
+}
+
+export async function getOwnedContact(id: string, orgId: string) {
+  return prisma.contact.findFirst({ where: { id, orgId }, select: { id: true } });
+}
+
+export async function getContacts(search: string | undefined, page: number | undefined, pageSize: number | undefined, orgId: string) {
+  const where: any = { orgId };
   if (search) {
     where.OR = [
       { phone: { contains: search } },
@@ -130,8 +137,9 @@ export async function getContacts(search?: string, page?: number, pageSize?: num
   };
 }
 
-export async function exportContacts() {
+export async function exportContacts(orgId: string) {
   const contacts = await prisma.contact.findMany({
+    where: { orgId },
     include: { tags: { include: { tag: true } } },
     orderBy: { createdAt: "desc" },
   });

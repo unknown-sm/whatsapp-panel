@@ -17,17 +17,17 @@ const updateBotSchema = z.object({
   isDefault: z.boolean().optional(),
 });
 
-export async function getAllBots(orgId?: string) {
+export async function getAllBots(orgId: string) {
   return prisma.bot.findMany({
-    where: orgId ? { orgId } : undefined,
+    where: { orgId },
     include: { keywords: true, _count: { select: { flowSteps: true, conversations: true } } },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function getBotById(id: string, orgId?: string) {
+export async function getBotById(id: string, orgId: string) {
   return prisma.bot.findFirst({
-    where: { id, ...(orgId ? { orgId } : {}) },
+    where: { id, orgId },
     include: { keywords: true, flowSteps: { orderBy: { order: "asc" } } },
   });
 }
@@ -47,25 +47,33 @@ export async function createBot(data: { name: string; systemPrompt?: string; exa
   });
 }
 
-export async function updateBot(id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean; isDefault?: boolean }) {
+export async function updateBot(id: string, data: { name?: string; systemPrompt?: string | null; exactMatch?: boolean; isActive?: boolean; isDefault?: boolean }, orgId: string) {
   const parsed = updateBotSchema.parse(data);
+  const owned = await prisma.bot.findFirst({ where: { id, orgId }, select: { id: true } });
+  if (!owned) return null;
   return prisma.bot.update({ where: { id }, data: parsed, include: { keywords: true } });
 }
 
-export async function deleteBot(id: string) {
-  return prisma.bot.delete({ where: { id } });
+export async function deleteBot(id: string, orgId: string) {
+  const result = await prisma.bot.deleteMany({ where: { id, orgId } });
+  return result.count > 0;
 }
 
-export async function addKeyword(botId: string, keyword: string) {
+export async function addKeyword(botId: string, keyword: string, orgId: string) {
+  const owned = await prisma.bot.findFirst({ where: { id: botId, orgId }, select: { id: true } });
+  if (!owned) return null;
   return prisma.botKeyword.create({ data: { botId, keyword } });
 }
 
-export async function removeKeyword(id: string) {
-  return prisma.botKeyword.delete({ where: { id } });
+export async function removeKeyword(id: string, orgId: string) {
+  const result = await prisma.botKeyword.deleteMany({ where: { id, bot: { orgId } } });
+  return result.count > 0;
 }
 
-export async function setDefault(id: string) {
-  await prisma.bot.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
+export async function setDefault(id: string, orgId: string) {
+  const owned = await prisma.bot.findFirst({ where: { id, orgId }, select: { id: true } });
+  if (!owned) return null;
+  await prisma.bot.updateMany({ where: { isDefault: true, orgId }, data: { isDefault: false } });
   return prisma.bot.update({ where: { id }, data: { isDefault: true }, include: { keywords: true } });
 }
 

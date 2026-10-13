@@ -4,17 +4,17 @@ import { decrypt, isEncrypted } from "./crypto.service";
 
 /* ── List / Get ─────────────────────────────────────── */
 
-export async function listTemplates() {
-  return prisma.messageTemplate.findMany({ orderBy: { createdAt: "desc" } });
+export async function listTemplates(orgId: string) {
+  return prisma.messageTemplate.findMany({ where: { orgId }, orderBy: { createdAt: "desc" } });
 }
 
-export async function getTemplate(id: string) {
-  return prisma.messageTemplate.findUnique({ where: { id } });
+export async function getTemplate(id: string, orgId: string) {
+  return prisma.messageTemplate.findFirst({ where: { id, orgId } });
 }
 
-export async function listApprovedTemplates() {
+export async function listApprovedTemplates(orgId: string) {
   return prisma.messageTemplate.findMany({
-    where: { status: "APPROVED" },
+    where: { status: "APPROVED", orgId },
     orderBy: { name: "asc" },
   });
 }
@@ -31,6 +31,7 @@ export async function createTemplate(data: {
   footerText?: string;
   variables?: any;
   buttons?: any;
+  orgId: string;
 }) {
   return prisma.messageTemplate.create({
     data: {
@@ -44,6 +45,7 @@ export async function createTemplate(data: {
       variables: data.variables as any,
       buttons: data.buttons as any,
       status: "PENDING",
+      orgId: data.orgId,
     },
   });
 }
@@ -55,17 +57,20 @@ export async function updateTemplate(id: string, data: Partial<{
   status: string;
   metaTemplateId: string;
   qualityRating: string;
-}> & Record<string, any>) {
+}> & Record<string, any>, orgId: string) {
+  const owned = await prisma.messageTemplate.findFirst({ where: { id, orgId }, select: { id: true } });
+  if (!owned) return null;
   return prisma.messageTemplate.update({ where: { id }, data });
 }
 
-export async function deleteTemplate(id: string) {
-  return prisma.messageTemplate.delete({ where: { id } });
+export async function deleteTemplate(id: string, orgId: string) {
+  const result = await prisma.messageTemplate.deleteMany({ where: { id, orgId } });
+  return result.count > 0;
 }
 
 /* ── Meta Sync ───────────────────────────────────────── */
 
-export async function syncWithMeta() {
+export async function syncWithMeta(orgId: string) {
   const config = await prisma.whatsappConfig.findFirst();
   if (!config) {
     throw new Error("WhatsApp no configurado");
@@ -89,7 +94,7 @@ export async function syncWithMeta() {
     const qualityScore = t.quality_score?.score || null;
 
     const existing = await prisma.messageTemplate.findFirst({
-      where: { name: t.name, language: t.language },
+      where: { name: t.name, language: t.language, orgId },
     });
 
     if (existing) {
@@ -117,6 +122,7 @@ export async function syncWithMeta() {
           qualityRating: qualityScore as any,
           lastQualityUpdate: new Date(),
           metaTemplateId: t.id,
+          orgId,
         },
       });
       created++;
@@ -128,13 +134,13 @@ export async function syncWithMeta() {
 
 /* ── Send template (reopen 24h window) ──────────────── */
 
-export async function sendTemplate(phone: string, templateId: string, variables: string[] = []) {
+export async function sendTemplate(phone: string, templateId: string, variables: string[] = [], orgId: string) {
   const config = await prisma.whatsappConfig.findFirst();
   if (!config) throw new Error("WhatsApp no configurado");
 
   const accessToken = isEncrypted(config.accessToken) ? decrypt(config.accessToken) : config.accessToken;
 
-  const template = await prisma.messageTemplate.findUnique({ where: { id: templateId } });
+  const template = await prisma.messageTemplate.findFirst({ where: { id: templateId, orgId } });
   if (!template) throw new Error("Template no encontrado");
   if (template.status !== "APPROVED") throw new Error("Template no aprobado");
 

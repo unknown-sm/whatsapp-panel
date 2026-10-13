@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
 import {
-  Star, Send, Plus, Trash2, Loader2, TrendingUp, Users,
-  Power, PowerOff, Activity, Award,
+  Star, Send, Plus, Trash2, Loader2, Users,
+  Power, PowerOff, Award,
 } from "lucide-react";
-import { Card, CardContent } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Badge } from "../components/ui/Badge";
@@ -110,7 +109,7 @@ export default function Nps() {
             <Award size={28} className="text-warn-chip-text" />
           </div>
           <p className="text-[11px] text-ink-3 mt-2">
-            {stats?.npsScore >= 50 ? "Excelente" : stats?.npsScore >= 0 ? "Bueno" : "Necesita mejora"}
+            {(stats?.npsScore ?? 0) >= 50 ? "Excelente" : (stats?.npsScore ?? 0) >= 0 ? "Bueno" : "Necesita mejora"}
           </p>
         </div>
         <div className="card">

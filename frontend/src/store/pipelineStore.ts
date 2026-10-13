@@ -16,7 +16,13 @@ export interface PipelineStage {
   pipelineId: string;
   order: number;
   color: string;
+  /** Reservado para marcar etapas ganadas/perdidas (aún no viene del backend). */
+  kind?: "won" | "lost" | "open" | null;
 }
+
+export type DealInput = Omit<Partial<Deal>, "expectedCloseDate"> & {
+  expectedCloseDate?: Date | string | null;
+};
 
 export interface Deal {
   id: string;
@@ -50,8 +56,8 @@ interface PipelineState {
   createPipeline: (data: Partial<Pipeline>) => Promise<void>;
   createStage: (data: Partial<PipelineStage>) => Promise<void>;
   fetchDeals: (filters?: any) => Promise<void>;
-  createDeal: (data: Partial<Deal>) => Promise<void>;
-  updateDeal: (id: string, data: Partial<Deal>) => Promise<void>;
+  createDeal: (data: DealInput) => Promise<void>;
+  updateDeal: (id: string, data: DealInput) => Promise<void>;
   moveDeal: (dealId: string, stageId: string) => Promise<void>;
   deleteDeal: (id: string) => Promise<void>;
   fetchStats: (pipelineId: string) => Promise<void>;

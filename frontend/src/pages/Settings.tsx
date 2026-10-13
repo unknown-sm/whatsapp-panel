@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { useTranslation } from "react-i18next";
-import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff, Zap, Tag } from "lucide-react";
+import { Save, Wifi, WifiOff, Plus, Trash2, Check, TestTube, Eye, EyeOff, Play, Bot, Webhook, Copy, RefreshCw, Power, PowerOff } from "lucide-react";
 function N8n(){
-  const[w,sw]=useState<any[]>([]);const[i,si]=useState(false);const[r,sr]=useState("");const[e,se]=useState("");
+  const[,sw]=useState<any[]>([]);const[i,si]=useState(false);const[r,sr]=useState("");const[e,se]=useState("");
   const[ak,sak]=useState("");const[au,sau]=useState("");const[sc,ssc]=useState(false);
   useEffect(()=>{api.get("/api/n8n/config").then(({data})=>{sak(data.apiKey||"");sau(data.apiUrl||"");se(data.configured?"":"API key no configurada")}).catch(()=>se("n8n no disponible"))},[]);
   async function save(){ssc(true);try{await api.put("/api/n8n/config",{apiKey:ak,apiUrl:au});se("");sak("");ssc(false);api.get("/api/n8n/workflows").then(({data})=>{const l=data?.data||data;sw(Array.isArray(l)?l:[])}).catch(()=>{})}catch(er:any){se(er.response?.data?.error||"Error al guardar");ssc(false)}}
@@ -127,7 +127,7 @@ function TagsManagement() {
 }
 
 export default function Settings() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
 const [activeTab, setActiveTab] = useState<"whatsapp" | "ai" | "bots" | "users" | "customfields" | "webhooks" | "tags" | "n8n">("whatsapp");
 
@@ -195,8 +195,16 @@ function WhatsappSettings() {
   const [selectedWabaId, setSelectedWabaId] = useState("");
   const [selectedPhoneId, setSelectedPhoneId] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [signupCfg, setSignupCfg] = useState<{ available: boolean; appId?: string; configId?: string }>({ available: false });
+  const [fbLoading, setFbLoading] = useState(false);
 
   useEffect(() => { fetchStatus(); }, []);
+
+  useEffect(() => {
+    api.get("/api/whatsapp/signup-config")
+      .then(({ data }) => setSignupCfg(data))
+      .catch(() => setSignupCfg({ available: false }));
+  }, []);
 
   async function fetchStatus() {
     try {
@@ -254,13 +262,62 @@ function WhatsappSettings() {
     return phones;
   }
 
+  /** Carga perezosa del Facebook JS SDK (una sola vez). */
+  function loadFbSdk(appId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const w = window as any;
+      if (w.FB) { w.FB.init({ appId, cookie: true, xfbml: false, version: "v21.0" }); return resolve(); }
+      w.fbAsyncInit = () => {
+        w.FB.init({ appId, cookie: true, xfbml: false, version: "v21.0" });
+        resolve();
+      };
+      const s = document.createElement("script");
+      s.src = "https://connect.facebook.net/es_LA/sdk.js";
+      s.async = true;
+      s.onerror = () => reject(new Error("No se pudo cargar el SDK de Facebook (bloqueador de anuncios?)"));
+      document.body.appendChild(s);
+    });
+  }
+
+  /** Embedded Signup con un click: FB.login devuelve el code directo, sin pegado manual. */
+  async function handleFbSignup() {
+    if (!signupCfg.available || !signupCfg.appId || !signupCfg.configId) return;
+    setFbLoading(true);
+    try {
+      await loadFbSdk(signupCfg.appId);
+      const w = window as any;
+      w.FB.login(
+        (response: any) => {
+          const code = response?.authResponse?.code;
+          setFbLoading(false);
+          if (!code) {
+            alert("El signup se cancelo o Meta no devolvio el code");
+            return;
+          }
+          setSignupCode(code);
+          handleAnalyze(code);
+        },
+        {
+          config_id: signupCfg.configId,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { featureType: "", sessionInfoVersion: "3" },
+        } as any
+      );
+    } catch (e: any) {
+      setFbLoading(false);
+      alert(e.message || "Error iniciando el signup de Meta");
+    }
+  }
+
   /** Fase 1: canjear el code y listar los numeros disponibles para elegir. */
-  async function handleAnalyze() {
-    if (!signupCode.trim()) return;
+  async function handleAnalyze(codeOverride?: string) {
+    const code = (codeOverride ?? signupCode).trim();
+    if (!code) return;
     setAnalyzing(true);
     try {
       resetSignupFlow();
-      const ex = await api.post("/api/whatsapp/exchange", { code: signupCode.trim() });
+      const ex = await api.post("/api/whatsapp/exchange", { code });
       const token = ex.data.accessToken;
       setSignupToken(token);
 
@@ -362,6 +419,16 @@ function WhatsappSettings() {
             Recomendado: tu app de Meta debe tener habilitado "Embedded Signup" en WhatsApp &rarr; Configuration. Despues del dialog de Meta, pega el <code>code</code> aqui.
           </p>
           <div className="space-y-3">
+            {signupCfg.available && (
+              <button onClick={handleFbSignup} disabled={fbLoading || analyzing} className="btn-primary w-full disabled:opacity-50">
+                {fbLoading ? "Abriendo Meta..." : "Conectar con Meta (1 click)"}
+              </button>
+            )}
+            {signupCfg.available && (
+              <p className="text-[11px] text-center" style={{ color: "var(--text-tertiary)" }}>
+                o pega el code manualmente abajo
+              </p>
+            )}
             <div>
               <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Authorization Code de Meta</label>
               <textarea
@@ -374,7 +441,7 @@ function WhatsappSettings() {
             </div>
 
             {signupPhones.length === 0 ? (
-              <button onClick={handleAnalyze} disabled={!signupCode.trim() || analyzing} className="btn-primary w-full disabled:opacity-50">
+              <button onClick={() => handleAnalyze()} disabled={!signupCode.trim() || analyzing} className="btn-primary w-full disabled:opacity-50">
                 {analyzing ? "Analizando..." : "1. Analizar numeros"}
               </button>
             ) : (
@@ -1032,6 +1099,7 @@ function CustomFieldsSettings() {
   }
 
   function WebhookSettings() {
+    const { t, i18n } = useTranslation();
     const [config, setConfig] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);

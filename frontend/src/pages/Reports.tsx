@@ -4,7 +4,6 @@ import {
   FileText, RefreshCw, Loader2, Calendar, TrendingUp, Users,
   MessageSquare, DollarSign, Target, BarChart3, Download,
 } from "lucide-react";
-import { Card, CardHeader, CardContent } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Badge } from "../components/ui/Badge";
 

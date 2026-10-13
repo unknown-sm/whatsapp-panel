@@ -21,9 +21,8 @@ let warnedUnsigned = 0;
 
 /**
  * Meta signs every webhook POST with X-Hub-Signature-256 = "sha256=" + HMAC-SHA256(appSecret, rawBody).
- * When META_APP_SECRET is set the signature is mandatory (timing-safe compare).
- * Without it, dev accepts with a warning; production accepts but logs a loud error
- * so a missing env never silently disables verification after it is configured.
+ * Fail-closed: en producción, sin META_APP_SECRET el payload se RECHAZA (un webhook
+ * sin firma acepta mensajes forjados de cualquiera). Solo en dev se acepta con warning.
  */
 function isSignatureValid(req: Request): boolean {
   const appSecret = process.env.META_APP_SECRET;
@@ -31,9 +30,9 @@ function isSignatureValid(req: Request): boolean {
     if (process.env.NODE_ENV === "production") {
       if (Date.now() - warnedUnsigned > 60_000) {
         warnedUnsigned = Date.now();
-        console.error("[WEBHOOK] META_APP_SECRET no configurada: payload aceptado SIN verificar firma. Configurala en App Dashboard > Settings > App secret.");
+        console.error("[WEBHOOK] META_APP_SECRET no configurada: payload RECHAZADO. Configurala en App Dashboard > Settings > App secret.");
       }
-      return true;
+      return false;
     }
     console.warn("[WEBHOOK] META_APP_SECRET no configurada (dev): payload aceptado sin verificar firma");
     return true;

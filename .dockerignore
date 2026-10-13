@@ -7,3 +7,14 @@ graphify-out
 AGENTS.md
 *.md
 test.txt
+.env
+.env.*
+backups/
+*.sql
+uploads/
+e2e/
+dashboard/
+n8n/
+docker-compose*.yml
+Caddyfile*
+deploy-vps.sh

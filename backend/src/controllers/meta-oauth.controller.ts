@@ -102,3 +102,16 @@ export async function disconnect(req: Request, res: Response) {
     res.status(500).json({ error: err.message });
   }
 }
+/* ── Signup config pública para el FB SDK (appId + configId) ── */
+
+export async function signupConfig(req: Request, res: Response) {
+  const appId = process.env.META_APP_ID;
+  const configId = process.env.META_CONFIG_ID;
+  if (!appId || !configId) {
+    return res.json({
+      available: false,
+      message: "META_APP_ID y/o META_CONFIG_ID no configuradas; usar el pegado manual del code.",
+    });
+  }
+  res.json({ available: true, appId, configId });
+}

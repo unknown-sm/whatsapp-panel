@@ -1,5 +1,12 @@
 import { Request, Response } from "express";
 import * as customFieldService from "../services/customfield.service";
+import prisma from "../lib/prisma";
+import { requireOrgId } from "../lib/tenant";
+
+async function contactBelongsToOrg(contactId: string, orgId: string) {
+  const c = await prisma.contact.findFirst({ where: { id: contactId, orgId }, select: { id: true } });
+  return !!c;
+}
 
 export async function createCustomField(req: Request, res: Response) {
   try {
@@ -39,6 +46,11 @@ export async function deleteCustomField(req: Request, res: Response) {
 
 export async function setCustomFieldValue(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    if (req.body.contactId && !(await contactBelongsToOrg(req.body.contactId, orgId))) {
+      return res.status(404).json({ error: "Contacto no encontrado" });
+    }
     const value = await customFieldService.setCustomFieldValue(req.body);
     res.json(value);
   } catch (err: any) {
@@ -48,6 +60,11 @@ export async function setCustomFieldValue(req: Request, res: Response) {
 
 export async function getContactCustomValues(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    if (!(await contactBelongsToOrg(req.params.contactId, orgId))) {
+      return res.status(404).json({ error: "Contacto no encontrado" });
+    }
     const values = await customFieldService.getContactCustomValues(req.params.contactId);
     res.json(values);
   } catch (err: any) {

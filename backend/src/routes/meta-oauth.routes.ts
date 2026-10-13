@@ -6,6 +6,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get("/config", metaOAuthController.getCurrentConfig);
+router.get("/signup-config", requireAdmin, metaOAuthController.signupConfig);
 router.post("/exchange", requireAdmin, metaOAuthController.exchangeCode);
 router.post("/wabas", requireAdmin, metaOAuthController.listWABAs);
 router.post("/phone-numbers", requireAdmin, metaOAuthController.listPhoneNumbers);

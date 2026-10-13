@@ -19,7 +19,12 @@ router.delete("/contacts/:id", deleteContact);
 // Dynamic routes AFTER static routes
 router.get("/:id", getConversation);
 router.post("/:id/messages", sendMessage);
-router.post("/:id/media", upload.single("file"), sendMedia);
+router.post("/:id/media", (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || "Archivo rechazado" });
+    next();
+  });
+}, sendMedia);
 router.put("/:id/agent", assignAgent);
 router.put("/:id/status", updateStatus);
 router.post("/:contactId/notes", addNote);

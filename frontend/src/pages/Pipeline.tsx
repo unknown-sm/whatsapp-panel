@@ -4,18 +4,17 @@ import {
   PointerSensor, useSensor, useSensors, closestCorners,
   type DragStartEvent, type DragEndEvent,
 } from "@dnd-kit/core";
-import { usePipelineStore, Deal } from "../store/pipelineStore";
+import { usePipelineStore, Deal, PipelineStage } from "../store/pipelineStore";
 import {
   Plus, Filter, BarChart3, Loader2, Trophy, XCircle, GripVertical,
-  DollarSign, Calendar, Tag as TagIcon, AlertCircle,
+  DollarSign, Calendar, AlertCircle,
 } from "lucide-react";
-import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 
 export default function Pipeline() {
   const {
-    pipelines, deals, currentPipeline, isLoading, stats,
+    pipelines, deals, isLoading, stats,
     fetchPipelines, fetchDeals, moveDeal, createDeal, updateDeal, deleteDeal, fetchStats,
   } = usePipelineStore();
 
@@ -121,8 +120,6 @@ export default function Pipeline() {
   async function handleDelete(id: string) {
     if (confirm("Eliminar deal?")) await deleteDeal(id);
   }
-
-  const totalValue = deals.reduce((s, d) => s + (d.value || 0), 0);
 
   return (
     <div>
@@ -243,7 +240,7 @@ export default function Pipeline() {
 /* ── Stage Column ─────────────────────────────────────── */
 
 function StageColumn({ stage, deals, onAddDeal, onEditDeal, onDeleteDeal }: {
-  stage: { id: string; name: string; color: string; kind?: string };
+  stage: PipelineStage;
   deals: Deal[];
   onAddDeal: () => void;
   onEditDeal: (d: Deal) => void;
@@ -300,7 +297,7 @@ function DraggableDealCard({ deal, onEdit, onDelete }: { deal: Deal; onEdit: () 
   );
 }
 
-function DealCard({ deal, isDragging, dragHandle, onEdit, onDelete }: {
+function DealCard({ deal, isDragging, dragHandle, onEdit }: {
   deal: Deal;
   isDragging?: boolean;
   dragHandle?: any;

@@ -15,21 +15,23 @@ export async function createTemplate(data: { name: string; content: string; vari
   });
 }
 
-export async function getTemplates(orgId?: string) {
-  const where: any = { isActive: true };
-  if (orgId) where.orgId = orgId;
+export async function getTemplates(orgId: string) {
+  const where: any = { isActive: true, orgId };
   return prisma.broadcastTemplate.findMany({
     where,
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function updateTemplate(id: string, data: Partial<{ name: string; content: string; variables: string[]; isActive: boolean }>) {
+export async function updateTemplate(id: string, data: Partial<{ name: string; content: string; variables: string[]; isActive: boolean }>, orgId: string) {
+  const owned = await prisma.broadcastTemplate.findFirst({ where: { id, orgId }, select: { id: true } });
+  if (!owned) return null;
   return prisma.broadcastTemplate.update({ where: { id }, data });
 }
 
-export async function deleteTemplate(id: string) {
-  return prisma.broadcastTemplate.update({ where: { id }, data: { isActive: false } });
+export async function deleteTemplate(id: string, orgId: string) {
+  const result = await prisma.broadcastTemplate.updateMany({ where: { id, orgId }, data: { isActive: false } });
+  return result.count > 0;
 }
 
 // ─── Broadcasts ────────────────────────────────────
@@ -56,9 +58,8 @@ export async function createBroadcast(data: {
   });
 }
 
-export async function getBroadcasts(orgId?: string) {
-  const where: any = {};
-  if (orgId) where.orgId = orgId;
+export async function getBroadcasts(orgId: string) {
+  const where: any = { orgId };
   return prisma.broadcast.findMany({
     where,
     include: { template: true, _count: { select: { recipients: true } } },
@@ -66,9 +67,9 @@ export async function getBroadcasts(orgId?: string) {
   });
 }
 
-export async function getBroadcastById(id: string, orgId?: string) {
+export async function getBroadcastById(id: string, orgId: string) {
   return prisma.broadcast.findFirst({
-    where: { id, ...(orgId ? { orgId } : {}) },
+    where: { id, orgId },
     include: {
       template: true,
       recipients: { include: { contact: true } },
@@ -76,15 +77,16 @@ export async function getBroadcastById(id: string, orgId?: string) {
   });
 }
 
-export async function deleteBroadcast(id: string) {
-  return prisma.broadcast.delete({ where: { id } });
+export async function deleteBroadcast(id: string, orgId: string) {
+  const result = await prisma.broadcast.deleteMany({ where: { id, orgId } });
+  return result.count > 0;
 }
 
 // ─── Send Broadcast ────────────────────────────────
 
-export async function sendBroadcast(broadcastId: string) {
-  const broadcast = await prisma.broadcast.findUnique({
-    where: { id: broadcastId },
+export async function sendBroadcast(broadcastId: string, orgId?: string) {
+  const broadcast = await prisma.broadcast.findFirst({
+    where: orgId ? { id: broadcastId, orgId } : { id: broadcastId },
     include: { template: true },
   });
 

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import multer from "multer";
 import * as convService from "../services/conversation.service";
 import { addScoreByCondition } from "../services/leadscore.service";
@@ -8,25 +9,42 @@ import { resolveEngine } from "../services/whatsapp-engine";
 import prisma from "../lib/prisma";
 import { getIo } from "../lib/socket";
 import { z } from "zod";
+import { requireOrgId } from "../lib/tenant";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+/* Allowlist de MIME aceptados (los que Meta soporta para media saliente) */
+const ALLOWED_MIME = new Set([
+  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "video/mp4", "video/3gpp", "video/quicktime",
+  "audio/ogg", "audio/mpeg", "audio/mp4", "audio/amr",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+]);
 
 const upload = multer({
   storage: multer.diskStorage({
     destination: UPLOADS_DIR,
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname) || "";
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+      const ext = path.extname(file.originalname).toLowerCase().slice(0, 10) || "";
+      cb(null, `${Date.now()}-${crypto.randomBytes(16).toString("hex")}${ext}`);
     },
   }),
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME.has(file.mimetype)) return cb(null, true);
+    cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}`));
+  },
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
 
 export async function listConversations(req: Request, res: Response) {
   try {
     const { status, botId, agentId, search, page, pageSize } = req.query;
-    const orgId = (req as any).user?.orgId;
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
     const result = await convService.getConversations({
       status: status as string,
       botId: botId as string,
@@ -44,7 +62,9 @@ export async function listConversations(req: Request, res: Response) {
 
 export async function getConversation(req: Request, res: Response) {
   try {
-    const conv = await convService.getConversation(req.params.id);
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const conv = await convService.getConversation(req.params.id, orgId);
     if (!conv) return res.status(404).json({ error: "Conversacion no encontrada" });
     res.json({ conversation: conv });
   } catch {
@@ -54,6 +74,10 @@ export async function getConversation(req: Request, res: Response) {
 
 export async function sendMessage(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedConversation(req.params.id, orgId);
+    if (!owned) return res.status(404).json({ error: "Conversacion no encontrada" });
     const { content } = z.object({ content: z.string().min(1) }).parse(req.body);
     const message = await convService.sendMessage(req.params.id, content);
     getIo().to(req.params.id).emit("message:new", message);
@@ -73,6 +97,10 @@ export async function sendMessage(req: Request, res: Response) {
 
 export async function assignAgent(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedConversation(req.params.id, orgId);
+    if (!owned) return res.status(404).json({ error: "Conversacion no encontrada" });
     const { agentId } = z.object({ agentId: z.string().uuid() }).parse(req.body);
     const conv = await convService.assignAgent(req.params.id, agentId);
     getIo().emit("agent:assigned", { conversationId: req.params.id, agentId });
@@ -85,6 +113,10 @@ export async function assignAgent(req: Request, res: Response) {
 
 export async function updateStatus(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedConversation(req.params.id, orgId);
+    if (!owned) return res.status(404).json({ error: "Conversacion no encontrada" });
     const { status } = z.object({ status: z.string() }).parse(req.body);
     const conv = await convService.updateStatus(req.params.id, status);
     getIo().emit("conversation:updated", { id: req.params.id, status });
@@ -103,6 +135,10 @@ export async function updateStatus(req: Request, res: Response) {
 
 export async function addNote(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedContact(req.params.contactId, orgId);
+    if (!owned) return res.status(404).json({ error: "Contacto no encontrado" });
     const { content } = z.object({ content: z.string().min(1) }).parse(req.body);
     const agentId = (req as any).user?.id;
     const note = await convService.addNote(req.params.contactId, content, agentId);
@@ -115,6 +151,10 @@ export async function addNote(req: Request, res: Response) {
 
 export async function addTag(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedContact(req.params.contactId, orgId);
+    if (!owned) return res.status(404).json({ error: "Contacto no encontrado" });
     const { tagId } = z.object({ tagId: z.string().uuid() }).parse(req.body);
     await convService.addTag(req.params.contactId, tagId);
 
@@ -130,6 +170,10 @@ export async function addTag(req: Request, res: Response) {
 
 export async function removeTag(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedContact(req.params.contactId, orgId);
+    if (!owned) return res.status(404).json({ error: "Contacto no encontrado" });
     await convService.removeTag(req.params.contactId, req.params.tagId);
     res.json({ message: "Tag eliminado" });
   } catch {
@@ -139,11 +183,14 @@ export async function removeTag(req: Request, res: Response) {
 
 export async function listContacts(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
     const { search, page, pageSize } = req.query;
     const result = await convService.getContacts(
       search as string,
       page ? parseInt(page as string) : undefined,
       pageSize ? parseInt(pageSize as string) : undefined,
+      orgId,
     );
     res.json(result);
   } catch {
@@ -153,10 +200,14 @@ export async function listContacts(req: Request, res: Response) {
 
 export async function exportContacts(req: Request, res: Response) {
   try {
-    const data = await convService.exportContacts();
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const data = await convService.exportContacts(orgId);
+    // Neutralizar CSV injection: prefijar valores que empiezan con = + - @
+    const safe = (v: string) => (/^[=+\-@]/.test(v) ? `'${v}` : v).replace(/"/g, '""');
     const csv = [
       "Telefono,Nombre,Primer Contacto,Ultima Actividad,Tags",
-      ...data.map((c) => `"${c.phone}","${c.name}","${c.firstContact}","${c.lastActivity}","${c.tags}"`),
+      ...data.map((c) => `"${safe(c.phone)}","${safe(c.name)}","${c.firstContact}","${c.lastActivity}","${safe(c.tags)}"`),
     ].join("\n");
 
     res.setHeader("Content-Type", "text/csv");
@@ -183,13 +234,15 @@ export { upload };
 
 export async function sendMedia(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
     const { caption, type: typeOverride } = req.body as { caption?: string; type?: string };
     const file = (req as any).file;
 
     if (!file) return res.status(400).json({ error: "archivo requerido" });
 
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: req.params.id },
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: req.params.id, orgId },
       include: { contact: true },
     });
     if (!conversation) return res.status(404).json({ error: "Conversacion no encontrada" });
@@ -251,6 +304,8 @@ export async function sendMedia(req: Request, res: Response) {
 /* Bulk contacts import (CSV) */
 export async function importContacts(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
     const { contacts } = req.body as { contacts: { phone: string; name?: string }[] };
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({ error: "contacts[] requerido (array de {phone, name?})" });
@@ -272,10 +327,11 @@ export async function importContacts(req: Request, res: Response) {
         }
         const existing = await prisma.contact.findUnique({ where: { phone: item.phone } });
         if (existing) {
+          // No reasignar contactos de otra organización
           skipped++;
           continue;
         }
-        await prisma.contact.create({ data: { phone: item.phone, name: item.name || null } });
+        await prisma.contact.create({ data: { phone: item.phone, name: item.name || null, orgId } });
         created++;
       } catch (err: any) {
         errors.push(`${item.phone}: ${err.message}`);
@@ -291,6 +347,10 @@ export async function importContacts(req: Request, res: Response) {
 
 export async function deleteContact(req: Request, res: Response) {
   try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await prisma.contact.findFirst({ where: { id: req.params.id, orgId }, select: { id: true } });
+    if (!owned) return res.status(404).json({ error: "Contacto no encontrado" });
     await prisma.message.deleteMany({ where: { conversation: { contactId: req.params.id } } });
     await prisma.conversation.deleteMany({ where: { contactId: req.params.id } });
     await prisma.contactTags.deleteMany({ where: { contactId: req.params.id } });

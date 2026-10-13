@@ -1,12 +1,26 @@
 {
-        email tu-email@ejemplo.com
+	email tu-email@ejemplo.com
 }
 
 crm.seiva.com.py {
-        reverse_proxy backend:4000
-        encode gzip
+	reverse_proxy backend:4000
+	encode gzip
+
+	# Headers de seguridad (helmet cubre la API; esto cubre todo lo servido por Caddy)
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# CSP: app propia + inline styles (Tailwind/inline). Ajustar si se agregan CDNs.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' wss: https:; frame-ancestors 'none'"
+		# Quitar cabeceras que delatan el stack
+		-Server
+		-X-Powered-By
+	}
 }
 
 www.crm.seiva.com.py {
-        redir https://crm.seiva.com.py{uri} permanent
+	redir https://crm.seiva.com.py{uri} permanent
 }

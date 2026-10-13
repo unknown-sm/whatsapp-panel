@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import api from "../services/api";
 import { io } from "socket.io-client";
 import {
-  Search, Send, Users, Download, MessageSquare, Phone, Sparkles, Trash2,
-  Check, CheckCheck, X, Clock, Tag as TagIcon, ChevronRight,
-  AlertCircle, UserCheck, ArrowRight, ArrowLeft, Hash, Plus, Loader2,
-  Image, Film, FileText, Music, Mic, Download, FileAudio,
+  Search, Send, Users, Download, MessageSquare, Sparkles, Trash2,
+  Check, CheckCheck, X, Clock, ChevronRight,
+  AlertCircle, AlertTriangle, UserCheck, ArrowRight, ArrowLeft, Hash, Plus, Loader2,
+  FileText, Mic,
   Paperclip,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";

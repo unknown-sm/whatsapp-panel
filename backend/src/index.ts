@@ -41,7 +41,6 @@ import prisma from "./lib/prisma";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { execSync } from "child_process";
 import { getJwtSecret } from "./lib/env";
 
 if (!process.env.DATABASE_URL) {
@@ -340,17 +339,70 @@ const io = initSocket(server);
 
 app.use(helmet());
 app.set("trust proxy", 1);
-app.use(cors());
+
+// CORS restringido: CORS_ORIGINS (separado por comas) define los orígenes válidos.
+// En producción sin CORS_ORIGINS solo se permite same-origin; en dev se permite todo.
+const corsOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (process.env.NODE_ENV === "production" && corsOrigins.length === 0) {
+  console.warn("[CONFIG] CORS_ORIGINS no definido: solo se aceptarán requests same-origin.");
+}
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // server-to-server (Meta webhook, curl)
+    if (process.env.NODE_ENV !== "production") return cb(null, true);
+    if (corsOrigins.length > 0) return cb(null, corsOrigins.includes(origin));
+    // Sin CORS_ORIGINS: no reflejar ningún origen cross-site (el middleware
+    // siguiente valida same-origin contra el Host).
+    return cb(null, false);
+  },
+  credentials: true,
+}));
+// Fallback same-origin: middleware que valida Origin contra Host cuando no hay CORS_ORIGINS
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== "production" || corsOrigins.length > 0) return next();
+  const origin = req.headers.origin;
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.headers.host) {
+        return res.status(403).json({ error: "Origen no permitido" });
+      }
+    } catch {
+      return res.status(403).json({ error: "Origen no permitido" });
+    }
+  }
+  next();
+});
+
+// Límite global de JSON reducido (DoS). Los uploads de media van por multer,
+// no por este parser; 5mb sobra para imports de contactos y configs.
 app.use(express.json({
-  limit: "50mb",
+  limit: "5mb",
   // Keep the raw body so the webhook can verify Meta's X-Hub-Signature-256 HMAC
   verify: (req: any, _res, buf) => { req.rawBody = buf; },
 }));
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static("uploads"));
 
 // Rate limit global (100 req/min per IP)
 app.use(require("./routes/auth.routes").globalLimiter);
+
+// /uploads: media de chats. Sirve con cabeceras endurecidas:
+// - nosniff: el navegador no reinterpreta el MIME
+// - attachment forzado para tipos ejecutables (html/svg/xml) por si algo se coló
+app.use("/uploads", express.static("uploads", {
+  fallthrough: false,
+  setHeaders: (res, filePath) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Security-Policy", "sandbox");
+    const ext = path.extname(filePath).toLowerCase();
+    if ([".html", ".htm", ".svg", ".xml", ".js"].includes(ext)) {
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", "attachment");
+    }
+  },
+}));
 
 // Serve frontend static files in production
 const frontendDist = path.join(__dirname, "../../frontend/dist");
@@ -477,13 +529,13 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
-async function start() {  console.log("=== Iniciando prisma db push ===");
-  console.log("DATABASE_URL set:", !!process.env.DATABASE_URL);
-  try {
-    execSync("npx prisma db push --accept-data-loss", { cwd: __dirname + "/../", stdio: "inherit" });
-    console.log("=== prisma db push OK ===");
-  } catch (e) {
-    console.error("Error en prisma db push:", e instanceof Error ? e.message : e);
+async function start() {
+  // El schema de la DB se aplica en el entrypoint del contenedor (fail-closed).
+  // No se ejecuta prisma db push desde el proceso: arrancar sin schema es un
+  // error de deploy, no algo que la app deba "reparar" en caliente.
+  if (!process.env.DATABASE_URL) {
+    console.error("[CONFIG] DATABASE_URL no configurada. Abortando arranque.");
+    process.exit(1);
   }
   await seedDatabaseIfEmpty();
 

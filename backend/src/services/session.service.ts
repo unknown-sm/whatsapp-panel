@@ -1,10 +1,17 @@
 import prisma from "../lib/prisma";
 
 const WINDOW_HOURS = 24;
+const FEP_REPLY_WINDOW_HOURS = 24; // hay 24h para responder y ganar el FEP
+const FEP_DURATION_HOURS = 72;     // el FEP dura 72h desde la primera respuesta
 
-export async function trackInbound(contactId: string) {
+export async function trackInbound(contactId: string, opts?: { fromAd?: boolean }) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + WINDOW_HOURS * 60 * 60 * 1000);
+  // Si el mensaje viene de un anuncio (CTWA), se abre el plazo de 24h para
+  // responder y ganar la ventana gratuita de 72h (Free Entry Point).
+  const fepDeadline = opts?.fromAd
+    ? new Date(now.getTime() + FEP_REPLY_WINDOW_HOURS * 60 * 60 * 1000)
+    : undefined;
 
   return prisma.conversationWindow.upsert({
     where: { contactId },
@@ -14,14 +21,34 @@ export async function trackInbound(contactId: string) {
       windowExpiresAt: expiresAt,
       isOpen: true,
       messageCount: 1,
+      fepReplyDeadline: fepDeadline ?? null,
     },
     update: {
       lastInboundAt: now,
       windowExpiresAt: expiresAt,
       isOpen: true,
       messageCount: { increment: 1 },
+      ...(fepDeadline ? { fepReplyDeadline: fepDeadline } : {}),
     },
   });
+}
+
+/**
+ * Registrar mensaje saliente: si el último inbound fue de un anuncio y la
+ * respuesta llega dentro de las 24h, se gana el FEP (72h de mensajes gratis,
+ * incluidos templates, contados desde esta respuesta).
+ */
+export async function trackOutbound(contactId: string) {
+  const now = new Date();
+  const w = await prisma.conversationWindow.findUnique({ where: { contactId } });
+  if (!w) return null;
+  if (w.fepReplyDeadline && !w.freeEntryPointUntil && now <= w.fepReplyDeadline) {
+    return prisma.conversationWindow.update({
+      where: { contactId },
+      data: { freeEntryPointUntil: new Date(now.getTime() + FEP_DURATION_HOURS * 60 * 60 * 1000) },
+    });
+  }
+  return w;
 }
 
 export async function isWindowOpen(contactId: string): Promise<boolean> {
@@ -96,6 +123,9 @@ export async function canSendFreeForm(contactId: string): Promise<{
   allowed: boolean;
   reason: string;
   expiresAt?: Date;
+  /** true si el contacto está dentro del Free Entry Point de 72h (CTWA): templates sin cargo */
+  freeEntryPointActive?: boolean;
+  freeEntryPointUntil?: Date;
 }> {
   const window = await prisma.conversationWindow.findUnique({
     where: { contactId },
@@ -105,14 +135,24 @@ export async function canSendFreeForm(contactId: string): Promise<{
     return { allowed: false, reason: "no_window" };
   }
 
-  if (!window.isOpen || window.windowExpiresAt < new Date()) {
-    return { allowed: false, reason: "window_closed" };
+  const now = new Date();
+  const fepActive = !!window.freeEntryPointUntil && window.freeEntryPointUntil > now;
+
+  if (!window.isOpen || window.windowExpiresAt < now) {
+    return {
+      allowed: false,
+      reason: "window_closed",
+      freeEntryPointActive: fepActive,
+      freeEntryPointUntil: window.freeEntryPointUntil ?? undefined,
+    };
   }
 
   return {
     allowed: true,
     reason: "window_open",
     expiresAt: window.windowExpiresAt,
+    freeEntryPointActive: fepActive,
+    freeEntryPointUntil: window.freeEntryPointUntil ?? undefined,
   };
 }
 

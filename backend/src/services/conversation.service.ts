@@ -54,6 +54,27 @@ export async function getConversation(id: string, orgId: string) {
 }
 
 export async function sendMessage(conversationId: string, content: string, direction: "inbound" | "outbound" = "outbound") {
+  const conv = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: { contact: { select: { id: true, phone: true } } },
+  });
+  if (!conv) throw new Error("Conversación no encontrada");
+
+  if (direction === "outbound") {
+    // Gate de la ventana de 24h de Meta: texto libre solo con ventana abierta
+    const { canSendFreeForm, trackOutbound } = await import("./session.service");
+    const window = await canSendFreeForm(conv.contact.id);
+    if (!window.allowed) {
+      const err: any = new Error("WINDOW_CLOSED");
+      err.code = "WINDOW_CLOSED";
+      throw err;
+    }
+    const { resolveEngine } = await import("./whatsapp-engine");
+    const sent = await resolveEngine().sendText(conv.contact.phone, content);
+    if (!sent) throw new Error("Meta rechazó el envío del mensaje");
+    trackOutbound(conv.contact.id).catch(() => {});
+  }
+
   const message = await prisma.message.create({
     data: { conversationId, direction, type: "text", content },
   });
@@ -62,6 +83,11 @@ export async function sendMessage(conversationId: string, content: string, direc
     where: { id: conversationId },
     data: { updatedAt: new Date() },
   });
+
+  // Reprogramar follow-ups a partir de esta actividad
+  if (direction === "outbound") {
+    import("./followup.service").then((m) => m.refreshFollowUpSchedule(conversationId)).catch(() => {});
+  }
 
   return message;
 }

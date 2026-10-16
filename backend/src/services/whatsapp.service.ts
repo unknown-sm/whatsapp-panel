@@ -61,14 +61,27 @@ export async function processIncomingMessage(data: any) {
 
       await prisma.contact.update({ where: { id: contact.id }, data: { lastActivity: new Date() } });
 
-      // Session Manager: track 24h window
-      sessionService.trackInbound(contact.id).catch(() => {});
+      // Meta CTWA: el mensaje inbound trae `referral` cuando viene de un
+      // Click-to-WhatsApp ad o del botón CTA de una Facebook Page.
+      const referral = msg.referral;
+      const fromAd = !!referral && (referral.source_type === "ad" || referral.source_type === "post" || !!referral.ctwa_clid);
 
-      // Attribution: parse ref parameter from CTWA ads
-      const ref = data.ref || data.entry?.[0]?.changes?.[0]?.value?.ref;
-      if (ref) {
-        attributionService.parseRefAndTrack(contact.id, ref, data.metadata).catch(() => {});
+      // Session Manager: track 24h window (+ plazo FEP si viene de anuncio)
+      sessionService.trackInbound(contact.id, { fromAd }).catch(() => {});
+
+      // Attribution: referral CTWA (ctwa_clid + IDs de campaña) o ref legacy
+      const ref = referral?.ctwa_clid || data.ref || data.entry?.[0]?.changes?.[0]?.value?.ref;
+      if (ref || referral) {
+        attributionService.parseRefAndTrack(contact.id, ref, {
+          ...data.metadata,
+          ad_id: referral?.source_id,
+          source: referral?.source_url || "facebook",
+          headline: referral?.headline,
+        }).catch(() => {});
       }
+
+      // El cliente respondió: los follow-ups pendientes para esta conversación
+      // se marcan como re-engaged (se hace luego de crear/encontrar la conversación).
 
       let conversation = await prisma.conversation.findFirst({
         where: { contactId: contact.id, status: { in: ["active", "waiting_agent"] } },
@@ -141,6 +154,10 @@ export async function processIncomingMessage(data: any) {
           addScoreByCondition(contact.orgId || "", contact.id, "FOLLOW_UP_REPLIED", "Respondio un follow-up").catch(() => {});
         }
       } catch {}
+
+      // Reprogramar el próximo follow-up a partir de esta actividad
+      // (import dinámico: followup.service ya importa este módulo)
+      import("./followup.service").then((m) => m.refreshFollowUpSchedule(conversation.id)).catch(() => {});
 
       // Lead scoring: MESSAGE_RECEIVED
       addScoreByCondition(contact.orgId || "", contact.id, "MESSAGE_RECEIVED", "Mensaje recibido por WhatsApp").catch(() => {});
@@ -217,7 +234,8 @@ async function processBotFlow(conversation: any, userMessage: string) {
       if (step.message) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
-          await sendWhatsAppMessage(contact.phone, step.message);
+          const sent = await sendWhatsAppMessage(contact.phone, step.message);
+          if (sent) sessionService.trackOutbound(contact.id).catch(() => {});
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: step.message },
           });
@@ -280,7 +298,8 @@ async function processBotFlow(conversation: any, userMessage: string) {
       if (response) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
-          await engine.sendText(contact.phone, response);
+          const sent = await engine.sendText(contact.phone, response);
+          if (sent) sessionService.trackOutbound(contact.id).catch(() => {});
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: response },
           });

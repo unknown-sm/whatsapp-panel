@@ -89,8 +89,14 @@ export async function sendMessage(req: Request, res: Response) {
       }
     } catch {}
     res.json({ message });
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    if (error?.code === "WINDOW_CLOSED") {
+      return res.status(400).json({
+        error: "La ventana de 24 horas está cerrada. Meta solo permite responder con un template aprobado.",
+        code: "WINDOW_CLOSED",
+      });
+    }
     res.status(500).json({ error: "Error al enviar mensaje" });
   }
 }
@@ -251,6 +257,17 @@ export async function sendMedia(req: Request, res: Response) {
     const mediaType = (typeOverride as any) || MIME_TO_TYPE[mimeType] || "document";
     const filename = file.originalname;
 
+    // Gate de la ventana de 24h: media también requiere ventana abierta
+    const { canSendFreeForm, trackOutbound } = await import("../services/session.service");
+    const window = await canSendFreeForm(conversation.contact.id);
+    if (!window.allowed) {
+      try { fs.unlinkSync(file.path); } catch {}
+      return res.status(400).json({
+        error: "La ventana de 24 horas está cerrada. Meta solo permite responder con un template aprobado.",
+        code: "WINDOW_CLOSED",
+      });
+    }
+
     const engine = resolveEngine();
     const buffer = fs.readFileSync(file.path);
     const ok = await engine.sendMedia(
@@ -261,6 +278,7 @@ export async function sendMedia(req: Request, res: Response) {
       caption,
       filename
     );
+    if (ok) trackOutbound(conversation.contact.id).catch(() => {});
 
     if (!ok) {
       // Cleanup file

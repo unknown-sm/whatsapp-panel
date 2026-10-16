@@ -339,6 +339,8 @@ model Conversation {
   silencedUntil   DateTime?
   assignedAgentId String?
   contextVars     Json?
+  /// Próximo vencimiento de follow-up materializado: el cron solo consulta vencidos, no escanea
+  nextFollowUpDueAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -355,6 +357,7 @@ model Conversation {
   @@index([botId])
   @@index([status])
   @@index([assignedAgentId])
+  @@index([nextFollowUpDueAt])
 }
 
 model Message {
@@ -390,6 +393,8 @@ model FollowUpRule {
   delayHours  Int
   maxAttempts Int      @default(3)
   message     String
+  /// Template aprobado a enviar cuando la ventana de 24h ya cerró (opcional)
+  templateId  String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -407,6 +412,7 @@ model FollowUpAttempt {
   attemptNumber  Int
   sentAt         DateTime @default(now())
   replied        Boolean  @default(false)
+  status         String   @default("sent")
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -719,6 +725,10 @@ model ConversationWindow {
   contactId       String    @unique
   lastInboundAt   DateTime
   windowExpiresAt DateTime
+  /// CTWA: deadline para que la primera respuesta gane la ventana gratuita de 72h
+  fepReplyDeadline DateTime?
+  /// Free Entry Point: mensajes (incl. templates) sin cargo hasta esta fecha
+  freeEntryPointUntil DateTime?
   isOpen          Boolean   @default(true)
   lastCategory    String?   // "service", "marketing", "utility"
   totalCost       Float     @default(0)

@@ -77,6 +77,13 @@ export default function Conversations() {
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<any>(null);
+  // Ref espejo de selectedConv: el handler del socket se registra una sola vez
+  // (closure) y sin esto siempre vería selectedConv = null.
+  const selectedConvRef = useRef<Conversation | null>(null);
+
+  useEffect(() => {
+    selectedConvRef.current = selectedConv;
+  }, [selectedConv]);
 
   useEffect(() => {
     fetchData();
@@ -106,7 +113,7 @@ export default function Conversations() {
     });
     socketRef.current = socket;
     socket.on("message:new", (msg: any) => {
-      if (selectedConv?.id === msg.conversationId) setMessages((prev) => [...prev, msg]);
+      if (selectedConvRef.current?.id === msg.conversationId) setMessages((prev) => [...prev, msg]);
       fetchData();
     });
     socket.on("conversation:updated", () => fetchData());

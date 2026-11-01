@@ -92,11 +92,13 @@ export async function webhookIncoming(req: Request, res: Response) {
       payload.metadata = change.value.metadata;
     }
 
-    await processIncomingMessage(payload);
+    // ACK inmediato a Meta: si el procesamiento tarda, Meta reintenta
+    // el webhook y el mensaje aparece duplicado (ver dedup por wamid).
     res.sendStatus(200);
+    processIncomingMessage(payload).catch((err) => console.error("Webhook error:", err));
   } catch (error) {
     console.error("Webhook error:", error);
-    res.sendStatus(500);
+    res.sendStatus(200);
   }
 }
 

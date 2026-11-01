@@ -104,10 +104,11 @@ export async function processIncomingMessage(data: any) {
         conversation = await prisma.conversation.create({
           data: { contactId: contact.id, botId: matchedBot?.id || null, status: matchedBot ? "active" : "waiting_agent", orgId: contact.orgId },
         });
-      } else if (!conversation.botId && !conversation.assignedAgentId) {
+      } else if (!conversation.botId && !conversation.assignedAgentId && !conversation.humanTakeover) {
         // La conversacion pudo haberse creado antes de que existiera ningun bot activo
         // (o sin bot por defecto). Sin reintentar aqui, botId quedaria en null para
         // siempre y el gate de processBotFlow (linea ~185) nunca se cumpliria.
+        // humanTakeover=true significa que un humano la atendió: el bot no la retoma.
         const matchedBot = await findBotByKeyword(text);
         if (matchedBot) {
           conversation = await prisma.conversation.update({
@@ -208,7 +209,7 @@ export async function processIncomingMessage(data: any) {
         updatedAt: new Date().toISOString(),
       });
 
-      if (conversation.botId && conversation.status === "active") {
+      if (conversation.botId && conversation.status === "active" && !conversation.humanTakeover) {
         const blocked = await isBlacklisted(contact.id);
         if (!blocked) await processBotFlow(conversation, text);
       }
@@ -380,7 +381,8 @@ async function processBotFlow(conversation: any, userMessage: string) {
 
     case "FORWARD": {
       const cfg = (step.config as any) || {};
-      const updateData: any = { status: "waiting_agent", contextVars };
+      // FORWARD transfiere a un humano: humanTakeover frena al bot de inmediato
+      const updateData: any = { status: "waiting_agent", contextVars, humanTakeover: true };
       if (cfg.agentId) updateData.assignedAgentId = cfg.agentId;
       await prisma.conversation.update({ where: { id: conversation.id }, data: updateData });
       getIo().emit("conversation:updated", { id: conversation.id, status: "waiting_agent", assignedAgentId: cfg.agentId || null });

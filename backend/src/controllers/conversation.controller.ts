@@ -79,7 +79,7 @@ export async function sendMessage(req: Request, res: Response) {
     const owned = await convService.getOwnedConversation(req.params.id, orgId);
     if (!owned) return res.status(404).json({ error: "Conversacion no encontrada" });
     const { content } = z.object({ content: z.string().min(1) }).parse(req.body);
-    const message = await convService.sendMessage(req.params.id, content);
+    const message = await convService.sendMessage(req.params.id, content, "outbound", (req as any).user?.id);
     getIo().to(req.params.id).emit("message:new", message);
     // Lead scoring: MESSAGE_SENT
     try {
@@ -303,7 +303,8 @@ export async function sendMedia(req: Request, res: Response) {
 
     await prisma.conversation.update({
       where: { id: conversation.id },
-      data: { updatedAt: new Date() },
+      // Media enviada por un humano: también frena el bot
+      data: { updatedAt: new Date(), humanTakeover: true },
     });
 
     getIo().to(conversation.id).emit("message:new", {

@@ -64,11 +64,11 @@ export async function getFollowUpStats() {
 export async function refreshFollowUpSchedule(conversationId: string) {
   const conv = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { id: true, botId: true, status: true },
+    select: { id: true, botId: true, status: true, humanTakeover: true },
   });
   if (!conv) return;
 
-  if (conv.status !== "active" || !conv.botId) {
+  if (conv.status !== "active" || !conv.botId || conv.humanTakeover) {
     await prisma.conversation.update({ where: { id: conv.id }, data: { nextFollowUpDueAt: null } });
     return;
   }
@@ -89,7 +89,7 @@ export async function refreshFollowUpSchedule(conversationId: string) {
 export async function checkFollowUps() {
   const now = new Date();
   const conversations = await prisma.conversation.findMany({
-    where: { status: "active", nextFollowUpDueAt: { lte: now } },
+    where: { status: "active", humanTakeover: false, nextFollowUpDueAt: { lte: now } },
     include: {
       contact: true,
       followUpAttempts: true,

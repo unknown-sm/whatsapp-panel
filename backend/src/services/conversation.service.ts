@@ -53,7 +53,7 @@ export async function getConversation(id: string, orgId: string) {
   });
 }
 
-export async function sendMessage(conversationId: string, content: string, direction: "inbound" | "outbound" = "outbound") {
+export async function sendMessage(conversationId: string, content: string, direction: "inbound" | "outbound" = "outbound", agentId?: string) {
   const conv = await prisma.conversation.findUnique({
     where: { id: conversationId },
     include: { contact: { select: { id: true, phone: true } } },
@@ -81,7 +81,14 @@ export async function sendMessage(conversationId: string, content: string, direc
 
   await prisma.conversation.update({
     where: { id: conversationId },
-    data: { updatedAt: new Date() },
+    data: {
+      updatedAt: new Date(),
+      // Un humano escribió: el bot deja de responder esta conversación.
+      // Además, si nadie estaba asignado, el agente que escribió queda asignado.
+      ...(direction === "outbound"
+        ? { humanTakeover: true, ...(agentId && !conv.assignedAgentId ? { assignedAgentId: agentId } : {}) }
+        : {}),
+    },
   });
 
   // Reprogramar follow-ups a partir de esta actividad
@@ -95,7 +102,8 @@ export async function sendMessage(conversationId: string, content: string, direc
 export async function assignAgent(conversationId: string, agentId: string) {
   return prisma.conversation.update({
     where: { id: conversationId },
-    data: { assignedAgentId: agentId, status: "active" },
+    // Transferir a un humano frena el bot (humanTakeover) aunque el botId siga puesto
+    data: { assignedAgentId: agentId, status: "active", humanTakeover: true },
     include: { assignedAgent: true },
   });
 }
@@ -103,7 +111,9 @@ export async function assignAgent(conversationId: string, agentId: string) {
 export async function updateStatus(conversationId: string, status: string) {
   return prisma.conversation.update({
     where: { id: conversationId },
-    data: { status },
+    // "active" reactiva el bot: es la forma de devolverle la conversación.
+    // "closed" también libera el takeover (el próximo inbound crea conversación nueva).
+    data: { status, ...(status === "active" || status === "closed" ? { humanTakeover: false } : {}) },
   });
 }
 

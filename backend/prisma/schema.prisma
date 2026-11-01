@@ -113,7 +113,7 @@ model Setting {
 
 // ════════════════════════════════════════════════════════════
 // BOTS Y FLOW
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 
 model Bot {
   id           String   @id @default(uuid())
@@ -363,6 +363,8 @@ model Conversation {
 model Message {
   id             String   @id @default(uuid())
   conversationId String
+  /// ID del mensaje en Meta (wamid.*) — dedup de webhooks reintentados
+  externalId     String?  @unique
   direction      String
   type           String   @default("text") // text, image, audio, video, document, voice, sticker, location
   content        String
@@ -793,7 +795,7 @@ model SalesPlaybook {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org    Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
+  org         Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
   abTests PlaybookABTest[] @relation("PlaybookA")
   abTestsB PlaybookABTest[] @relation("PlaybookB")

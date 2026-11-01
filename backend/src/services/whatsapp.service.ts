@@ -37,6 +37,16 @@ export async function processIncomingMessage(data: any) {
     for (const msg of messages) {
       const phone = msg.from;
 
+      // Dedup: Meta reintenta el webhook si el ACK tarda; el wamid es único
+      // por mensaje, así que si ya lo procesamos se ignora silenciosamente.
+      if (msg.id) {
+        const dup = await prisma.message.findFirst({ where: { externalId: msg.id }, select: { id: true } });
+        if (dup) {
+          console.log(`[WEBHOOK] Duplicado ignorado: ${msg.id}`);
+          continue;
+        }
+      }
+
       // Extract media info if present
       const media = mediaService.extractMediaFromPayload(msg);
       const text = msg.text?.body || media?.caption || (media ? `[${media.type}]` : "");
@@ -127,6 +137,7 @@ export async function processIncomingMessage(data: any) {
         data: {
           conversationId: conversation.id,
           direction: "inbound",
+          externalId: msg.id || null,
           type: media?.type || "text",
           content: text,
           mediaUrl: savedMedia?.url,

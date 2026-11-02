@@ -601,15 +601,26 @@ function AISettings() {
   const [testConfigId, setTestConfigId] = useState("");
   const [testLoading, setTestLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => { fetchConfigs(); }, []);
 
   async function fetchConfigs() {
-    try { const { data }: any = await api.get("/api/ai"); setConfigs(data.configs || []); } catch {}
+    try {
+      const { data }: any = await api.get("/api/ai");
+      const list = data.configs || [];
+      setConfigs(list);
+      // Preseleccionar la config default en el panel de prueba
+      if (!testConfigId) {
+        const def = list.find((c: any) => c.isDefault) || list[0];
+        if (def) setTestConfigId(def.id);
+      }
+    } catch {}
   }
 
   async function handleSave() {
     setSaving(true);
+    setFeedback(null);
     try {
       if (editingId) {
         await api.put(`/api/ai/${editingId}`, form);
@@ -618,8 +629,11 @@ function AISettings() {
       }
       setForm({ name: "", provider: "openrouter", apiKey: "", model: "", endpoint: "https://openrouter.ai/api/v1" });
       setEditingId(null);
+      setFeedback({ ok: true, text: "✓ Configuración guardada. Ya aparece en la lista de abajo." });
       fetchConfigs();
-    } catch (e: any) { alert(e.response?.data?.error || "Error al guardar"); }
+    } catch (e: any) {
+      setFeedback({ ok: false, text: "Error: " + (e.response?.data?.error || e.message) });
+    }
     finally { setSaving(false); }
   }
 
@@ -716,12 +730,22 @@ function AISettings() {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
             <button onClick={handleSave} disabled={saving || !form.name || !form.apiKey || !form.model} className="btn-primary disabled:opacity-50">
               <Save size={16} /> {saving ? "Guardando..." : editingId ? "Actualizar" : "Crear"}
             </button>
             {editingId && <button onClick={() => { setForm({ name: "", provider: "deepseek", apiKey: "", model: "", endpoint: "" }); setEditingId(null); }} className="btn-secondary">Cancelar</button>}
           </div>
+          {(!form.name || !form.apiKey || !form.model) && (
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Para guardar completá: {!form.name && <b>nombre</b>}{!form.name && (!form.apiKey || !form.model) && ", "}{!form.apiKey && <b>API key</b>}{!form.apiKey && !form.model && ", "}{!form.model && <b>modelo</b>} — sin eso el botón queda deshabilitado.
+            </p>
+          )}
+          {feedback && (
+            <p className="text-sm p-2 rounded" style={{ color: feedback.ok ? "var(--success)" : "var(--danger)", background: "var(--bg-muted)" }}>
+              {feedback.text}
+            </p>
+          )}
         </div>
       </div>
 
@@ -753,6 +777,11 @@ function AISettings() {
 
       <div className="card mt-6">
         <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Probar IA</h3>
+        {configs.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+            Primero creá una configuración arriba (nombre + API key + modelo). Recién después podés probarla acá.
+          </p>
+        ) : (
         <div className="space-y-3">
           <div>
             <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Config</label>
@@ -764,17 +793,23 @@ function AISettings() {
           </div>
           <div>
             <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Mensaje</label>
-            <textarea value={testMsg} onChange={(e) => setTestMsg(e.target.value)} rows={3} className="input" placeholder="Escribi un mensaje..." />
+            <textarea value={testMsg} onChange={(e) => setTestMsg(e.target.value)} rows={3} className="input" placeholder="Escribi un mensaje, ej: Hola, ¿qué horario tienen?" />
           </div>
           <button onClick={handleTest} disabled={testLoading || !testConfigId || !testMsg} className="btn-primary disabled:opacity-50">
             {testLoading ? "Generando..." : "Probar"}
           </button>
+          {(!testConfigId || !testMsg) && (
+            <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              Elegí una config y escribí un mensaje para habilitar el botón Probar.
+            </p>
+          )}
           {testResult && (
             <div className="p-3 rounded-lg mt-2" style={{ background: "var(--bg-muted)" }}>
               <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-primary)" }}>{testResult}</p>
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
@@ -1088,175 +1123,175 @@ function CustomFieldsSettings() {
                   <span className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>{f.label}</span>
                   <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{f.key} ({f.type}){f.required ? " - Requerido" : ""}</p>
                 </div>
-                  <button onClick={() => handleDelete(f.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: "var(--danger)" }}><Trash2 size={12} /></button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <button onClick={() => handleDelete(f.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: "var(--danger)" }}><Trash2 size={12} /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function WebhookSettings() {
+  const { t, i18n } = useTranslation();
+  const [config, setConfig] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [selectedActions, setSelectedActions] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  const baseUrl = window.location.origin;
+
+  const actions = [
+    { key: "create_contact", label: t("settings.webhooks.actions.create_contact") },
+    { key: "update_contact", label: t("settings.webhooks.actions.update_contact") },
+    { key: "create_deal", label: t("settings.webhooks.actions.create_deal") },
+    { key: "move_deal", label: t("settings.webhooks.actions.move_deal") },
+    { key: "add_score", label: t("settings.webhooks.actions.add_score") },
+    { key: "send_template", label: t("settings.webhooks.actions.send_template") },
+    { key: "add_note", label: t("settings.webhooks.actions.add_note") },
+    { key: "add_tags", label: t("settings.webhooks.actions.add_tags") },
+  ];
+
+  useEffect(() => { fetchConfig(); }, []);
+
+  async function fetchConfig() {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/api/webhooks/config");
+      setConfig(data);
+      if (data.allowedActions) setSelectedActions(data.allowedActions);
+    } catch {} finally { setLoading(false); }
+  }
+
+  async function handleToggle() {
+    setSaving(true);
+    try {
+      await api.put("/api/webhooks/config", { isEnabled: !config.isEnabled });
+      fetchConfig();
+    } finally { setSaving(false); }
+  }
+
+  async function handleSaveActions() {
+    setSaving(true);
+    try {
+      await api.put("/api/webhooks/config", { allowedActions: selectedActions });
+      fetchConfig();
+    } finally { setSaving(false); }
+  }
+
+  async function handleRegenerate() {
+    if (!confirm("Esto invalidara el secret actual. Continuar?")) return;
+    setSaving(true);
+    try {
+      const { data } = await api.post("/api/webhooks/regenerate-secret");
+      setNewSecret(data.secret);
+      fetchConfig();
+    } finally { setSaving(false); }
+  }
+
+  function toggleAction(key: string) {
+    setSelectedActions((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
   }
 
-  function WebhookSettings() {
-    const { t, i18n } = useTranslation();
-    const [config, setConfig] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [newSecret, setNewSecret] = useState<string | null>(null);
-    const [selectedActions, setSelectedActions] = useState<string[]>([]);
-    const [copied, setCopied] = useState(false);
-
-    const baseUrl = window.location.origin;
-
-    const actions = [
-      { key: "create_contact", label: t("settings.webhooks.actions.create_contact") },
-      { key: "update_contact", label: t("settings.webhooks.actions.update_contact") },
-      { key: "create_deal", label: t("settings.webhooks.actions.create_deal") },
-      { key: "move_deal", label: t("settings.webhooks.actions.move_deal") },
-      { key: "add_score", label: t("settings.webhooks.actions.add_score") },
-      { key: "send_template", label: t("settings.webhooks.actions.send_template") },
-      { key: "add_note", label: t("settings.webhooks.actions.add_note") },
-      { key: "add_tags", label: t("settings.webhooks.actions.add_tags") },
-    ];
-
-    useEffect(() => { fetchConfig(); }, []);
-
-    async function fetchConfig() {
-      setLoading(true);
-      try {
-        const { data } = await api.get("/api/webhooks/config");
-        setConfig(data);
-        if (data.allowedActions) setSelectedActions(data.allowedActions);
-      } catch {} finally { setLoading(false); }
-    }
-
-    async function handleToggle() {
-      setSaving(true);
-      try {
-        await api.put("/api/webhooks/config", { isEnabled: !config.isEnabled });
-        fetchConfig();
-      } finally { setSaving(false); }
-    }
-
-    async function handleSaveActions() {
-      setSaving(true);
-      try {
-        await api.put("/api/webhooks/config", { allowedActions: selectedActions });
-        fetchConfig();
-      } finally { setSaving(false); }
-    }
-
-    async function handleRegenerate() {
-      if (!confirm("Esto invalidara el secret actual. Continuar?")) return;
-      setSaving(true);
-      try {
-        const { data } = await api.post("/api/webhooks/regenerate-secret");
-        setNewSecret(data.secret);
-        fetchConfig();
-      } finally { setSaving(false); }
-    }
-
-    function toggleAction(key: string) {
-      setSelectedActions((prev) =>
-        prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      );
-    }
-
-    return (
-      <div className="max-w-2xl">
-        {loading ? (
-          <div className="card"><p className="text-sm" style={{ color: "var(--text-tertiary)" }}>{t("common.loading")}</p></div>
-        ) : (
-          <>
-            <div className="card mb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Webhook size={24} style={{ color: config?.isEnabled ? "var(--accent)" : "var(--text-tertiary)" }} />
-                  <div>
-                    <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-                      {config?.configured ? t("settings.webhooks.configured") : t("settings.webhooks.not_configured")}
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                      {config?.isEnabled ? t("settings.webhooks.active") : t("settings.webhooks.disabled")}
-                      {config?.lastTriggered && ` · ${t("settings.webhooks.last_trigger")}: ${new Date(config.lastTriggered).toLocaleString(i18n.language === "pt-BR" ? "pt-BR" : "es")}`}
-                      {(config?.triggerCount > 0) && ` · ${config.triggerCount} ${t("settings.webhooks.triggers")}`}
-                    </p>
-                  </div>
+  return (
+    <div className="max-w-2xl">
+      {loading ? (
+        <div className="card"><p className="text-sm" style={{ color: "var(--text-tertiary)" }}>{t("common.loading")}</p></div>
+      ) : (
+        <>
+          <div className="card mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Webhook size={24} style={{ color: config?.isEnabled ? "var(--accent)" : "var(--text-tertiary)" }} />
+                <div>
+                  <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+                    {config?.configured ? t("settings.webhooks.configured") : t("settings.webhooks.not_configured")}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                    {config?.isEnabled ? t("settings.webhooks.active") : t("settings.webhooks.disabled")}
+                    {config?.lastTriggered && ` · ${t("settings.webhooks.last_trigger")}: ${new Date(config.lastTriggered).toLocaleString(i18n.language === "pt-BR" ? "pt-BR" : "es")}`}
+                    {(config?.triggerCount > 0) && ` · ${config.triggerCount} ${t("settings.webhooks.triggers")}`}
+                  </p>
                 </div>
-                {config?.configured && (
-                  <button onClick={handleToggle} disabled={saving}
-                    className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
-                    {config.isEnabled ? <><PowerOff size={14} />{t("settings.webhooks.deactivate")}</> : <><Power size={14} />{t("settings.webhooks.activate")}</>}
-                  </button>
-                )}
               </div>
-            </div>
-
-            <div className="card mb-6">
-              <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>{t("settings.webhooks.secret_key")}</h3>
-              {newSecret ? (
-                <div className="p-4 rounded-lg mb-4" style={{ border: "2px solid var(--accent)", background: "var(--accent-muted)" }}>
-                  <p className="text-sm font-semibold mb-1" style={{ color: "var(--accent)" }}>{t("settings.webhooks.new_secret")}</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 p-2 rounded text-[11px] break-all" style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}>{newSecret}</code>
-                    <button onClick={() => { navigator.clipboard.writeText(newSecret); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-                      className="btn-secondary px-2 py-1.5">
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                    </button>
-                  </div>
-                  <p className="text-xs mt-2" style={{ color: "var(--warning)" }}>{t("settings.webhooks.secret_warning")}</p>
-                </div>
-              ) : config?.configured ? (
-                <div className="flex gap-2 mb-4">
-                  <button onClick={handleRegenerate} disabled={saving}
-                    className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
-                    <RefreshCw size={14} /> {saving ? t("settings.webhooks.generating") : t("settings.webhooks.regenerate")}
-                  </button>
-                </div>
-              ) : (
-                <button onClick={handleRegenerate} disabled={saving}
-                  className="btn-primary text-sm disabled:opacity-50 flex items-center gap-1.5">
-                  <Plus size={16} /> {t("settings.webhooks.generate")}
+              {config?.configured && (
+                <button onClick={handleToggle} disabled={saving}
+                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                  {config.isEnabled ? <><PowerOff size={14} />{t("settings.webhooks.deactivate")}</> : <><Power size={14} />{t("settings.webhooks.activate")}</>}
                 </button>
               )}
             </div>
+          </div>
 
-            {config?.configured && (
-              <div className="card mb-6">
-                <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>{t("settings.webhooks.allowed_actions")}</h3>
-                <div className="space-y-2 mb-4">
-                  {actions.map((a) => (
-                    <label key={a.key} className="flex items-center gap-2 p-2 rounded cursor-pointer" style={{ background: "var(--bg-muted)" }}>
-                      <input type="checkbox" checked={selectedActions.includes(a.key)} onChange={() => toggleAction(a.key)} />
-                      <span className="text-sm" style={{ color: "var(--text-primary)" }}>{a.label}</span>
-                      <code className="text-xs ml-auto" style={{ color: "var(--text-tertiary)" }}>{a.key}</code>
-                    </label>
-                  ))}
+          <div className="card mb-6">
+            <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>{t("settings.webhooks.secret_key")}</h3>
+            {newSecret ? (
+              <div className="p-4 rounded-lg mb-4" style={{ border: "2px solid var(--accent)", background: "var(--accent-muted)" }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: "var(--accent)" }}>{t("settings.webhooks.new_secret")}</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 p-2 rounded text-[11px] break-all" style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}>{newSecret}</code>
+                  <button onClick={() => { navigator.clipboard.writeText(newSecret); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                    className="btn-secondary px-2 py-1.5">
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                  </button>
                 </div>
-                <button onClick={handleSaveActions} disabled={saving || selectedActions.length === 0}
-                  className="btn-primary disabled:opacity-50">
-                  <Save size={16} /> {t("common.save")} {t("common.actions")}
+                <p className="text-xs mt-2" style={{ color: "var(--warning)" }}>{t("settings.webhooks.secret_warning")}</p>
+              </div>
+            ) : config?.configured ? (
+              <div className="flex gap-2 mb-4">
+                <button onClick={handleRegenerate} disabled={saving}
+                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                  <RefreshCw size={14} /> {saving ? t("settings.webhooks.generating") : t("settings.webhooks.regenerate")}
                 </button>
               </div>
+            ) : (
+              <button onClick={handleRegenerate} disabled={saving}
+                className="btn-primary text-sm disabled:opacity-50 flex items-center gap-1.5">
+                <Plus size={16} /> {t("settings.webhooks.generate")}
+              </button>
             )}
+          </div>
 
-            <div className="card">
-              <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>{t("settings.webhooks.how_to")}</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("settings.webhooks.url_label")}</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 p-2 rounded text-[11px] break-all" style={{ background: "var(--bg-muted)", color: "var(--text-primary)" }}>
-                      {baseUrl}/api/webhooks/trigger
-                    </code>
-                    <button onClick={() => { navigator.clipboard.writeText(`${baseUrl}/api/webhooks/trigger`); }}
-                      className="btn-secondary px-2 py-1.5"><Copy size={14} /></button>
-                  </div>
+          {config?.configured && (
+            <div className="card mb-6">
+              <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>{t("settings.webhooks.allowed_actions")}</h3>
+              <div className="space-y-2 mb-4">
+                {actions.map((a) => (
+                  <label key={a.key} className="flex items-center gap-2 p-2 rounded cursor-pointer" style={{ background: "var(--bg-muted)" }}>
+                    <input type="checkbox" checked={selectedActions.includes(a.key)} onChange={() => toggleAction(a.key)} />
+                    <span className="text-sm" style={{ color: "var(--text-primary)" }}>{a.label}</span>
+                    <code className="text-xs ml-auto" style={{ color: "var(--text-tertiary)" }}>{a.key}</code>
+                  </label>
+                ))}
+              </div>
+              <button onClick={handleSaveActions} disabled={saving || selectedActions.length === 0}
+                className="btn-primary disabled:opacity-50">
+                <Save size={16} /> {t("common.save")} {t("common.actions")}
+              </button>
+            </div>
+          )}
+
+          <div className="card">
+            <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>{t("settings.webhooks.how_to")}</h3>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("settings.webhooks.url_label")}</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 p-2 rounded text-[11px] break-all" style={{ background: "var(--bg-muted)", color: "var(--text-primary)" }}>
+                    {baseUrl}/api/webhooks/trigger
+                  </code>
+                  <button onClick={() => { navigator.clipboard.writeText(`${baseUrl}/api/webhooks/trigger`); }}
+                    className="btn-secondary px-2 py-1.5"><Copy size={14} /></button>
                 </div>
-                <div>
-                  <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("settings.webhooks.body_format")}</p>
-                  <pre className="p-3 rounded text-[11px] leading-relaxed overflow-x-auto" style={{ background: "var(--bg-muted)", color: "var(--text-primary)" }}>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("settings.webhooks.body_format")}</p>
+                <pre className="p-3 rounded text-[11px] leading-relaxed overflow-x-auto" style={{ background: "var(--bg-muted)", color: "var(--text-primary)" }}>
 {`{
   "orgId": "TU_ORG_ID",
   "secret": "wh_...",
@@ -1268,21 +1303,21 @@ function CustomFieldsSettings() {
     "priority": "HIGH"
   }
 }`}
-                  </pre>
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("settings.webhooks.n8n_step")}</p>
-                  <ul className="text-xs space-y-1" style={{ color: "var(--text-tertiary)" }}>
-                    <li>Method: POST</li>
-                    <li>URL: {baseUrl}/api/webhooks/trigger</li>
-                    <li>Headers: Content-Type: application/json</li>
-                    <li>Body: JSON con orgId, secret, action, payload</li>
-                  </ul>
-                </div>
+                </pre>
+              </div>
+              <div>
+                <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("settings.webhooks.n8n_step")}</p>
+                <ul className="text-xs space-y-1" style={{ color: "var(--text-tertiary)" }}>
+                  <li>Method: POST</li>
+                  <li>URL: {baseUrl}/api/webhooks/trigger</li>
+                  <li>Headers: Content-Type: application/json</li>
+                  <li>Body: JSON con orgId, secret, action, payload</li>
+                </ul>
               </div>
             </div>
-          </>
-        )}
-      </div>
-    );
-  }
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

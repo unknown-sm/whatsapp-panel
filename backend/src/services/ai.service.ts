@@ -38,15 +38,11 @@ export async function createAIConfig(data: any) {
     endpoint: z.string().optional(),
   }).parse(data);
 
-  // If setting as default, unset others
-  if (["openai", "anthropic", "nvidia"].includes(parsed.provider)) {
-    await prisma.aIConfig.updateMany({
-      where: { provider: parsed.provider, isDefault: true },
-      data: { isDefault: false },
-    });
-  }
-
-  return prisma.aIConfig.create({ data: { ...parsed, apiKey: encrypt(parsed.apiKey), isDefault: true } });
+  // Solo la primera config queda default automaticamente; las demas se
+  // marcan default a mano desde la UI. Antes toda config nueva pisaba el
+  // flag y quedaban varias configs "default" a la vez.
+  const count = await prisma.aIConfig.count();
+  return prisma.aIConfig.create({ data: { ...parsed, apiKey: encrypt(parsed.apiKey), isDefault: count === 0 } });
 }
 
 const UPDATABLE_FIELDS = ["name", "provider", "apiKey", "model", "endpoint", "isDefault", "isActive"] as const;
@@ -74,7 +70,7 @@ export async function setDefault(id: string) {
   if (!config) throw new Error("Config not found");
 
   await prisma.aIConfig.updateMany({
-    where: { provider: config.provider, isDefault: true },
+    where: { isDefault: true },
     data: { isDefault: false },
   });
 

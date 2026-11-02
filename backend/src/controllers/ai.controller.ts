@@ -6,15 +6,23 @@ import { z } from "zod";
 export async function listConfigs(req: Request, res: Response) {
   try {
     const configs = await aiService.getAIConfigs();
-    // Never return stored keys: show masked last 4 chars only
-    const masked = configs.map((c) => ({
-      ...c,
-      apiKey: c.apiKey
-        ? aiService.maskApiKey(isEncrypted(c.apiKey) ? decrypt(c.apiKey) : c.apiKey)
-        : "",
-    }));
+    // Never return stored keys: show masked last 4 chars only.
+    // A single row with an undecryptable key must not break the whole list.
+    const masked = configs.map((c) => {
+      let apiKey = "";
+      try {
+        apiKey = c.apiKey
+          ? aiService.maskApiKey(isEncrypted(c.apiKey) ? decrypt(c.apiKey) : c.apiKey)
+          : "";
+      } catch (err) {
+        console.error(`[ai] No se pudo desencriptar apiKey de config ${c.id}:`, err);
+        apiKey = "****";
+      }
+      return { ...c, apiKey };
+    });
     res.json({ configs: masked });
-  } catch {
+  } catch (err) {
+    console.error("[ai] Error al obtener configs:", err);
     res.status(500).json({ error: "Error al obtener configs" });
   }
 }

@@ -117,8 +117,8 @@ export default function FollowUp() {
               </select>
             </div>
             <div>
-              <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Horas de inactividad</label>
-              <input type="number" value={newRule.delayHours} onChange={(e) => setNewRule({ ...newRule, delayHours: parseInt(e.target.value) })} className="input" min="1" />
+              <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Horas de inactividad (0.05 = 3 min, para pruebas)</label>
+              <input type="number" value={newRule.delayHours} onChange={(e) => setNewRule({ ...newRule, delayHours: parseFloat(e.target.value) || 0.05 })} className="input" min="0.017" step="0.05" />
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Max intentos</label>

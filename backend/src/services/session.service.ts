@@ -139,10 +139,21 @@ export async function canSendFreeForm(contactId: string): Promise<{
   const fepActive = !!window.freeEntryPointUntil && window.freeEntryPointUntil > now;
 
   if (!window.isOpen || window.windowExpiresAt < now) {
+    // Free Entry Point (mensaje desde anuncio CTWA): Meta permite texto libre
+    // y sin cargo durante 72h aunque la ventana de servicio de 24h ya cerró.
+    if (fepActive) {
+      return {
+        allowed: true,
+        reason: "free_entry_point",
+        expiresAt: window.freeEntryPointUntil!,
+        freeEntryPointActive: true,
+        freeEntryPointUntil: window.freeEntryPointUntil!,
+      };
+    }
     return {
       allowed: false,
       reason: "window_closed",
-      freeEntryPointActive: fepActive,
+      freeEntryPointActive: false,
       freeEntryPointUntil: window.freeEntryPointUntil ?? undefined,
     };
   }

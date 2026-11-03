@@ -96,12 +96,10 @@ export default function Conversations() {
   }, [messages]);
 
   useEffect(() => {
-    if (selectedConv && messages.length > 0) {
-      fetchSuggestions();
-    } else {
-      setSuggestions([]);
-    }
-  }, [selectedConv?.id, messages.length]);
+    // Las sugerencias ya no se generan solas (cada llamada gasta tokens):
+    // se limpian al cambiar de conversacion y solo se generan con el boton.
+    setSuggestions([]);
+  }, [selectedConv?.id]);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(showContactPanel)); } catch {}
@@ -374,33 +372,42 @@ export default function Conversations() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* ── AI Suggestions panel ──────────────────── */}
-            {(loadingSuggestions || suggestions.length > 0) && (
-              <div className="px-4 py-3 border-t border-border bg-atlas-subtle">
-                <div className="flex items-center gap-1.5 mb-2">
+            {/* ── AI Suggestions panel (on demand) ──────────── */}
+            <div className="px-4 py-3 border-t border-border bg-atlas-subtle">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
                   <Sparkles size={12} className="text-brand-text" />
                   <span className="section-label">Respuestas sugeridas</span>
                 </div>
-                {loadingSuggestions ? (
-                  <div className="flex gap-2">
-                    {[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 flex-1" />)}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {suggestions.map((s) => (
-                      <button key={s.id} onClick={() => sendMessage(s.text)}
-                        className="text-left p-2.5 rounded-md border border-border bg-background hover:border-brand hover:bg-brand-tint transition-all group">
-                        <p className="text-[12px] text-ink leading-relaxed line-clamp-3">{s.text}</p>
-                        <div className="flex items-center justify-between mt-1.5">
-                          <span className="text-[10px] text-ink-3 uppercase tracking-wide">{s.tone}</span>
-                          <ArrowRight size={11} className="text-ink-3 group-hover:text-brand-text transition-colors" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <button
+                  onClick={fetchSuggestions}
+                  disabled={loadingSuggestions}
+                  className="text-[11px] px-2.5 py-1 rounded-md border border-border bg-background hover:border-brand hover:text-brand-text transition-colors disabled:opacity-50"
+                >
+                  {loadingSuggestions ? "Generando..." : suggestions.length > 0 ? "Regenerar" : "Sugerir respuestas"}
+                </button>
               </div>
-            )}
+              {loadingSuggestions ? (
+                <div className="flex gap-2">
+                  {[0, 1, 2].map((i) => <div key={i} className="skeleton h-16 flex-1" />)}
+                </div>
+              ) : suggestions.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {suggestions.map((s) => (
+                    <button key={s.id} onClick={() => sendMessage(s.text)}
+                      className="text-left p-2.5 rounded-md border border-border bg-background hover:border-brand hover:bg-brand-tint transition-all group">
+                      <p className="text-[12px] text-ink leading-relaxed line-clamp-3">{s.text}</p>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[10px] text-ink-3 uppercase tracking-wide">{s.tone}</span>
+                        <ArrowRight size={11} className="text-ink-3 group-hover:text-brand-text transition-colors" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-ink-3">Tocá "Sugerir respuestas" para generar 3 opciones con IA (usa tokens).</p>
+              )}
+            </div>
 
             {/* ── Composer (with 24h enforcement) ──────────── */}
             {selectedConv.windowOpen === false ? (

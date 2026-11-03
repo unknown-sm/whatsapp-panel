@@ -418,6 +418,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/bots", botRoutes);
 app.use("/api/bots", flowRoutes);
 app.use("/api/bots/:botId/knowledge", knowledgeRoutes);
+// Conocimiento global (botId null): compartido por todos los bots
+app.use("/api/knowledge", knowledgeRoutes);
 app.use("/webhook", whatsappRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/followup", followupRoutes);

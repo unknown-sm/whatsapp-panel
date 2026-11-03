@@ -113,7 +113,7 @@ model Setting {
 
 // ════════════════════════════════════════════════════════════
 // BOTS Y FLOW
-// ════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 
 model Bot {
   id           String   @id @default(uuid())
@@ -138,7 +138,8 @@ model Bot {
 
 model BotKnowledge {
   id        String   @id @default(uuid())
-  botId     String
+  // botId null = conocimiento global, compartido por todos los bots
+  botId     String?
   filename  String
   mimeType  String
   content   String
@@ -146,7 +147,7 @@ model BotKnowledge {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  bot       Bot?     @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@index([botId])
 }
@@ -798,7 +799,7 @@ model SalesPlaybook {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org         Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
+  org    Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
   abTests PlaybookABTest[] @relation("PlaybookA")
   abTestsB PlaybookABTest[] @relation("PlaybookB")

@@ -3,14 +3,17 @@ import path from "path";
 import fs from "fs/promises";
 import pdfParse from "pdf-parse";
 
-export async function getBotKnowledge(botId: string) {
+// botId null = conocimiento global (todos los bots lo comparten)
+
+export async function getBotKnowledge(botId: string | null) {
+  // Lista el conocimiento del bot + el global, para que el editor muestre todo
   return prisma.botKnowledge.findMany({
-    where: { botId },
+    where: botId ? { OR: [{ botId }, { botId: null }] } : { botId: null },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function addKnowledge(botId: string, file: Express.Multer.File) {
+export async function addKnowledge(botId: string | null, file: Express.Multer.File) {
   const content = await extractText(file);
   return prisma.botKnowledge.create({
     data: {
@@ -23,13 +26,43 @@ export async function addKnowledge(botId: string, file: Express.Multer.File) {
   });
 }
 
+/** Importa una pagina web como conocimiento: baja el HTML y extrae el texto. */
+export async function addKnowledgeFromUrl(botId: string | null, url: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+  } catch {
+    throw new Error("URL invalida");
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("URL invalida");
+
+  const res = await fetch(parsed.toString(), {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; SeivaCRM-Bot/1.0)" },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`La pagina respondio ${res.status}`);
+  const html = await res.text();
+  const text = htmlToText(html);
+  if (text.length < 50) throw new Error("No se pudo extraer texto util de la pagina");
+
+  return prisma.botKnowledge.create({
+    data: {
+      botId,
+      filename: parsed.hostname + (parsed.pathname === "/" ? "" : parsed.pathname),
+      mimeType: "text/html",
+      content: text.slice(0, 50000),
+      size: Buffer.byteLength(text, "utf8"),
+    },
+  });
+}
+
 export async function deleteKnowledge(id: string) {
   return prisma.botKnowledge.delete({ where: { id } });
 }
 
-export async function getKnowledgeContent(botId: string): Promise<string> {
+export async function getKnowledgeContent(botId?: string | null): Promise<string> {
   const entries = await prisma.botKnowledge.findMany({
-    where: { botId },
+    where: botId ? { OR: [{ botId: null }, { botId }] } : { botId: null },
     orderBy: { createdAt: "desc" },
   });
   if (entries.length === 0) return "";
@@ -59,4 +92,30 @@ async function extractText(file: Express.Multer.File): Promise<string> {
     console.error("Error extracting text from", file.originalname, e);
     return file.buffer.toString("utf-8").slice(0, 50000);
   }
+}
+
+/** HTML -> texto plano: saca scripts/estilos/tags y colapsa espacios. */
+function htmlToText(html: string): string {
+  let t = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<\/(p|div|section|article|h[1-6]|li|tr|br|header|footer|nav)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+  t = t
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
+  return t
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+/g, " ").trim())
+    .filter((l) => l.length > 0)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

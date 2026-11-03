@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { listKnowledge, uploadKnowledge, deleteKnowledge } from "../controllers/knowledge.controller";
+import { listKnowledge, uploadKnowledge, importUrlKnowledge, deleteKnowledge } from "../controllers/knowledge.controller";
 import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
@@ -19,6 +19,7 @@ const upload = multer({
 
 router.get("/", listKnowledge);
 router.post("/", upload.single("file"), uploadKnowledge);
+router.post("/url", importUrlKnowledge);
 router.delete("/:id", deleteKnowledge);
 
 export default router;

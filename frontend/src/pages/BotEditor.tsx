@@ -55,6 +55,10 @@ export default function BotEditor() {
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [knowledgeGlobal, setKnowledgeGlobal] = useState(true);
+  const [knowledgeUrl, setKnowledgeUrl] = useState("");
+  const [importingUrl, setImportingUrl] = useState(false);
+  const [knowledgeError, setKnowledgeError] = useState("");
   const [aiConfigs, setAiConfigs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -85,16 +89,35 @@ export default function BotEditor() {
     const file = e.target.files?.[0];
     if (!file || !id) return;
     setUploading(true);
+    setKnowledgeError("");
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const { data } = await api.post(`/api/bots/${id}/knowledge`, formData, {
+      const base = knowledgeGlobal ? "/api/knowledge" : `/api/bots/${id}/knowledge`;
+      const { data } = await api.post(base, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setKnowledge([data.entry, ...knowledge]);
     } finally {
       setUploading(false);
       e.target.value = "";
+    }
+  }
+
+  async function handleImportUrl() {
+    const url = knowledgeUrl.trim();
+    if (!url || !id) return;
+    setImportingUrl(true);
+    setKnowledgeError("");
+    try {
+      const base = knowledgeGlobal ? "/api/knowledge" : `/api/bots/${id}/knowledge`;
+      const { data } = await api.post(`${base}/url`, { url });
+      setKnowledge([data.entry, ...knowledge]);
+      setKnowledgeUrl("");
+    } catch (err: any) {
+      setKnowledgeError(err.response?.data?.error || "No se pudo importar la pagina");
+    } finally {
+      setImportingUrl(false);
     }
   }
 
@@ -260,6 +283,9 @@ export default function BotEditor() {
               <div key={k.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5" style={{ background: "var(--bg-elevated)" }}>
                 <File size={12} style={{ color: "var(--text-tertiary)" }} />
                 <span className="text-xs flex-1 truncate" style={{ color: "var(--text-primary)" }}>{k.filename}</span>
+                {!k.botId && (
+                  <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: "var(--accent-muted)", color: "var(--accent)" }}>todos</span>
+                )}
                 <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
                   {(k.size / 1024).toFixed(0)}KB
                 </span>
@@ -269,6 +295,27 @@ export default function BotEditor() {
               </div>
             ))}
           </div>
+
+          <label className="flex items-center gap-2 mb-3 text-xs cursor-pointer select-none" style={{ color: "var(--text-secondary)" }}>
+            <input type="checkbox" checked={knowledgeGlobal} onChange={(e) => setKnowledgeGlobal(e.target.checked)} />
+            Compartir con todos los bots (precios, productos, reglas del negocio)
+          </label>
+
+          <div className="flex gap-1.5 mb-2">
+            <input
+              value={knowledgeUrl}
+              onChange={(e) => setKnowledgeUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleImportUrl()}
+              placeholder="https://tuweb.com"
+              className="input flex-1 text-xs !py-1.5"
+              disabled={importingUrl}
+            />
+            <button onClick={handleImportUrl} disabled={importingUrl || !knowledgeUrl.trim()} className="btn-secondary text-xs px-2.5 disabled:opacity-50">
+              <Globe size={12} /> {importingUrl ? "..." : "Importar"}
+            </button>
+          </div>
+          {knowledgeError && <p className="text-[10px] mb-2" style={{ color: "var(--danger)" }}>{knowledgeError}</p>}
+
           <label className="flex items-center gap-2 btn-secondary text-xs py-1.5 cursor-pointer w-full justify-center">
             <Upload size={14} />
             {uploading ? "Subiendo..." : "Subir archivo"}
@@ -280,7 +327,7 @@ export default function BotEditor() {
               onChange={handleUploadKnowledge}
             />
           </label>
-          <p className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>PDF, DOCX, TXT, MD, CSV, JSON — max 10MB</p>
+          <p className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>PDF, DOCX, TXT, MD, CSV, JSON — max 10MB. La IA usa este conocimiento en todas sus respuestas.</p>
         </div>
 
         <div className="p-4 flex-1">

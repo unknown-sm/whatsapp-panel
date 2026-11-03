@@ -52,3 +52,26 @@ export async function getStats(req: Request, res: Response) {
     res.status(500).json({ error: "Error al obtener estadisticas" });
   }
 }
+
+// Dry-run: que haria el cron ahora mismo (sin enviar nada) y por que,
+// explicado en terminos de las politicas de Meta.
+export async function preview(req: Request, res: Response) {
+  try {
+    const result = await followupService.previewFollowUps(getOrgId(req));
+    res.json(result);
+  } catch (error) {
+    console.error("Follow-up preview error:", error);
+    res.status(500).json({ error: "Error al simular seguimientos" });
+  }
+}
+
+// Ejecuta el ciclo de seguimientos ahora (para testing sin esperar al cron).
+export async function runNow(req: Request, res: Response) {
+  try {
+    await followupService.checkFollowUps();
+    res.json({ message: "Ciclo de seguimientos ejecutado" });
+  } catch (error) {
+    console.error("Follow-up run-now error:", error);
+    res.status(500).json({ error: "Error al ejecutar seguimientos" });
+  }
+}

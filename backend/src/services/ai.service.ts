@@ -10,7 +10,7 @@ const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const OPENCODE_BASE_URL = "https://api.opencode.ai/v1";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
-const MASK_PREFIX = "••••";
+const MASK_PREFIX = "\u2022\u2022\u2022\u2022";
 
 export function maskApiKey(key: string): string {
   if (!key) return "";
@@ -321,7 +321,7 @@ export async function transcribeAudio(configId: string, audioBuffer: Buffer): Pr
   return transcription.text;
 }
 
-/* ── AI Suggest Responses (Inbox 3-columnas) ──────────── */
+/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 export async function suggestResponses(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({
@@ -354,9 +354,8 @@ export async function suggestResponses(conversationId: string) {
   const leadScore = scores._sum.points || 0;
 
   let knowledge = "";
-  if (conversation.bot) {
-    try { knowledge = await getKnowledgeContent(conversation.botId!); } catch {}
-  }
+  // Conocimiento global (botId null) + el del bot de la conversacion, si hay
+  try { knowledge = await getKnowledgeContent(conversation.botId); } catch {}
 
   const messages = conversation.messages.slice(0, 20).reverse();
   const tagList = conversation.contact.tags.map((ct) => ct.tag.name).join(", ") || "ninguna";

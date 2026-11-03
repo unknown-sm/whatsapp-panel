@@ -396,7 +396,7 @@ model FollowUpRule {
   orgId       String?
   botId       String
   stepId      String?
-  delayHours  Int
+  delayHours  Float
   maxAttempts Int      @default(3)
   message     String
   /// Template aprobado a enviar cuando la ventana de 24h ya cerró (opcional)
@@ -799,7 +799,7 @@ model SalesPlaybook {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org    Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
+  org         Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
   abTests PlaybookABTest[] @relation("PlaybookA")
   abTestsB PlaybookABTest[] @relation("PlaybookB")
@@ -985,7 +985,7 @@ model NpsCampaign {
   templateId  String?
   triggerType String    @default("deal_won") // "deal_won", "manual", "scheduled"
   isActive    Boolean   @default(true)
-  delayHours  Int       @default(24)
+  delayHours  Float       @default(24)
   createdAt   DateTime  @default(now())
 
   org        Organization? @relation("OrgNpsCampaigns", fields: [orgId], references: [id], onDelete: Cascade)

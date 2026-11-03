@@ -18,7 +18,8 @@ export async function createFollowUpRule(data: any) {
   const parsed = z.object({
     botId: z.string().uuid(),
     stepId: z.string().uuid().optional(),
-    delayHours: z.number().int().min(1),
+    // Minimo ~1 minuto (0.017h) para permitir reglas de prueba en tiempo real
+    delayHours: z.number().min(0.017),
     maxAttempts: z.number().int().min(1).max(5).default(3),
     message: z.string().min(1),
     templateId: z.string().uuid().optional(),
@@ -129,7 +130,7 @@ export async function checkFollowUps() {
       let content = rule.message;
 
       if (window.allowed) {
-        // Ventana de 24h abierta: texto libre
+        // Ventana de 24h abierta o Free Entry Point de 72h activo: texto libre
         sent = await sendWhatsAppMessage(conv.contact.phone, rule.message);
         if (sent) trackOutbound(conv.contactId).catch(() => {});
       } else if (rule.templateId && conv.orgId) {
@@ -195,4 +196,75 @@ export async function checkFollowUps() {
       console.error(`Follow-up error en conversación ${conv.id}:`, err);
     }
   }
+}
+
+/**
+ * Simulación (dry-run) del cron: NO envía nada. Devuelve, por cada
+ * conversación activa con follow-up vencido o programado, qué haría el
+ * sistema ahora mismo y por qué — para probar en tiempo real contra las
+ * políticas de Meta (ventana 24h, FEP 72h, template requerido).
+ */
+export async function previewFollowUps(orgId?: string) {
+  const now = new Date();
+  const conversations = await prisma.conversation.findMany({
+    where: { status: "active", humanTakeover: false, botId: { not: null }, ...(orgId ? { orgId } : {}) },
+    include: { contact: true, followUpAttempts: true, bot: { select: { name: true } } },
+    take: 50,
+  });
+
+  const items = [];
+  for (const conv of conversations) {
+    const rules = await prisma.followUpRule.findMany({
+      where: { botId: conv.botId!, isActive: true },
+      orderBy: { delayHours: "asc" },
+    });
+    if (rules.length === 0) continue;
+
+    const rule = rules.find((r) => conv.followUpAttempts.filter((a) => a.ruleId === r.id).length < r.maxAttempts);
+    const window = await canSendFreeForm(conv.contactId);
+    const blacklisted = await isBlacklisted(conv.contactId);
+
+    let action: string;
+    let metaPolicy: string;
+    if (blacklisted) {
+      action = "skip_blacklist";
+      metaPolicy = "Contacto en lista negra: no se envía nada.";
+    } else if (!rule) {
+      action = "handoff_waiting_agent";
+      metaPolicy = "Sin intentos disponibles: pasa a agente, no se envía nada.";
+    } else if (window.allowed && window.freeEntryPointActive) {
+      action = "send_freeform_fep";
+      metaPolicy = "Free Entry Point (anuncio CTWA, 72h): texto libre permitido y sin cargo.";
+    } else if (window.allowed) {
+      action = "send_freeform";
+      metaPolicy = "Ventana de servicio de 24h abierta: texto libre permitido.";
+    } else if (rule.templateId) {
+      action = "send_template";
+      metaPolicy = "Ventana 24h cerrada: solo se puede enviar el template aprobado (sin cargo si hay FEP activo).";
+    } else {
+      action = "blocked_window_closed";
+      metaPolicy = "Ventana 24h cerrada y sin template: Meta rechazaría (error 131047), se pasa a agente SIN enviar.";
+    }
+
+    items.push({
+      conversationId: conv.id,
+      contact: { id: conv.contactId, name: conv.contact.name, phone: conv.contact.phone },
+      bot: conv.bot?.name,
+      dueAt: conv.nextFollowUpDueAt,
+      dueNow: !!conv.nextFollowUpDueAt && conv.nextFollowUpDueAt <= now,
+      window: {
+        open: window.allowed,
+        reason: window.reason,
+        expiresAt: window.expiresAt,
+        freeEntryPointActive: window.freeEntryPointActive || false,
+        freeEntryPointUntil: window.freeEntryPointUntil,
+      },
+      rule: rule
+        ? { id: rule.id, delayHours: rule.delayHours, maxAttempts: rule.maxAttempts, attemptsUsed: conv.followUpAttempts.filter((a) => a.ruleId === rule.id).length, hasTemplate: !!rule.templateId }
+        : null,
+      action,
+      metaPolicy,
+    });
+  }
+  return { now, count: items.length, items };
 }

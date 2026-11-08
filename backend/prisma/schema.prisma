@@ -334,7 +334,7 @@ model Tag {
   id        String    @id @default(uuid())
   name      String    @unique
   color     String    @default("#3B82F6")
-  contacts  ContactTags[]
+  contacts ContactTags[]
 }
 
 model ContactNote {
@@ -641,7 +641,7 @@ model BroadcastTemplate {
   orgId       String?
   name        String
   content     String
-  variables   String[] @default([])
+  variables String[] @default([])
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -668,8 +668,7 @@ model Broadcast {
   content        String?
   status         BroadcastStatus @default(DRAFT)
   scheduledAt    DateTime?
-  startedAt      DateTime?
-  completedAt    DateTime?
+  sentAt         DateTime?
   totalCount     Int             @default(0)
   sentCount      Int             @default(0)
   failedCount    Int             @default(0)

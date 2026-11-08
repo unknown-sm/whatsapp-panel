@@ -137,7 +137,72 @@ export async function updateStatus(conversationId: string, status: string) {
 
 export async function addNote(contactId: string, content: string, agentId?: string) {
   return prisma.contactNote.create({
-    where: undefined as any,
-    data: {},
+    data: { contactId, content, agentId },
+    include: { agent: true },
   });
+}
+
+export async function addTag(contactId: string, tagId: string) {
+  return prisma.contactTags.create({ data: { contactId, tagId } });
+}
+
+export async function removeTag(contactId: string, tagId: string) {
+  return prisma.contactTags.delete({ where: { contactId_tagId: { contactId, tagId } } });
+}
+
+export async function getOwnedConversation(id: string, orgId: string) {
+  return prisma.conversation.findFirst({ where: { id, orgId }, select: { id: true, contactId: true } });
+}
+
+export async function getOwnedContact(id: string, orgId: string) {
+  return prisma.contact.findFirst({ where: { id, orgId }, select: { id: true } });
+}
+
+export async function getContacts(search: string | undefined, page: number | undefined, pageSize: number | undefined, orgId: string) {
+  const where: any = { orgId };
+  if (search) {
+    where.OR = [
+      { phone: { contains: search } },
+      { name: { contains: search } },
+    ];
+  }
+
+  const p = Math.max(1, page || 1);
+  const ps = Math.min(100, Math.max(1, pageSize || 50));
+  const skip = (p - 1) * ps;
+
+  const [contacts, total] = await Promise.all([
+    prisma.contact.findMany({
+      where,
+      include: {
+        tags: { include: { tag: true } },
+        _count: { select: { conversations: true } },
+      },
+      orderBy: { lastActivity: "desc" },
+      skip,
+      take: ps,
+    }),
+    prisma.contact.count({ where }),
+  ]);
+
+  return {
+    contacts,
+    pagination: { page: p, pageSize: ps, total, totalPages: Math.ceil(total / ps) },
+  };
+}
+
+export async function exportContacts(orgId: string) {
+  const contacts = await prisma.contact.findMany({
+    where: { orgId },
+    include: { tags: { include: { tag: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return contacts.map((c) => ({
+    phone: c.phone,
+    name: c.name || "",
+    firstContact: c.firstContact.toISOString(),
+    lastActivity: c.lastActivity.toISOString(),
+    tags: c.tags.map((ct) => ct.tag.name).join(", "),
+  }));
 }

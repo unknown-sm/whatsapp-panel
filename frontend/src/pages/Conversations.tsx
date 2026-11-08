@@ -6,7 +6,7 @@ import {
   Check, CheckCheck, X, Clock, ChevronRight,
   AlertCircle, AlertTriangle, UserCheck, ArrowRight, ArrowLeft, Hash, Plus, Loader2,
   FileText, Mic,
-  Paperclip,
+  Paperclip, RotateCcw,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
@@ -158,6 +158,13 @@ export default function Conversations() {
     await api.put(`/api/conversations/${selectedConv.id}/status`, { status });
     setSelectedConv({ ...selectedConv, status });
     fetchData();
+  }
+
+  async function resetBot() {
+    if (!selectedConv) return;
+    await api.post(`/api/conversations/${selectedConv.id}/reset-bot`);
+    fetchData();
+    if (selectedConv) selectConversation(selectedConv);
   }
 
   async function fetchContactCustomFields(contactId: string) {
@@ -334,6 +341,9 @@ export default function Conversations() {
                   <option value="silenced">Silenciada</option>
                   <option value="closed">Cerrada</option>
                 </select>
+                <button onClick={resetBot} className="btn-icon !w-8 !h-8" title="Reiniciar memoria del bot (para pruebas)">
+                  <RotateCcw size={14} />
+                </button>
                 <button onClick={() => setShowContactPanel(!showContactPanel)} className="btn-icon !w-8 !h-8 hidden lg:flex" title="Panel de contacto">
                   <ChevronRight size={14} className={`transition-transform ${showContactPanel ? "rotate-180" : ""}`} />
                 </button>
@@ -476,7 +486,7 @@ function ContactEmptyState({ contact, customValues, onClose }: { contact: Contac
         {customValues.length === 0 ? (
           <p className="text-[12.5px] text-ink-3">Sin campos personalizados</p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {customValues.map((cv: any) => (
               <div key={cv.id} className="flex justify-between py-1.5 border-b border-border text-[12.5px]">
                 <span className="text-ink-2">{cv.customField.name}</span>
@@ -565,7 +575,7 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
 
         <div>
           <div className="flex items-center justify-between mb-2 relative">
-            <h4 className="section-label">Etiquetas</h4>
+            <h4 className="section-label mb-2">Etiquetas</h4>
             <button onClick={() => setShowTagDropdown(!showTagDropdown)} className="text-ink-3 hover:text-ink transition-colors" title="Agregar tag"><Plus size={12} /></button>
             {showTagDropdown && (
               <div ref={tagDropdownRef} className="absolute right-0 top-6 z-50 w-52 rounded-lg border border-border shadow-lg py-1" style={{ background: "var(--bg-card)" }}>
@@ -604,7 +614,7 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
         {customValues.length > 0 && (
           <div>
             <h4 className="section-label mb-2">Campos Personalizados</h4>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {customValues.map((cv: any) => (
                 <div key={cv.id} className="flex justify-between py-1.5 border-b border-border text-[12.5px]">
                   <span className="text-ink-2">{cv.customField.name}</span>

@@ -210,7 +210,16 @@ export async function processIncomingMessage(data: any) {
 
       if (conversation.botId && conversation.status === "active" && !conversation.humanTakeover) {
         const blocked = await isBlacklisted(contact.id);
-        if (!blocked) await processBotFlowHumanized(conversation, text, msg.id);
+        if (!blocked) {
+          // Comando de testing: "/reset" reinicia la memoria del bot desde el chat
+          if (text.trim().toLowerCase() === "/reset") {
+            const { resetBotMemory } = await import("./conversation.service");
+            await resetBotMemory(conversation.id);
+            await sendWhatsAppMessage(phone, "Memoria del bot reiniciada. Empezamos de cero: escribi tu consulta.");
+            continue;
+          }
+          await processBotFlowHumanized(conversation, text, msg.id);
+        }
       }
     }
   }
@@ -323,7 +332,11 @@ async function processBotFlow(conversation: any, userMessage: string) {
         aiMessages.push({ role: "system", content: systemPrompt });
       }
 
+      // Si se reinicio la memoria (boton/comando /reset), la IA solo ve lo
+      // posterior al corte. El historial visible del CRM no se toca.
+      const resetAt = contextVars.memoryResetAt ? new Date(contextVars.memoryResetAt) : null;
       for (const msg of messages) {
+        if (resetAt && msg.timestamp <= resetAt) continue;
         aiMessages.push({
           role: msg.direction === "inbound" ? "user" : "assistant",
           content: msg.content,

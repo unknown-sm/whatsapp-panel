@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   listConversations, getConversation, sendMessage, assignAgent,
   updateStatus, addNote, addTag, removeTag, listContacts, exportContacts,
-  sendMedia, upload, importContacts, deleteContact,
+  sendMedia, upload, importContacts, deleteContact, resetBot,
 } from "../controllers/conversation.controller";
 import { authMiddleware } from "../middleware/auth";
 
@@ -27,6 +27,7 @@ router.post("/:id/media", (req, res, next) => {
 }, sendMedia);
 router.put("/:id/agent", assignAgent);
 router.put("/:id/status", updateStatus);
+router.post("/:id/reset-bot", resetBot);
 router.post("/:contactId/notes", addNote);
 router.post("/:contactId/tags", addTag);
 router.delete("/:contactId/tags/:tagId", removeTag);

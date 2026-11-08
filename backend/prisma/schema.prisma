@@ -137,7 +137,7 @@ model Setting {
 
 // ════════════════════════════════════════════════════════════
 // BOTS Y FLOW
-// ════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 
 model Bot {
   id           String   @id @default(uuid())
@@ -237,26 +237,26 @@ model FlowStep {
 }
 
 model FlowStepMedia {
-  id        String   @id @default(uuid())
-  stepId    String   @unique
-  fileType  String
-  fileName  String
-  filePath  String
-  fileSize  Int
-  mimeType  String?
+  id       String   @id @default(uuid())
+  stepId   String   @unique
+  fileType String
+  fileName String
+  filePath String
+  fileSize Int
+  mimeType String?
 
-  step      FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  step     FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
 }
 
 model IntentRoute {
-  id        String   @id @default(uuid())
-  stepId    String
-  label     String
-  samples   String[]
+  id         String   @id @default(uuid())
+  stepId     String
+  label      String
+  samples    String[]
   nextStepId String?
 
-  step      FlowStep  @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  nextStep  FlowStep? @relation("IntentNextStep", fields: [nextStepId], references: [id])
+  step       FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  nextStep   FlowStep? @relation("IntentNextStep", fields: [nextStepId], references: [id])
 
   @@index([stepId])
 }
@@ -331,9 +331,9 @@ model ContactTags {
 }
 
 model Tag {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  color     String    @default("#3B82F6")
+  id       String    @id @default(uuid())
+  name     String    @unique
+  color    String    @default("#3B82F6")
   contacts ContactTags[]
 }
 
@@ -527,7 +527,7 @@ model PipelineStage {
   id         String   @id @default(uuid())
   name       String
   pipelineId String
-  order      Int
+  order      Int      @default(0)
   color      String   @default("#3B82F6")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -578,9 +578,9 @@ model Deal {
 
   @@index([orgId])
   @@index([stageId])
-  @@index([contactId])
   @@index([pipelineId])
   @@index([assignedToId])
+  @@index([contactId])
   @@index([status])
 }
 
@@ -604,7 +604,7 @@ model LeadScoreRule {
   orgId       String?
   name        String
   condition   ScoreCondition
-  config      Json?         // { keyword: "comprar", tagId: "...", minScore: 3 }
+  config      Json?         // { keyword: "comprar", tagId: "...", minMessages: 3 }
   points      Int
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
@@ -637,14 +637,14 @@ model LeadScore {
 // ═══════════════════════════════════════════════════════════
 
 model BroadcastTemplate {
-  id          String   @id @default(uuid())
-  orgId       String?
-  name        String
-  content     String
+  id        String   @id @default(uuid())
+  orgId     String?
+  name      String
+  content   String
   variables String[] @default([])
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   org        Organization? @relation("OrgBroadcastTemplates", fields: [orgId], references: [id], onDelete: Cascade)
   broadcasts Broadcast[]
@@ -661,27 +661,26 @@ enum BroadcastStatus {
 }
 
 model Broadcast {
-  id             String          @id @default(uuid())
-  orgId          String?
-  name           String
-  templateId     String?
-  content        String?
-  status         BroadcastStatus @default(DRAFT)
-  scheduledAt    DateTime?
-  sentAt         DateTime?
-  totalCount     Int             @default(0)
-  sentCount      Int             @default(0)
-  failedCount    Int             @default(0)
-  filters        Json?           // { tags: ["vip"], minScore: 50 }
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id          String          @id @default(uuid())
+  orgId       String?
+  name        String
+  templateId  String?
+  content     String
+  status      BroadcastStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  totalCount  Int             @default(0)
+  sentCount   Int             @default(0)
+  failedCount Int             @default(0)
+  filters     Json?           // { tags: ["vip"], minScore: 50 }
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
-  org        Organization? @relation("OrgBroadcasts", fields: [orgId], references: [id], onDelete: Cascade)
-  template   BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  recipients BroadcastRecipient[]
+  org         Organization? @relation("OrgBroadcasts", fields: [orgId], references: [id], onDelete: Cascade)
+  template    BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients  BroadcastRecipient[]
 
   @@index([orgId])
-  @@index([status])
 }
 
 model BroadcastRecipient {
@@ -717,22 +716,22 @@ enum EntityType {
 }
 
 model CustomField {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   fieldType   FieldType
   entityType  EntityType
-  options     String[]  @default([]) // For SELECT type
-  isRequired  Boolean   @default(false)
-  order       Int       @default(0)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  options     String[] @default([]) // For SELECT type
+  isRequired  Boolean  @default(false)
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   values CustomFieldValue[]
 }
 
 model CustomFieldValue {
-  id            String   @id @default(uuid())
+  id            String @id @default(uuid())
   customFieldId String
   contactId     String?
   dealId        String?
@@ -740,7 +739,6 @@ model CustomFieldValue {
 
   customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
   contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal        Deal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([customFieldId])
   @@index([contactId])
@@ -815,15 +813,15 @@ model AdAttribution {
 // ═══════════════════════════════════════════════════════════
 
 model SalesPlaybook {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   orgId       String?
   name        String
   description String?
   methodology String   // "SPIN", "BANT", "AIDA", "CHALLENGER", "CONSULTATIVE"
-  isActive    Boolean   @default(true)
-  isDefault   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   org    Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
@@ -834,13 +832,13 @@ model SalesPlaybook {
 }
 
 model PlaybookStage {
-  id           String @id @default(uuid())
-  playbookId   String
-  order        Int
-  name         String
-  prompt       String // El script que el bot/agente sigue
-  questionType String  @default("open") // "open", "multiple_choice", "scale"
-  options      String[] @default([])
+  id             String @id @default(uuid())
+  playbookId     String
+  order          Int
+  name           String
+  prompt         String // El script que el bot/agente sigue
+  questionType   String @default("open") // "open", "multiple_choice", "scale"
+  options        String[] @default([])
   nextStageLogic Json?  // Condiciones para avanzar
   exitConditions Json?  // Condiciones para salir
 
@@ -853,7 +851,7 @@ model PlaybookABTest {
   playbookAId  String
   playbookBId  String
   trafficSplit Int      @default(50) // % para A
-  status       String   @default("draft") // draft, running, completed, paused
+  status       String   @default("draft") // "draft", "running", "completed", "paused"
   metric       String   @default("conversion_rate")
   resultsA     Json?
   resultsB     Json?
@@ -861,6 +859,7 @@ model PlaybookABTest {
   confidence   Float?
   startedAt    DateTime?
   endedAt      DateTime?
+  createdAt    DateTime @default(now())
 
   playbookA SalesPlaybook @relation("PlaybookA", fields: [playbookAId], references: [id])
   playbookB SalesPlaybook @relation("PlaybookB", fields: [playbookBId], references: [id])
@@ -869,13 +868,13 @@ model PlaybookABTest {
 }
 
 model PlaybookABTestAssignment {
-  id             String   @id @default(uuid())
-  testId         String
-  contactId      String
-  variant        String   // "A" o "B"
-  converted      Boolean  @default(false)
+  id              String   @id @default(uuid())
+  testId          String
+  contactId       String
+  variant         String   // "A" o "B"
+  converted       Boolean  @default(false)
   conversionValue Float?
-  assignedAt     DateTime @default(now())
+  assignedAt      DateTime @default(now())
 
   test    PlaybookABTest @relation(fields: [testId], references: [id], onDelete: Cascade)
   contact Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -888,12 +887,12 @@ model PlaybookABTestAssignment {
 // ═══════════════════════════════════════════════════════════
 
 model MessageTemplate {
-  id                String    @id @default(uuid())
+  id                String   @id @default(uuid())
   orgId             String?
-  name              String    @unique
-  category          String    // "MARKETING", "UTILITY", "AUTHENTICATION"
-  language          String    @default("es")
-  status            String    @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "PAUSED", "DISABLED"
+  name              String   @unique
+  category          String   // "MARKETING", "UTILITY", "AUTHENTICATION"
+  language          String   @default("es")
+  status            String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED", "PAUSED", "DISABLED"
   headerType        String?  // "TEXT", "IMAGE", "VIDEO", "DOCUMENT"
   headerText        String?
   bodyText          String
@@ -903,8 +902,8 @@ model MessageTemplate {
   metaTemplateId    String?
   qualityRating     String?
   lastQualityUpdate DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   org Organization? @relation("OrgMessageTemplates", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
@@ -920,7 +919,7 @@ model RoutingRule {
   orgId         String?
   name          String
   priority      Int      @default(0)
-  condition     Json     // { minScore?: number, tags: string[], source?: string }
+  condition     Json     // { minScore?: number, tags?: string[], source?: string }
   targetAgentId String?
   targetTeam    String?  // "ventas", "soporte", "cobranza"
   isActive      Boolean  @default(true)
@@ -930,6 +929,7 @@ model RoutingRule {
   org Organization? @relation("OrgRoutingRules", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
   @@index([isActive])
+  @@index([priority])
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -937,13 +937,13 @@ model RoutingRule {
 // ═══════════════════════════════════════════════════════════
 
 model AgentTestRun {
-  id           String    @id @default(uuid())
-  status       String    @default("running") // "running", "completed", "failed"
-  score        Int?
-  startedAt    DateTime  @default(now())
-  endedAt      DateTime?
-  configId     String?
-  createdById  String?
+  id          String    @id @default(uuid())
+  status      String    @default("running") // "running", "completed", "failed"
+  score       Int?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  configId    String?
+  createdById String?
 
   cases AgentTestCase[]
 
@@ -952,15 +952,15 @@ model AgentTestRun {
 }
 
 model AgentTestCase {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   runId       String
   personaId   String
   personaName String
-  veredicto   String?    // "verde", "amarillo", "rojo"
+  veredicto   String?  // "verde", "amarillo", "rojo"
   score       Int?
   hallazgos    Json?    // [{ tipo, descripcion, gravedad }]
   transcript  Json?    // [{ role, content }]
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
   run AgentTestRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
@@ -972,7 +972,7 @@ model AgentTestCase {
 // ═══════════════════════════════════════════════════════════
 
 model Report {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   orgId       String?
   period      String   // "daily", "weekly", "monthly"
   periodStart DateTime
@@ -986,13 +986,12 @@ model Report {
 }
 
 model ReportSubscription {
-  id          String    @id @default(uuid())
-  orgId       String?
-  email       String
-  period      String   @default("daily")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  orgId     String?
+  email     String
+  period    String   @default("daily") // "daily", "weekly", "monthly"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   org Organization? @relation("OrgReportSubs", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])
@@ -1007,7 +1006,7 @@ model NpsCampaign {
   id          String    @id @default(uuid())
   orgId       String?
   name        String
-  templateId  String
+  templateId  String?
   triggerType String    @default("deal_won") // "deal_won", "manual", "scheduled"
   isActive    Boolean   @default(true)
   delayHours  Float       @default(24)
@@ -1071,7 +1070,6 @@ model AgentMessage {
   content        String
   readAt         DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
 
   org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   sender       User          @relation("SentAgentMessages", fields: [senderId], references: [id], onDelete: Cascade)

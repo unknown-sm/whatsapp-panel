@@ -2,7 +2,7 @@ import axios from "axios";
 import prisma from "../lib/prisma";
 import { encrypt } from "./crypto.service";
 
-/* ── Meta Embedded Signup OAuth flow ─────────────────── */
+/* ── Meta Embedded Signup OAuth flow ────────────────────────────────── */
 
 const META_GRAPH_URL = "https://graph.facebook.com/v21.0";
 const META_OAUTH_URL = "https://graph.facebook.com/v21.0/oauth/access_token";
@@ -52,7 +52,7 @@ function requireWebhookBaseUrl(): string {
   return base;
 }
 
-/* ── 1. Exchange code for access token ─────────────────── */
+/* ── 1. Exchange code for access token ────────────────────── */
 
 export async function exchangeCodeForToken(data: {
   code: string;
@@ -90,7 +90,7 @@ export async function exchangeCodeForToken(data: {
   };
 }
 
-/* ── 2. Get WABA (WhatsApp Business Account) IDs ──────── */
+/* ── 2. Get WABA (WhatsApp Business Account) IDs ───────── */
 
 export async function getWABAs(accessToken: string) {
   const res = await axios.get(`${META_GRAPH_URL}/me/businesses`, {
@@ -98,7 +98,17 @@ export async function getWABAs(accessToken: string) {
     params: { fields: "id,name,owned_whatsapp_business_accounts" },
   });
 
-  return res.data.data || [];
+  // /me/businesses devuelve NEGOCIOS, y las WABAs cuelgan de cada uno en
+  // owned_whatsapp_business_accounts. Aplanamos para que wabaId sea el ID
+  // real de la WhatsApp Business Account (no el del negocio).
+  const businesses = res.data.data || [];
+  const wabas: any[] = [];
+  for (const b of businesses) {
+    const owned = b.owned_whatsapp_business_accounts?.data || [];
+    for (const w of owned) wabas.push({ ...w, businessId: b.id, businessName: b.name });
+  }
+  // Fallback: si no hay WABAs anidadas, devolver los negocios (comportamiento viejo)
+  return wabas.length > 0 ? wabas : businesses;
 }
 
 export async function getWABA(wabaId: string, accessToken: string) {
@@ -109,7 +119,7 @@ export async function getWABA(wabaId: string, accessToken: string) {
   return res.data;
 }
 
-/* ── 3. List phone numbers for a WABA ─────────────────── */
+/* ── 3. List phone numbers for a WABA ────────────────── */
 
 export async function getPhoneNumbers(wabaId: string, accessToken: string): Promise<PhoneNumber[]> {
   const res = await axios.get(`${META_GRAPH_URL}/${wabaId}/phone_numbers`, {
@@ -119,7 +129,7 @@ export async function getPhoneNumbers(wabaId: string, accessToken: string): Prom
   return (res.data.data || []).map(toPhoneNumber);
 }
 
-/* ── 3b. Detalle de un numero (incluye Coexistence) ─────── */
+/* ── 3b. Detalle de un numero (incluye Coexistence) ──────── */
 
 export interface PhoneNumberDetails extends PhoneNumber {
   coexistence: boolean;
@@ -173,7 +183,7 @@ export async function subscribeWebhook(phoneNumberId: string, accessToken: strin
   return res.data;
 }
 
-/* ── 5. Full Embedded Signup flow ─────────────────────── */
+/* ── 5. Full Embedded Signup flow ──────────────────── */
 
 export async function completeEmbeddedSignup(data: {
   code?: string;

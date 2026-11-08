@@ -32,6 +32,8 @@ import webhookRoutes from "./routes/webhook.routes";
 import agentChatRoutes from "./routes/agent-chat.routes";
 import n8nAdminRoutes from "./routes/n8n.routes";
 import tagRoutes from "./routes/tag.routes";
+import webhookEventRoutes from "./routes/webhook-event.routes";
+import { runPendingWebhookEvents } from "./services/webhook-event.service";
 import { checkFollowUps } from "./services/followup.service";
 import * as reportsService from "./services/reports.service";
 import { checkScheduledBroadcasts } from "./services/broadcast.service";
@@ -310,6 +312,7 @@ async function seedDatabase() {
     console.log("Seed: Tags OK");
   } catch (e) {
     console.error("Seed ERROR en Tags:", e instanceof Error ? e.message : e);
+    throw e;
   }
 
   // Sales Playbooks
@@ -442,6 +445,7 @@ app.use("/api/webhooks", webhookRoutes);
 app.use("/api/agent-chat", agentChatRoutes);
 app.use("/api/n8n", n8nAdminRoutes);
 app.use("/api/tags", tagRoutes);
+app.use("/api/webhook-events", webhookEventRoutes);
 
 // SPA fallback: send index.html for any non-API route
 if (process.env.NODE_ENV === "production" || process.env.SERVE_FRONTEND === "true") {
@@ -511,6 +515,23 @@ io.on("connection", (socket) => {
     console.log(`Cliente desconectado: ${socket.id}`);
   });
 });
+
+// Worker durable de webhooks: recupera pendientes y trabajos interrumpidos.
+// Los eventos nuevos también se disparan de inmediato desde el controller.
+let webhookWorkerRunning = false;
+async function runWebhookWorker() {
+  if (webhookWorkerRunning) return;
+  webhookWorkerRunning = true;
+  try {
+    await runPendingWebhookEvents();
+  } catch (err) {
+    console.error("[WEBHOOK-EVENT] Worker error:", err);
+  } finally {
+    webhookWorkerRunning = false;
+  }
+}
+setInterval(runWebhookWorker, 10 * 1000);
+runWebhookWorker();
 
 // Follow-up cron job (every 5 minutes)
 setInterval(checkFollowUps, 5 * 60 * 1000);

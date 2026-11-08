@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 import FormData from "form-data";
 import prisma from "../lib/prisma";
 import { decrypt, isEncrypted } from "./crypto.service";
@@ -22,6 +22,8 @@ export interface IWhatsAppEngine {
   uploadMedia(buffer: Buffer, mimeType: string, filename: string): Promise<string | null>;
   sendMedia(phone: string, buffer: Buffer, mimeType: string, type: MediaType, caption?: string, filename?: string): Promise<boolean>;
   getStatus(): Promise<{ status: string; lastPing: string | null; configured: boolean }>;
+  /** "escribiendo..." en el chat del cliente. Requiere el wamid del mensaje entrante. */
+  sendTyping(inboundMessageId: string): Promise<boolean>;
 }
 
 export function resolveEngine(): IWhatsAppEngine {
@@ -49,6 +51,26 @@ class MetaEngine implements IWhatsAppEngine {
       return true;
     } catch (error: any) {
       console.error("Meta send error:", error.response?.data || error.message);
+      return false;
+    }
+  }
+
+  async sendTyping(inboundMessageId: string): Promise<boolean> {
+    const config = await getDecryptedConfig();
+    if (!config) return false;
+    try {
+      const url = `https://graph.facebook.com/v21.0/${config.phoneNumberId}/messages`;
+      await axios.post(url, {
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: inboundMessageId,
+        typing_indicator: { type: "text" },
+      }, {
+        headers: { Authorization: `Bearer ${config.accessToken}`, "Content-Type": "application/json" },
+      });
+      return true;
+    } catch (error: any) {
+      console.error("Meta typing error:", error.response?.data || error.message);
       return false;
     }
   }

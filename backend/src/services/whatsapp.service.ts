@@ -108,7 +108,6 @@ export async function processIncomingMessage(data: any) {
         // La conversacion pudo haberse creado antes de que existiera ningun bot activo
         // (o sin bot por defecto). Sin reintentar aqui, botId quedaria en null para
         // siempre y el gate de processBotFlow (linea ~185) nunca se cumpliria.
-        // humanTakeover=true significa que un humano la atendió: el bot no la retoma.
         const matchedBot = await findBotByKeyword(text);
         if (matchedBot) {
           conversation = await prisma.conversation.update({
@@ -211,9 +210,34 @@ export async function processIncomingMessage(data: any) {
 
       if (conversation.botId && conversation.status === "active" && !conversation.humanTakeover) {
         const blocked = await isBlacklisted(contact.id);
-        if (!blocked) await processBotFlow(conversation, text);
+        if (!blocked) await processBotFlowHumanized(conversation, text, msg.id);
       }
     }
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Envuelve el flujo del bot con comportamiento humano:
+ * 1. Manda "escribiendo..." de inmediato (tambien marca leido: doble tilde azul).
+ * 2. Espera un delay variable de 3-8s para que no responda instantaneo.
+ * 3. Mantiene el indicador vivo cada 20s mientras la IA piensa (Meta lo apaga
+ *    a los 25s o cuando llega la respuesta).
+ */
+async function processBotFlowHumanized(conversation: any, userMessage: string, inboundMessageId?: string) {
+  let typingTimer: ReturnType<typeof setInterval> | null = null;
+  if (inboundMessageId) {
+    engine.sendTyping(inboundMessageId).catch(() => {});
+    typingTimer = setInterval(() => {
+      engine.sendTyping(inboundMessageId).catch(() => {});
+    }, 20000);
+  }
+  try {
+    await sleep(3000 + Math.random() * 5000);
+    await processBotFlow(conversation, userMessage);
+  } finally {
+    if (typingTimer) clearInterval(typingTimer);
   }
 }
 
@@ -381,7 +405,6 @@ async function processBotFlow(conversation: any, userMessage: string) {
 
     case "FORWARD": {
       const cfg = (step.config as any) || {};
-      // FORWARD transfiere a un humano: humanTakeover frena al bot de inmediato
       const updateData: any = { status: "waiting_agent", contextVars, humanTakeover: true };
       if (cfg.agentId) updateData.assignedAgentId = cfg.agentId;
       await prisma.conversation.update({ where: { id: conversation.id }, data: updateData });

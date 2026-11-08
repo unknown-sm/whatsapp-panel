@@ -101,6 +101,22 @@ export async function sendMessage(req: Request, res: Response) {
   }
 }
 
+// Reinicia la memoria del bot (testing): flujo al paso 0, takeover liberado,
+// y la IA solo ve mensajes posteriores al reset.
+export async function resetBot(req: Request, res: Response) {
+  try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const owned = await convService.getOwnedConversation(req.params.id, orgId);
+    if (!owned) return res.status(404).json({ error: "Conversacion no encontrada" });
+    const conv = await convService.resetBotMemory(req.params.id);
+    getIo().emit("conversation:updated", { id: conv.id, status: conv.status, botReset: true });
+    res.json({ conversation: conv });
+  } catch {
+    res.status(500).json({ error: "Error al reiniciar el bot" });
+  }
+}
+
 export async function assignAgent(req: Request, res: Response) {
   try {
     const orgId = requireOrgId(req, res);

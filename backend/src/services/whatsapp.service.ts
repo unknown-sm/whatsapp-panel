@@ -25,7 +25,7 @@ export async function sendWhatsAppMedia(phoneNumber: string, buffer: Buffer, mim
   return engine.sendMedia(phoneNumber, buffer, mimeType, type, caption, filename);
 }
 
-export async function processIncomingMessage(data: any) {
+export async function processIncomingMessage(data: any, organizationId?: string) {
   const entry = data.entry?.[0];
   if (!entry) return;
 
@@ -37,8 +37,8 @@ export async function processIncomingMessage(data: any) {
     for (const msg of messages) {
       const phone = msg.from;
 
-      // Dedup: Meta reintenta el webhook si el ACK tarda; el wamid es único
-      // por mensaje, así que si ya lo procesamos se ignora silenciosamente.
+      // Defensa adicional: la deduplicación principal y atómica ocurre en
+      // WebhookEvent antes de llamar a este procesador.
       if (msg.id) {
         const dup = await prisma.message.findFirst({ where: { externalId: msg.id }, select: { id: true } });
         if (dup) {
@@ -54,9 +54,8 @@ export async function processIncomingMessage(data: any) {
       const contactName = value.contacts?.[0]?.profile?.name || null;
 
       if (!text && !media) continue;
-      // Tomar el primer orgId disponible
-      const firstOrg = await prisma.organization.findFirst();
-      const orgId = firstOrg?.id || null;
+      const orgId = organizationId || null;
+      if (!orgId) throw new Error("Evento de WhatsApp sin organización asociada");
       let contact = await prisma.contact.findUnique({ where: { phone } });
       if (!contact) {
         contact = await prisma.contact.create({ data: { phone, name: contactName, orgId: orgId || undefined } });

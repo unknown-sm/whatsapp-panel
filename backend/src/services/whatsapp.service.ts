@@ -279,7 +279,11 @@ async function processBotFlow(conversation: any, userMessage: string) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
           const sent = await sendWhatsAppMessage(contact.phone, step.message);
-          if (sent) sessionService.trackOutbound(contact.id).catch(() => {});
+          if (!sent) {
+            console.error(`[BOT] Meta rechazó el envío; no se guardará como enviado ni se avanzará el flujo (conversación ${conversation.id})`);
+            return;
+          }
+          sessionService.trackOutbound(contact.id).catch(() => {});
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: step.message },
           });
@@ -347,7 +351,11 @@ async function processBotFlow(conversation: any, userMessage: string) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
           const sent = await engine.sendText(contact.phone, response);
-          if (sent) sessionService.trackOutbound(contact.id).catch(() => {});
+          if (!sent) {
+            console.error(`[BOT] Meta rechazó el envío; no se guardará como enviado ni se avanzará el flujo (conversación ${conversation.id})`);
+            return;
+          }
+          sessionService.trackOutbound(contact.id).catch(() => {});
           await prisma.message.create({
             data: { conversationId: conversation.id, direction: "outbound", type: "text", content: response },
           });
@@ -367,7 +375,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
     case "HTTP_REQUEST": {
       const http = step.httpRoutes;
       if (!http) break;
-      const replaceVars = (str: string) => str.replace(/\{\{(\w+)\}\}/g, (_, key: string) => contextVars[key] || "");
+      const replaceVars = (str: string) => str.replace(/\{\{(\w+)\}\}/g, (_, key) => contextVars[key] || "");
       const url = replaceVars(http.url);
       const headers: Record<string, string> = {};
       if (http.headers) {

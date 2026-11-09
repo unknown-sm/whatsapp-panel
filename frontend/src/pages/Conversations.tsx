@@ -549,9 +549,14 @@ export default function Conversations() {
             {/* ── Composer (24h + Free Entry Point enforcement) ──────────── */}
             {!getWindowState(selectedConv).open ? (
               <WindowClosedComposer
-                onTemplateSent={(newText) => {
-                  setNewMessage(newText);
-                  sendMessage();
+                conversationId={selectedConv.id}
+                onSent={(message) => {
+                  if (selectedConvRef.current?.id === selectedConv.id) {
+                    setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+                    setSelectedConv((current) => current?.id === selectedConv.id ? { ...current, humanTakeover: true, updatedAt: message.timestamp } : current);
+                  }
+                  fetchData();
+                  refreshConversation(selectedConv.id).catch(() => {});
                 }}
               />
             ) : (
@@ -750,7 +755,7 @@ function ContactPanel({ conversation, contact, customValues, messages, statusSav
                     return (
                       <button key={tag.id} onClick={() => toggleTag(tag.id)}
                         className="w-full px-3 py-1.5 flex items-center gap-2 text-left text-[12px] hover:bg-atlas-hover transition-colors"
-                        style={{ color: assigned ? tag.color : "var(--text-primary)" }}>
+                        style={{ color: assigned ? "var(--text-primary)" : "var(--text-3)" }}>
                         <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: tag.color }} />
                         <span className="flex-1 truncate">{tag.name}</span>
                         {assigned && <Check size={12} />}
@@ -929,7 +934,7 @@ function PipelineSection({ contact, onChanged }: { contact: ConversationContact;
             <p className="text-[10.5px] text-ink-3 mt-1.5">{deal.pipeline.name}</p>
           </>
         ) : loading ? (
-          <p className="text-[12px] text-ink-3">Cargando pipeline...</p>
+          <p className="text-[11.5px] text-ink-3">Cargando pipeline...</p>
         ) : defaultPipeline ? (
           <>
             <p className="text-[11.5px] text-ink-3 mb-2">Este contacto aún no tiene una oportunidad.</p>
@@ -1032,22 +1037,68 @@ function WindowSection({ conversation }: { conversation: Conversation }) {
 
 /* ── Window Closed Composer (24h enforcement) ────── */
 
-function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: string) => void }) {
+function templateVariableIndexes(bodyText: string) {
+  return [...new Set([...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+}
+
+function WindowClosedComposer({ conversationId, onSent }: { conversationId: string; onSent: (message: any) => void }) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [variables, setVariables] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (showTemplates && templates.length === 0) loadTemplates();
   }, [showTemplates]);
 
+  useEffect(() => {
+    setSelectedTemplate(null);
+    setVariables([]);
+    setError(null);
+  }, [conversationId]);
+
   async function loadTemplates() {
     setLoading(true);
+    setError(null);
     try {
       const { data } = await api.get("/api/templates/approved");
       setTemplates(data.templates || []);
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) {
+      setError(apiError(err, "No se pudieron cargar las plantillas."));
+    } finally { setLoading(false); }
   }
+
+  function selectTemplate(template: any) {
+    const indexes = templateVariableIndexes(template.bodyText || "");
+    setSelectedTemplate(template);
+    setVariables(indexes.map(() => ""));
+    setError(null);
+  }
+
+  async function sendSelectedTemplate() {
+    if (!selectedTemplate || sending || variables.some((value) => !value.trim())) return;
+    setSending(true);
+    setError(null);
+    try {
+      const { data } = await api.post(`/api/conversations/${conversationId}/template`, {
+        templateId: selectedTemplate.id,
+        variables: variables.map((value) => value.trim()),
+      });
+      onSent(data.message);
+      setSelectedTemplate(null);
+      setVariables([]);
+      setShowTemplates(false);
+    } catch (err: any) {
+      setError(apiError(err, "Meta no pudo enviar la plantilla."));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const variableIndexes = selectedTemplate ? templateVariableIndexes(selectedTemplate.bodyText || "") : [];
 
   return (
     <div className="px-4 py-4 border-t border-border bg-warn-chip-bg">
@@ -1068,7 +1119,7 @@ function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: strin
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="section-label text-warn-chip-text">Templates aprobados</p>
-            <button onClick={() => setShowTemplates(false)} className="text-warn-chip-text hover:opacity-70">
+            <button onClick={() => { setShowTemplates(false); setSelectedTemplate(null); }} disabled={sending} className="text-warn-chip-text hover:opacity-70" aria-label="Cerrar templates">
               <X size={12} />
             </button>
           </div>
@@ -1079,14 +1130,29 @@ function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: strin
           ) : (
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {templates.slice(0, 5).map((t) => (
-                <button key={t.id} onClick={() => onTemplateSent(`[TEMPLATE: ${t.name}] ${t.bodyText}`)}
-                  className="w-full text-left p-2 rounded-md border border-warn-chip-border bg-background hover:bg-warn-chip-bg transition-colors">
+                <button key={t.id} onClick={() => selectTemplate(t)} disabled={sending}
+                  className={`w-full text-left p-2 rounded-md border bg-background hover:bg-warn-chip-bg transition-colors ${selectedTemplate?.id === t.id ? "border-brand" : "border-warn-chip-border"}`}>
                   <p className="text-[11.5px] font-[600] text-ink">{t.name}</p>
                   <p className="text-[11px] text-ink-2 line-clamp-2">{t.bodyText}</p>
                 </button>
               ))}
             </div>
           )}
+          {selectedTemplate && (
+            <div className="mt-3 space-y-2">
+              {variableIndexes.map((index, position) => (
+                <Input key={index} value={variables[position] || ""} disabled={sending}
+                  onChange={(event) => setVariables((current) => current.map((value, i) => i === position ? event.target.value : value))}
+                  placeholder={`Valor para {{${index}}}`} aria-label={`Variable ${index}`} />
+              ))}
+              <Button size="sm" className="w-full" onClick={sendSelectedTemplate}
+                disabled={sending || variables.some((value) => !value.trim())}>
+                {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                {sending ? "Enviando a Meta..." : `Enviar ${selectedTemplate.name}`}
+              </Button>
+            </div>
+          )}
+          {error && <p role="alert" className="mt-2 text-[11.5px] text-red-600">{error}</p>}
         </div>
       )}
     </div>

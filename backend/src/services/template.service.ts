@@ -134,13 +134,21 @@ export async function syncWithMeta(orgId: string) {
 
 /* ── Send template (reopen 24h window) ──────────────── */
 
-export async function sendTemplate(phone: string, templateId: string, variables: string[] = [], orgId: string) {
-  const config = await prisma.whatsappConfig.findFirst();
+export async function sendTemplate(
+  phone: string,
+  templateId: string,
+  variables: string[] = [],
+  orgId: string,
+  dependencies: { db?: any; post?: any } = {},
+) {
+  const db = dependencies.db || prisma;
+  const post = dependencies.post || axios.post;
+  const config = await db.whatsappConfig.findFirst();
   if (!config) throw new Error("WhatsApp no configurado");
 
   const accessToken = isEncrypted(config.accessToken) ? decrypt(config.accessToken) : config.accessToken;
 
-  const template = await prisma.messageTemplate.findFirst({ where: { id: templateId, orgId } });
+  const template = await db.messageTemplate.findFirst({ where: { id: templateId, orgId } });
   if (!template) throw new Error("Template no encontrado");
   if (template.status !== "APPROVED") throw new Error("Template no aprobado");
 
@@ -155,16 +163,15 @@ export async function sendTemplate(phone: string, templateId: string, variables:
     },
   };
 
-  // Add variables if provided
+  // Meta espera un único componente BODY con todos los parámetros en orden.
   if (variables.length > 0) {
-    const components = variables.map((v, i) => ({
+    body.template.components = [{
       type: "body",
-      parameters: [{ type: "text", text: v }],
-    }));
-    body.template.components = components;
+      parameters: variables.map((text) => ({ type: "text", text })),
+    }];
   }
 
-  const res = await axios.post(url, body, {
+  const res = await post(url, body, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",

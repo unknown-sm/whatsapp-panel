@@ -847,20 +847,19 @@ model PlaybookStage {
 }
 
 model PlaybookABTest {
-  id              String   @id @default(uuid())
-  playbookAId     String
-  playbookBId     String
-  trafficSplit    Int      @default(50) // % para A
-  status          String   @default("draft") // "draft", "running", "completed", "paused"
-  metric          String   @default("conversion_rate")
-  resultsA        Json?
-  resultsB        Json?
-  winnerId        String?
-  confidence      Float?
-  startedAt       DateTime?
-  endedAt         DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           String   @id @default(uuid())
+  playbookAId  String
+  playbookBId  String
+  trafficSplit Int      @default(50) // % para A
+  status       String   @default("draft") // "draft", "running", "completed", "paused"
+  metric       String   @default("conversion_rate")
+  resultsA     Json?
+  resultsB     Json?
+  winnerId     String?
+  confidence   Float?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime @default(now())
 
   playbookA SalesPlaybook @relation("PlaybookA", fields: [playbookAId], references: [id])
   playbookB SalesPlaybook @relation("PlaybookB", fields: [playbookBId], references: [id])
@@ -993,7 +992,6 @@ model ReportSubscription {
   period    String   @default("daily") // "daily", "weekly", "monthly"
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   org Organization? @relation("OrgReportSubs", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])

@@ -326,7 +326,7 @@ export async function transcribeAudio(configId: string, audioBuffer: Buffer): Pr
   return transcription.text;
 }
 
-/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 export async function suggestResponses(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({
@@ -418,7 +418,7 @@ Responde SOLO con un JSON array, sin markdown, sin explicaciones:
     const parsed = JSON.parse(jsonMatch[0]);
     return {
       suggestions: parsed.map((s: any, i: number) => ({
-        id: `sug-${i + 1}`,
+        id: `sug-${i}`,
         text: s.text || "",
         tone: s.tone || "neutral",
         reasoning: s.reasoning || "",

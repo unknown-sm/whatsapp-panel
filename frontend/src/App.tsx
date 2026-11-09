@@ -14,6 +14,7 @@ import LeadScoring from "./pages/LeadScoring";
 import Broadcasts from "./pages/Broadcasts";
 import Analytics from "./pages/Analytics";
 import Logs from "./pages/Logs";
+import WebhookEvents from "./pages/WebhookEvents";
 import Lab from "./pages/Lab";
 import Templates from "./pages/Templates";
 import Reports from "./pages/Reports";
@@ -53,6 +54,7 @@ function App() {
         <Route path="broadcasts" element={<Broadcasts />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="logs" element={<Logs />} />
+        <Route path="webhook-events" element={<WebhookEvents />} />
         <Route path="lab" element={<Lab />} />
         <Route path="templates" element={<Templates />} />
         <Route path="reports" element={<Reports />} />

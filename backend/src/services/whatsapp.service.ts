@@ -375,7 +375,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
     case "HTTP_REQUEST": {
       const http = step.httpRoutes;
       if (!http) break;
-      const replaceVars = (str: string) => str.replace(/\{\{(\w+)\}\}/g, (_, key) => contextVars[key] || "");
+      const replaceVars = (str: string) => str.replace(/\{\{(\w+)\}\}/g, (_, key: string) => contextVars[key] || "");
       const url = replaceVars(http.url);
       const headers: Record<string, string> = {};
       if (http.headers) {

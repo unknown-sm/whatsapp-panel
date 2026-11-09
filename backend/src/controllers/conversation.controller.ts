@@ -4,6 +4,7 @@ import fs from "fs";
 import crypto from "crypto";
 import multer from "multer";
 import * as convService from "../services/conversation.service";
+import * as templateService from "../services/template.service";
 import { addScoreByCondition } from "../services/leadscore.service";
 import { resolveEngine } from "../services/whatsapp-engine";
 import prisma from "../lib/prisma";
@@ -98,6 +99,69 @@ export async function sendMessage(req: Request, res: Response) {
       });
     }
     res.status(500).json({ error: "Error al enviar mensaje" });
+  }
+}
+
+/** Envía una plantilla real a Meta y solo entonces la registra en el inbox. */
+export async function sendTemplate(req: Request, res: Response) {
+  try {
+    const orgId = requireOrgId(req, res);
+    if (!orgId) return;
+    const { templateId, variables } = z.object({
+      templateId: z.string().uuid(),
+      variables: z.array(z.string().trim().min(1).max(1024)).max(20).optional().default([]),
+    }).parse(req.body);
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: req.params.id, orgId },
+      include: { contact: { select: { id: true, phone: true } } },
+    });
+    if (!conversation) return res.status(404).json({ error: "Conversacion no encontrada" });
+
+    const template = await templateService.getTemplate(templateId, orgId);
+    if (!template) return res.status(404).json({ error: "Template no encontrado" });
+    if (template.status !== "APPROVED") return res.status(400).json({ error: "Template no aprobado" });
+
+    const result = await templateService.sendTemplate(conversation.contact.phone, templateId, variables, orgId);
+    const content = `[Plantilla: ${template.name}] ${template.bodyText.replace(/\{\{(\d+)\}\}/g, (placeholder, index) => variables[Number(index) - 1] || placeholder)}`;
+    const agentId = (req as any).user?.id as string | undefined;
+    const message = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: "outbound",
+        type: "template",
+        content,
+        variables: { templateId: template.id, values: variables },
+        externalId: result.messages?.[0]?.id || null,
+      },
+    });
+
+    const updatedAt = new Date();
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        updatedAt,
+        humanTakeover: true,
+        ...(agentId && !conversation.assignedAgentId ? { assignedAgentId: agentId } : {}),
+      },
+    });
+
+    const { trackOutbound } = await import("../services/session.service");
+    await trackOutbound(conversation.contact.id).catch(() => {});
+    const { refreshFollowUpSchedule } = await import("../services/followup.service");
+    await refreshFollowUpSchedule(conversation.id).catch(() => {});
+
+    getIo().to(conversation.id).emit("message:new", { ...message, timestamp: message.timestamp.toISOString() });
+    getIo().emit("conversation:updated", { id: conversation.id, updatedAt, humanTakeover: true });
+    addScoreByCondition(orgId, conversation.contactId, "MESSAGE_SENT", "Template enviado por agente").catch(() => {});
+    res.json({ message });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Template o variables inválidas" });
+    if (["Template no encontrado", "Template no aprobado", "WhatsApp no configurado"].includes(error?.message)) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error("sendTemplate error:", error?.response?.data?.error?.message || error?.message);
+    res.status(502).json({ error: "Meta rechazó la plantilla. Verifica su estado, idioma y variables; no se guardó como enviada." });
   }
 }
 

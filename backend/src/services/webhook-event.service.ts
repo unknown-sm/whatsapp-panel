@@ -26,7 +26,7 @@ export function retryDelayMs(attempts: number): number {
 
 async function resolveOrganizationId(phoneNumberId: string | null, db: any = prisma): Promise<string | null> {
   if (!phoneNumberId) return null;
-  const config = await db.whatsappConfig.findUnique({
+  const config = await db.whatsappConfig.findFirst({
     where: { phoneNumberId },
     select: { id: true, orgId: true },
   });

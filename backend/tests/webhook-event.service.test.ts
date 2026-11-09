@@ -24,7 +24,7 @@ const payload = {
 function fakeEnqueueDb(existing?: any) {
   return {
     whatsappConfig: {
-      findUnique: async () => ({ id: "config-1", orgId: "org-1" }),
+      findFirst: async () => ({ id: "config-1", orgId: "org-1" }),
       update: async () => ({}),
     },
     organization: { findFirst: async () => ({ id: "org-1" }) },

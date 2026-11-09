@@ -50,6 +50,7 @@
     "reports": "Reportes",
     "analytics": "Analytics",
     "logs": "Logs",
+    "webhookEvents": "Eventos Meta",
     "settings": "Configuración",
     "logout": "Cerrar sesión",
     "collapse": "Colapsar menú"

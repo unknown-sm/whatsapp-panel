@@ -1,6 +1,6 @@
 import { Router } from "express";
 import {
-  listConversations, getConversation, sendMessage, assignAgent,
+  listConversations, getConversation, sendMessage, sendTemplate, assignAgent,
   updateStatus, addNote, addTag, removeTag, listContacts, exportContacts,
   sendMedia, upload, importContacts, deleteContact, resetBot,
 } from "../controllers/conversation.controller";
@@ -19,6 +19,7 @@ router.delete("/contacts/:id", deleteContact);
 // Dynamic routes AFTER static routes
 router.get("/:id", getConversation);
 router.post("/:id/messages", sendMessage);
+router.post("/:id/template", sendTemplate);
 router.post("/:id/media", (req, res, next) => {
   upload.single("file")(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || "Archivo rechazado" });

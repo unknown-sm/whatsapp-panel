@@ -80,7 +80,7 @@ export async function setDefault(id: string) {
 export async function generateResponse(
   configId: string,
   messages: { role: string; content: string }[],
-  options?: { systemPrompt?: string; maxTokens?: number; botId?: string }
+  options?: { systemPrompt?: string; maxTokens?: number; botId?: string; knowledge?: string }
 ): Promise<string> {
   let config = await prisma.aIConfig.findUnique({ where: { id: configId } });
   if (!config) throw new Error("AI config not found");
@@ -90,9 +90,14 @@ export async function generateResponse(
   const maxTokens = options?.maxTokens || 1024;
 
   if (options?.botId) {
-    const knowledge = await getKnowledgeContent(options.botId);
+    const knowledge = options.knowledge ?? await getKnowledgeContent(options.botId);
     if (knowledge) {
       systemPrompt += `\n\n## Conocimiento del negocio\n${knowledge}`;
+      systemPrompt += `\n\n## Reglas para productos e imágenes
+- Si recomiendas UN producto concreto y el conocimiento incluye su URL exacta en IMAGENES_PRODUCTO, puedes añadir al final UNA línea: [[IMAGEN:url_exacta]].
+- Nunca envíes más de una imagen en una respuesta y nunca inventes URLs.
+- Si el cliente pide varios productos, muchas opciones, comparar, ver más o el catálogo, NO incluyas [[IMAGEN:...]]. Resume brevemente e invítalo a ver todas las fotos en PAGINA_ORIGEN.
+- El marcador [[IMAGEN:...]] es interno: no lo expliques al cliente.`;
     }
   }
 
@@ -321,7 +326,7 @@ export async function transcribeAudio(configId: string, audioBuffer: Buffer): Pr
   return transcription.text;
 }
 
-/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 export async function suggestResponses(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({

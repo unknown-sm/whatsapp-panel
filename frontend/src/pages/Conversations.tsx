@@ -5,7 +5,7 @@ import {
   Search, Send, Users, Download, MessageSquare, Sparkles, Trash2,
   Check, CheckCheck, X, Clock, ChevronRight,
   AlertCircle, AlertTriangle, UserCheck, ArrowRight, ArrowLeft, Hash, Plus, Loader2,
-  FileText, Mic,
+  FileText, Mic, Bot, Pause, Play,
   Paperclip, RotateCcw,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
@@ -14,23 +14,61 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Textarea } from "../components/ui/Textarea";
 
+interface ConversationWindow {
+  windowExpiresAt: string;
+  isOpen: boolean;
+  freeEntryPointUntil: string | null;
+  fepReplyDeadline?: string | null;
+}
+
+interface ContactNote {
+  id: string;
+  content: string;
+  createdAt: string;
+  agent: { name: string | null } | null;
+}
+
+interface PipelineStage {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface ConversationDeal {
+  id: string;
+  name: string;
+  status: "OPEN" | "WON" | "LOST";
+  stageId: string;
+  stage: PipelineStage;
+  pipeline: { id: string; name: string; stages: PipelineStage[] };
+}
+
+interface ConversationContact {
+  id: string;
+  phone: string;
+  name: string | null;
+  tags?: { tag: { id: string; name: string; color: string } }[];
+  notes?: ContactNote[];
+  conversationWindow?: ConversationWindow | null;
+  deals?: ConversationDeal[];
+}
+
 interface Conversation {
   id: string;
   status: string;
-  contact: { id: string; phone: string; name: string | null };
+  humanTakeover?: boolean;
+  contact: ConversationContact;
   bot: { name: string } | null;
   assignedAgent: { name: string } | null;
   messages: { id: string; content: string; direction: string; timestamp: string; aiGenerated?: boolean; type?: string; mediaUrl?: string; mediaMimeType?: string; mediaFilename?: string; mediaSize?: number; transcription?: string }[];
   updatedAt: string;
-  windowExpiresAt?: string;
+  windowExpiresAt?: string | null;
   windowOpen?: boolean;
+  freeEntryPointUntil?: string | null;
   leadScore?: number;
 }
 
-interface Contact {
-  id: string;
-  phone: string;
-  name: string | null;
+interface Contact extends ConversationContact {
   tags: { tag: { id: string; name: string; color: string } }[];
   _count: { conversations: number };
 }
@@ -58,6 +96,41 @@ const statusLabels: Record<string, string> = {
 
 const STORAGE_KEY = "atlas.inbox.panel";
 
+function getWindowState(conversation: Conversation) {
+  const window = conversation.contact.conversationWindow;
+  const regularExpiresAt = window?.windowExpiresAt || conversation.windowExpiresAt || null;
+  const freeEntryPointUntil = window?.freeEntryPointUntil || conversation.freeEntryPointUntil || null;
+  const now = Date.now();
+  const regularOpen = window
+    ? window.isOpen && new Date(regularExpiresAt || 0).getTime() > now
+    : conversation.windowOpen === true && new Date(regularExpiresAt || 0).getTime() > now;
+  const freeEntryPointOpen = !!freeEntryPointUntil && new Date(freeEntryPointUntil).getTime() > now;
+  return {
+    open: regularOpen || freeEntryPointOpen,
+    regularOpen,
+    freeEntryPointOpen,
+    expiresAt: regularOpen ? regularExpiresAt : freeEntryPointOpen ? freeEntryPointUntil : regularExpiresAt,
+    regularExpiresAt,
+    freeEntryPointUntil,
+  };
+}
+
+function formatRemaining(expiresAt: string) {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Vencida";
+  const totalMinutes = Math.ceil(ms / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days} d ${hours} h restantes`;
+  if (hours > 0) return `${hours} h ${minutes} min restantes`;
+  return `${minutes} min restantes`;
+}
+
+function apiError(error: any, fallback: string) {
+  return error?.response?.data?.error || fallback;
+}
+
 export default function Conversations() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,6 +145,9 @@ export default function Conversations() {
   const [contactCustomValues, setContactCustomValues] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [, setClock] = useState(Date.now());
   const [showContactPanel, setShowContactPanel] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) !== "false"; } catch { return true; }
   });
@@ -88,7 +164,8 @@ export default function Conversations() {
   useEffect(() => {
     fetchData();
     setupSocket();
-    return () => { socketRef.current?.disconnect(); };
+    const timer = window.setInterval(() => setClock(Date.now()), 30000);
+    return () => { socketRef.current?.disconnect(); window.clearInterval(timer); };
   }, []);
 
   useEffect(() => {
@@ -99,6 +176,7 @@ export default function Conversations() {
     // Las sugerencias ya no se generan solas (cada llamada gasta tokens):
     // se limpian al cambiar de conversacion y solo se generan con el boton.
     setSuggestions([]);
+    setActionError(null);
   }, [selectedConv?.id]);
 
   useEffect(() => {
@@ -114,7 +192,12 @@ export default function Conversations() {
       if (selectedConvRef.current?.id === msg.conversationId) setMessages((prev) => [...prev, msg]);
       fetchData();
     });
-    socket.on("conversation:updated", () => fetchData());
+    socket.on("conversation:updated", (payload: { id?: string }) => {
+      fetchData();
+      if (payload?.id && selectedConvRef.current?.id === payload.id) {
+        refreshConversation(payload.id).catch(() => {});
+      }
+    });
   }
 
   async function fetchData() {
@@ -132,14 +215,25 @@ export default function Conversations() {
     } finally { setLoading(false); }
   }
 
+  async function refreshConversation(conversationId: string) {
+    const { data } = await api.get(`/api/conversations/${conversationId}`);
+    if (selectedConvRef.current?.id !== conversationId) return null;
+    setSelectedConv(data.conversation);
+    setMessages(data.conversation.messages || []);
+    return data.conversation as Conversation;
+  }
+
   async function selectConversation(conv: Conversation) {
+    selectedConvRef.current = conv;
     setSelectedConv(conv);
     setSelectedContact(null);
     try {
-      const { data } = await api.get(`/api/conversations/${conv.id}`);
-      setMessages(data.conversation.messages || []);
+      await refreshConversation(conv.id);
+      await fetchContactCustomFields(conv.contact.id);
       socketRef.current?.emit("join-conversation", conv.id);
-    } catch {}
+    } catch (error: any) {
+      setActionError(apiError(error, "No se pudo cargar la conversación."));
+    }
   }
 
   async function sendMessage(textOverride?: string) {
@@ -154,17 +248,33 @@ export default function Conversations() {
   }
 
   async function updateStatus(status: string) {
-    if (!selectedConv) return;
-    await api.put(`/api/conversations/${selectedConv.id}/status`, { status });
-    setSelectedConv({ ...selectedConv, status });
-    fetchData();
+    const reactivatingTakeover = status === "active" && selectedConv?.humanTakeover;
+    if (!selectedConv || statusSaving || (selectedConv.status === status && !reactivatingTakeover)) return;
+    const conversationId = selectedConv.id;
+    setStatusSaving(true);
+    setActionError(null);
+    try {
+      const { data } = await api.put(`/api/conversations/${conversationId}/status`, { status });
+      const updated = data.conversation as Partial<Conversation>;
+      setSelectedConv((current) => current?.id === conversationId ? { ...current, ...updated } : current);
+      setConversations((current) => current.map((item) => item.id === conversationId ? { ...item, ...updated } : item));
+      await fetchData();
+    } catch (error: any) {
+      setActionError(apiError(error, "No se pudo actualizar el estado de la conversación."));
+    } finally {
+      setStatusSaving(false);
+    }
   }
 
   async function resetBot() {
     if (!selectedConv) return;
-    await api.post(`/api/conversations/${selectedConv.id}/reset-bot`);
-    fetchData();
-    if (selectedConv) selectConversation(selectedConv);
+    setActionError(null);
+    try {
+      await api.post(`/api/conversations/${selectedConv.id}/reset-bot`);
+      await Promise.all([fetchData(), refreshConversation(selectedConv.id)]);
+    } catch (error: any) {
+      setActionError(apiError(error, "No se pudo reiniciar la memoria del bot."));
+    }
   }
 
   async function fetchContactCustomFields(contactId: string) {
@@ -172,6 +282,18 @@ export default function Conversations() {
       const { data } = await api.get(`/api/customfields/contact/${contactId}`);
       setContactCustomValues(data);
     } catch { setContactCustomValues([]); }
+  }
+
+  async function handleContextChanged() {
+    await fetchData();
+    if (selectedConvRef.current) await refreshConversation(selectedConvRef.current.id);
+  }
+
+  function handleNoteAdded(note: ContactNote) {
+    setSelectedConv((current) => current ? {
+      ...current,
+      contact: { ...current.contact, notes: [note, ...(current.contact.notes || [])] },
+    } : current);
   }
 
   async function fetchSuggestions() {
@@ -205,10 +327,9 @@ export default function Conversations() {
   }
 
   function getWindowBadge(conv: Conversation) {
-    if (!conv.windowOpen) return null;
-    if (!conv.windowExpiresAt) return null;
-    const ms = new Date(conv.windowExpiresAt).getTime() - Date.now();
-    if (ms <= 0) return null;
+    const window = getWindowState(conv);
+    if (!window.open || !window.expiresAt) return null;
+    const ms = new Date(window.expiresAt).getTime() - Date.now();
     const hours = Math.floor(ms / 3600000);
     if (hours < 2) return <Badge variant="warning"><Clock size={10} className="mr-1" />{hours}h</Badge>;
     return <span className="w-1.5 h-1.5 rounded-full bg-success" />;
@@ -317,15 +438,15 @@ export default function Conversations() {
           <>
             <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0 bg-background">
               <div className="flex items-center gap-3 min-w-0">
-                <button onClick={() => { setSelectedConv(null); setSelectedContact(null); }} className="md:hidden btn-icon !w-8 !h-8 flex-shrink-0" title="Volver">
+                <button onClick={() => { selectedConvRef.current = null; setSelectedConv(null); setSelectedContact(null); }} className="md:hidden btn-icon !w-8 !h-8 flex-shrink-0" title="Volver">
                   <ArrowLeft size={16} />
                 </button>
                 <Avatar id={selectedConv.contact.id} name={selectedConv.contact.name || selectedConv.contact.phone} size="md" />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-[14px] font-[650] text-ink tracking-tight">{selectedConv.contact.name || selectedConv.contact.phone}</p>
-                    {selectedConv.windowOpen && selectedConv.windowExpiresAt && new Date(selectedConv.windowExpiresAt).getTime() > Date.now() && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-success" title="Ventana 24h abierta" />
+                    {getWindowState(selectedConv).open && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-success" title="Ventana de atención abierta" />
                     )}
                     {selectedConv.assignedAgent && (
                       <Badge variant="default"><UserCheck size={10} className="mr-1" />{selectedConv.assignedAgent.name}</Badge>
@@ -335,7 +456,7 @@ export default function Conversations() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <select value={selectedConv.status} onChange={(e) => updateStatus(e.target.value)} className="text-[12px] py-1 px-2 rounded-md border border-border bg-background text-ink">
+                <select value={selectedConv.status} disabled={statusSaving} onChange={(e) => updateStatus(e.target.value)} className="text-[12px] py-1 px-2 rounded-md border border-border bg-background text-ink disabled:opacity-50">
                   <option value="active">Activa</option>
                   <option value="waiting_agent">Esperando agente</option>
                   <option value="silenced">Silenciada</option>
@@ -349,6 +470,12 @@ export default function Conversations() {
                 </button>
               </div>
             </div>
+
+            {actionError && (
+              <div className="px-4 py-2 border-b border-border text-danger text-[12px] flex items-center gap-2" style={{ background: "var(--danger-muted)" }} role="alert">
+                <AlertCircle size={13} className="flex-shrink-0" />{actionError}
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1.5" style={{ background: "var(--chat-bg)" }}>
               {messages.map((msg) => (
@@ -419,12 +546,17 @@ export default function Conversations() {
               )}
             </div>
 
-            {/* ── Composer (with 24h enforcement) ──────────── */}
-            {selectedConv.windowOpen === false ? (
+            {/* ── Composer (24h + Free Entry Point enforcement) ──────────── */}
+            {!getWindowState(selectedConv).open ? (
               <WindowClosedComposer
-                onTemplateSent={(newText) => {
-                  setNewMessage(newText);
-                  sendMessage();
+                conversationId={selectedConv.id}
+                onSent={(message) => {
+                  if (selectedConvRef.current?.id === selectedConv.id) {
+                    setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+                    setSelectedConv((current) => current?.id === selectedConv.id ? { ...current, humanTakeover: true, updatedAt: message.timestamp } : current);
+                  }
+                  fetchData();
+                  refreshConversation(selectedConv.id).catch(() => {});
                 }}
               />
             ) : (
@@ -457,8 +589,13 @@ export default function Conversations() {
             contact={selectedContact || selectedConv?.contact}
             customValues={selectedConv ? contactCustomValues : []}
             messages={messages}
+            statusSaving={statusSaving}
+            actionError={actionError}
+            onStatusChange={updateStatus}
+            onConversationRefresh={handleContextChanged}
+            onNoteAdded={handleNoteAdded}
             onClose={() => setShowContactPanel(false)}
-            onTagsChanged={fetchData}
+            onTagsChanged={handleContextChanged}
           />
         </div>
       )}
@@ -500,7 +637,19 @@ function ContactEmptyState({ contact, customValues, onClose }: { contact: Contac
   );
 }
 
-function ContactPanel({ conversation, contact, customValues, messages, onClose, onTagsChanged }: { conversation: Conversation | null; contact: any; customValues: any[]; messages: any[]; onClose: () => void; onTagsChanged?: () => void }) {
+function ContactPanel({ conversation, contact, customValues, messages, statusSaving, actionError, onStatusChange, onConversationRefresh, onNoteAdded, onClose, onTagsChanged }: {
+  conversation: Conversation | null;
+  contact: ConversationContact | undefined;
+  customValues: any[];
+  messages: any[];
+  statusSaving: boolean;
+  actionError: string | null;
+  onStatusChange: (status: string) => Promise<void>;
+  onConversationRefresh: () => Promise<void>;
+  onNoteAdded: (note: ContactNote) => void;
+  onClose: () => void;
+  onTagsChanged?: () => void | Promise<void>;
+}) {
   const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [showTagDropdown, setShowTagDropdown] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
@@ -522,7 +671,7 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
 
   async function toggleTag(tagId: string) {
     if (!contact) return;
-    const hasTag = contact.tags?.some((ct: any) => ct.tag.id === tagId);
+    const hasTag = contact.tags?.some((ct) => ct.tag.id === tagId);
     try {
       if (hasTag) {
         await api.delete("/api/tags/assign", { data: { contactId: contact.id, tagId } });
@@ -530,7 +679,7 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
         await api.post("/api/tags/assign", { contactId: contact.id, tagId });
       }
       setShowTagDropdown(false);
-      onTagsChanged?.();
+      await onTagsChanged?.();
     } catch {}
   }
   if (!contact) return null;
@@ -543,14 +692,14 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
         <h3 className="section-label">Contacto</h3>
         <button onClick={onClose} className="btn-icon"><X size={14} /></button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
         <div className="flex flex-col items-center text-center pb-3 border-b border-border">
           <Avatar id={contact.id} name={contact.name || contact.phone} size="lg" />
           <p className="text-[14px] font-[650] text-ink mt-2 tracking-tight">{contact.name || "Sin nombre"}</p>
           <p className="text-[12px] text-ink-3 mt-0.5">{contact.phone}</p>
           {conversation?.leadScore !== undefined && (
             <div className="mt-2.5">
-              <Badge variant={conversation.leadScore > 80 ? "success" : conversation.leadScore > 30 ? "default" : "default"}>
+              <Badge variant={conversation.leadScore > 80 ? "success" : "default"}>
                 <Hash size={10} className="mr-1" />Score: {conversation.leadScore}
               </Badge>
             </div>
@@ -558,8 +707,27 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
         </div>
 
         {conversation && (
+          <AiControl
+            conversation={conversation}
+            saving={statusSaving}
+            error={actionError}
+            onStatusChange={onStatusChange}
+          />
+        )}
+
+        {conversation && (
+          <PipelineSection contact={contact} onChanged={onConversationRefresh} />
+        )}
+
+        {conversation && <WindowSection conversation={conversation} />}
+
+        {conversation && (
+          <NotesSection contact={contact} onNoteAdded={onNoteAdded} />
+        )}
+
+        {conversation && (
           <div>
-            <h4 className="section-label mb-2">Estadisticas</h4>
+            <h4 className="section-label mb-2">Estadísticas</h4>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-md border border-border p-2.5 text-center">
                 <p className="text-[18px] font-[650] text-ink tracking-tight">{inbound}</p>
@@ -575,7 +743,7 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
 
         <div>
           <div className="flex items-center justify-between mb-2 relative">
-            <h4 className="section-label mb-2">Etiquetas</h4>
+            <h4 className="section-label">Etiquetas</h4>
             <button onClick={() => setShowTagDropdown(!showTagDropdown)} className="text-ink-3 hover:text-ink transition-colors" title="Agregar tag"><Plus size={12} /></button>
             {showTagDropdown && (
               <div ref={tagDropdownRef} className="absolute right-0 top-6 z-50 w-52 rounded-lg border border-border shadow-lg py-1" style={{ background: "var(--bg-card)" }}>
@@ -583,11 +751,11 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
                   <p className="px-3 py-2 text-[11px] text-ink-3">Sin etiquetas disponibles</p>
                 ) : (
                   availableTags.map((tag) => {
-                    const assigned = contact.tags?.some((ct: any) => ct.tag.id === tag.id);
+                    const assigned = contact.tags?.some((ct) => ct.tag.id === tag.id);
                     return (
                       <button key={tag.id} onClick={() => toggleTag(tag.id)}
                         className="w-full px-3 py-1.5 flex items-center gap-2 text-left text-[12px] hover:bg-atlas-hover transition-colors"
-                        style={{ color: assigned ? tag.color : "var(--text-primary)" }}>
+                        style={{ color: assigned ? "var(--text-primary)" : "var(--text-3)" }}>
                         <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: tag.color }} />
                         <span className="flex-1 truncate">{tag.name}</span>
                         {assigned && <Check size={12} />}
@@ -598,9 +766,9 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
               </div>
             )}
           </div>
-          {contact.tags?.length > 0 ? (
+          {contact.tags?.length ? (
             <div className="flex flex-wrap gap-1">
-              {contact.tags.map((ct: any) => (
+              {contact.tags.map((ct) => (
                 <span key={ct.tag.id} className="text-[11px] px-2 py-0.5 rounded-sm font-medium" style={{ backgroundColor: ct.tag.color + "20", color: ct.tag.color }}>
                   {ct.tag.name}
                 </span>
@@ -624,48 +792,313 @@ function ContactPanel({ conversation, contact, customValues, messages, onClose, 
             </div>
           </div>
         )}
-
-        {conversation && conversation.windowExpiresAt && (
-          <div>
-            <h4 className="section-label mb-2">Ventana 24h</h4>
-            <div className="rounded-md border border-border p-2.5 text-[12px]">
-              {conversation.windowOpen ? (
-                <div className="flex items-center gap-1.5 text-ink-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                  Abierta hasta {new Date(conversation.windowExpiresAt).toLocaleString("es", { dateStyle: "short", timeStyle: "short" })}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-ink-3">
-                  <AlertCircle size={12} />
-                  Cerrada
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </>
   );
 }
 
+function AiControl({ conversation, saving, error, onStatusChange }: {
+  conversation: Conversation;
+  saving: boolean;
+  error: string | null;
+  onStatusChange: (status: string) => Promise<void>;
+}) {
+  const aiActive = !!conversation.bot && conversation.status === "active" && !conversation.humanTakeover;
+  const label = !conversation.bot
+    ? "Sin IA asignada"
+    : aiActive
+      ? "IA activa"
+      : conversation.humanTakeover
+        ? "Atención humana"
+        : "IA pausada";
+
+  return (
+    <section className="rounded-lg border border-border bg-atlas-subtle p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`w-7 h-7 rounded-md flex items-center justify-center ${aiActive ? "bg-brand-soft text-brand-text" : "bg-atlas-panel text-ink-3"}`}>
+            <Bot size={15} />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-[12.5px] font-[650] text-ink">{label}</h4>
+            <p className="text-[11px] text-ink-3 truncate">{conversation.bot?.name || "Asigná un bot para automatizar"}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={aiActive}
+          aria-label={aiActive ? "Pausar IA" : "Reactivar IA"}
+          disabled={!conversation.bot || saving}
+          onClick={() => onStatusChange(aiActive ? "waiting_agent" : "active")}
+          className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-40 ${aiActive ? "bg-brand" : "bg-border"}`}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${aiActive ? "translate-x-4 left-0.5" : "left-0.5"}`} />
+        </button>
+      </div>
+      <p className="text-[11px] text-ink-3 mt-2.5 leading-relaxed">
+        {aiActive
+          ? "La IA responde automáticamente los mensajes entrantes."
+          : conversation.humanTakeover
+            ? "Una persona tiene el control; la IA no responderá."
+            : "La automatización está detenida para esta conversación."}
+      </p>
+      {!aiActive && conversation.bot && (
+        <Button size="sm" variant="outline" className="w-full mt-2.5" disabled={saving} onClick={() => onStatusChange("active")}>
+          {saving ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+          Reactivar IA
+        </Button>
+      )}
+      {aiActive && (
+        <p className="text-[10.5px] text-ink-3 mt-2 flex items-center gap-1"><Pause size={10} />Podés pausarla con el interruptor.</p>
+      )}
+      {!aiActive && conversation.bot && (
+        <p className="text-[10.5px] text-ink-3 mt-2">La reactivación conserva la memoria y el paso actual.</p>
+      )}
+      {error && <p className="text-[11px] text-danger mt-2" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+function PipelineSection({ contact, onChanged }: { contact: ConversationContact; onChanged: () => Promise<void> }) {
+  const deal = contact.deals?.find((item) => item.status === "OPEN") || contact.deals?.[0];
+  const [defaultPipeline, setDefaultPipeline] = useState<{ id: string; name: string; stages: PipelineStage[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const hasDeals = !!contact.deals?.length;
+
+  useEffect(() => {
+    if (hasDeals) return;
+    let cancelled = false;
+    setLoading(true);
+    api.get("/api/pipeline")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const pipeline = data.find((item: any) => item.isDefault && item.stages?.length) || data.find((item: any) => item.stages?.length);
+        setDefaultPipeline(pipeline || null);
+      })
+      .catch((requestError) => { if (!cancelled) setError(apiError(requestError, "No se pudo cargar el pipeline.")); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [contact.id, hasDeals]);
+
+  async function moveDeal(stageId: string) {
+    if (!deal || stageId === deal.stageId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post("/api/pipeline/deals/move", { dealId: deal.id, stageId });
+      await onChanged();
+    } catch (requestError: any) {
+      setError(apiError(requestError, "No se pudo cambiar la etapa."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createDeal() {
+    const firstStage = defaultPipeline?.stages[0];
+    if (!defaultPipeline || !firstStage) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post("/api/pipeline/deals", {
+        name: `Oportunidad - ${contact.name || contact.phone}`,
+        contactId: contact.id,
+        pipelineId: defaultPipeline.id,
+        stageId: firstStage.id,
+        currency: "PYG",
+      });
+      await onChanged();
+    } catch (requestError: any) {
+      setError(apiError(requestError, "No se pudo crear la oportunidad."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section>
+      <h4 className="section-label mb-2">Etapa del pipeline</h4>
+      <div className="rounded-md border border-border p-2.5">
+        {deal ? (
+          <>
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="w-2 h-2 rounded-full" style={{ background: deal.stage.color }} />
+              <p className="text-[12px] font-medium text-ink truncate">{deal.name}</p>
+            </div>
+            <select value={deal.stageId} disabled={saving} onChange={(event) => moveDeal(event.target.value)} className="w-full text-[12px] py-1.5 px-2 rounded-md border border-border bg-background text-ink disabled:opacity-50">
+              {deal.pipeline.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+            </select>
+            <p className="text-[10.5px] text-ink-3 mt-1.5">{deal.pipeline.name}</p>
+          </>
+        ) : loading ? (
+          <p className="text-[11.5px] text-ink-3">Cargando pipeline...</p>
+        ) : defaultPipeline ? (
+          <>
+            <p className="text-[11.5px] text-ink-3 mb-2">Este contacto aún no tiene una oportunidad.</p>
+            <Button size="sm" variant="outline" className="w-full" disabled={saving} onClick={createDeal}>
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              Crear oportunidad
+            </Button>
+          </>
+        ) : (
+          <p className="text-[11.5px] text-ink-3">No hay un pipeline con etapas configurado.</p>
+        )}
+        {error && <p className="text-[11px] text-danger mt-2" role="alert">{error}</p>}
+      </div>
+    </section>
+  );
+}
+
+function NotesSection({ contact, onNoteAdded }: { contact: ConversationContact; onNoteAdded: (note: ContactNote) => void }) {
+  const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setContent("");
+    setError(null);
+  }, [contact.id]);
+
+  async function saveNote() {
+    const noteContent = content.trim();
+    if (!noteContent) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { data } = await api.post(`/api/conversations/${contact.id}/notes`, { content: noteContent });
+      onNoteAdded(data.note);
+      setContent("");
+    } catch (requestError: any) {
+      setError(apiError(requestError, "No se pudo guardar la nota."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section>
+      <h4 className="section-label mb-2">Notas internas</h4>
+      <Textarea value={content} onChange={(event) => setContent(event.target.value)} rows={2} maxLength={2000} placeholder="Visible solo para el equipo..." className="text-[12px] min-h-[58px]" />
+      <Button size="sm" variant="outline" className="w-full mt-2" disabled={saving || !content.trim()} onClick={saveNote}>
+        {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+        Guardar nota
+      </Button>
+      {error && <p className="text-[11px] text-danger mt-2" role="alert">{error}</p>}
+      <div className="space-y-2 mt-3">
+        {contact.notes?.length ? contact.notes.map((note) => (
+          <div key={note.id} className="rounded-md bg-atlas-subtle border border-border p-2.5">
+            <p className="text-[12px] text-ink-2 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+            <p className="text-[10px] text-ink-3 mt-1.5">
+              {note.agent?.name || "Equipo"} · {new Date(note.createdAt).toLocaleString("es", { dateStyle: "short", timeStyle: "short" })}
+            </p>
+          </div>
+        )) : <p className="text-[11.5px] text-ink-3">Todavía no hay notas internas.</p>}
+      </div>
+    </section>
+  );
+}
+
+function WindowSection({ conversation }: { conversation: Conversation }) {
+  const window = getWindowState(conversation);
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="section-label">Ventana de atención</h4>
+        <Badge variant={window.open ? "success" : "default"}>{window.open ? "Abierta" : "Cerrada"}</Badge>
+      </div>
+      <div className="rounded-md border border-border p-2.5 text-[12px]">
+        {window.open && window.expiresAt ? (
+          <>
+            <div className="flex items-center gap-1.5 text-ink-2">
+              {window.regularOpen ? <Clock size={12} className="text-success" /> : <Sparkles size={12} className="text-brand-text" />}
+              <span>{window.regularOpen ? "Mensajes libres (24 h)" : "Ventana gratuita de anuncio (72 h)"}</span>
+            </div>
+            <p className="font-medium text-ink mt-1.5">{formatRemaining(window.expiresAt)}</p>
+            <p className="text-[10.5px] text-ink-3 mt-0.5">Hasta {new Date(window.expiresAt).toLocaleString("es", { dateStyle: "short", timeStyle: "short" })}</p>
+          </>
+        ) : (
+          <div className="flex items-start gap-1.5 text-ink-3">
+            <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+            <span>Cerrada. Meta solo permite iniciar con un template aprobado.</span>
+          </div>
+        )}
+        {window.regularOpen && window.freeEntryPointOpen && window.freeEntryPointUntil && (
+          <p className="text-[10.5px] text-brand-text border-t border-border mt-2 pt-2">
+            Anuncio: ventana gratuita adicional hasta {new Date(window.freeEntryPointUntil).toLocaleString("es", { dateStyle: "short", timeStyle: "short" })}.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ── Window Closed Composer (24h enforcement) ────── */
 
-function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: string) => void }) {
+function templateVariableIndexes(bodyText: string) {
+  return [...new Set([...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((match) => Number(match[1])))].sort((a, b) => a - b);
+}
+
+function WindowClosedComposer({ conversationId, onSent }: { conversationId: string; onSent: (message: any) => void }) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [variables, setVariables] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (showTemplates && templates.length === 0) loadTemplates();
   }, [showTemplates]);
 
+  useEffect(() => {
+    setSelectedTemplate(null);
+    setVariables([]);
+    setError(null);
+  }, [conversationId]);
+
   async function loadTemplates() {
     setLoading(true);
+    setError(null);
     try {
       const { data } = await api.get("/api/templates/approved");
       setTemplates(data.templates || []);
-    } catch {} finally { setLoading(false); }
+    } catch (err: any) {
+      setError(apiError(err, "No se pudieron cargar las plantillas."));
+    } finally { setLoading(false); }
   }
+
+  function selectTemplate(template: any) {
+    const indexes = templateVariableIndexes(template.bodyText || "");
+    setSelectedTemplate(template);
+    setVariables(indexes.map(() => ""));
+    setError(null);
+  }
+
+  async function sendSelectedTemplate() {
+    if (!selectedTemplate || sending || variables.some((value) => !value.trim())) return;
+    setSending(true);
+    setError(null);
+    try {
+      const { data } = await api.post(`/api/conversations/${conversationId}/template`, {
+        templateId: selectedTemplate.id,
+        variables: variables.map((value) => value.trim()),
+      });
+      onSent(data.message);
+      setSelectedTemplate(null);
+      setVariables([]);
+      setShowTemplates(false);
+    } catch (err: any) {
+      setError(apiError(err, "Meta no pudo enviar la plantilla."));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const variableIndexes = selectedTemplate ? templateVariableIndexes(selectedTemplate.bodyText || "") : [];
 
   return (
     <div className="px-4 py-4 border-t border-border bg-warn-chip-bg">
@@ -686,7 +1119,7 @@ function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: strin
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="section-label text-warn-chip-text">Templates aprobados</p>
-            <button onClick={() => setShowTemplates(false)} className="text-warn-chip-text hover:opacity-70">
+            <button onClick={() => { setShowTemplates(false); setSelectedTemplate(null); }} disabled={sending} className="text-warn-chip-text hover:opacity-70" aria-label="Cerrar templates">
               <X size={12} />
             </button>
           </div>
@@ -697,14 +1130,29 @@ function WindowClosedComposer({ onTemplateSent }: { onTemplateSent: (text: strin
           ) : (
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {templates.slice(0, 5).map((t) => (
-                <button key={t.id} onClick={() => onTemplateSent(`[TEMPLATE: ${t.name}] ${t.bodyText}`)}
-                  className="w-full text-left p-2 rounded-md border border-warn-chip-border bg-background hover:bg-warn-chip-bg transition-colors">
+                <button key={t.id} onClick={() => selectTemplate(t)} disabled={sending}
+                  className={`w-full text-left p-2 rounded-md border bg-background hover:bg-warn-chip-bg transition-colors ${selectedTemplate?.id === t.id ? "border-brand" : "border-warn-chip-border"}`}>
                   <p className="text-[11.5px] font-[600] text-ink">{t.name}</p>
                   <p className="text-[11px] text-ink-2 line-clamp-2">{t.bodyText}</p>
                 </button>
               ))}
             </div>
           )}
+          {selectedTemplate && (
+            <div className="mt-3 space-y-2">
+              {variableIndexes.map((index, position) => (
+                <Input key={index} value={variables[position] || ""} disabled={sending}
+                  onChange={(event) => setVariables((current) => current.map((value, i) => i === position ? event.target.value : value))}
+                  placeholder={`Valor para {{${index}}}`} aria-label={`Variable ${index}`} />
+              ))}
+              <Button size="sm" className="w-full" onClick={sendSelectedTemplate}
+                disabled={sending || variables.some((value) => !value.trim())}>
+                {sending ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                {sending ? "Enviando a Meta..." : `Enviar ${selectedTemplate.name}`}
+              </Button>
+            </div>
+          )}
+          {error && <p role="alert" className="mt-2 text-[11.5px] text-red-600">{error}</p>}
         </div>
       )}
     </div>

@@ -42,18 +42,48 @@ export async function addKnowledgeFromUrl(botId: string | null, url: string) {
   });
   if (!res.ok) throw new Error(`La pagina respondio ${res.status}`);
   const html = await res.text();
-  const text = htmlToText(html);
-  if (text.length < 50) throw new Error("No se pudo extraer texto util de la pagina");
+  const content = buildWebKnowledge(html, parsed);
 
   return prisma.botKnowledge.create({
     data: {
       botId,
       filename: parsed.hostname + (parsed.pathname === "/" ? "" : parsed.pathname),
       mimeType: "text/html",
-      content: text.slice(0, 50000),
-      size: Buffer.byteLength(text, "utf8"),
+      content,
+      size: Buffer.byteLength(content, "utf8"),
     },
   });
+}
+
+/** Conserva el origen y las imágenes públicas para respuestas de producto. */
+export function buildWebKnowledge(html: string, pageUrl: URL): string {
+  const text = htmlToText(html);
+  if (text.length < 50) throw new Error("No se pudo extraer texto util de la pagina");
+
+  const candidates: string[] = [];
+  for (const match of html.matchAll(/<meta\b[^>]*(?:property|name)=["']og:image["'][^>]*>/gi)) {
+    candidates.push(match[0].match(/\bcontent=["']([^"']+)["']/i)?.[1] || "");
+  }
+  for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
+    candidates.push(match[0].match(/\b(?:src|data-src)=["']([^"']+)["']/i)?.[1] || "");
+  }
+
+  const images = [...new Set(candidates.map((candidate) => {
+    try {
+      const url = new URL(candidate.replace(/&amp;/g, "&"), pageUrl);
+      if (!["http:", "https:"].includes(url.protocol)) return null;
+      if (/logo|icon|favicon|sprite|placeholder/i.test(url.pathname)) return null;
+      return url.toString();
+    } catch {
+      return null;
+    }
+  }).filter((url): url is string => !!url))].slice(0, 30);
+
+  const mediaContext = [
+    `PAGINA_ORIGEN: ${pageUrl.toString()}`,
+    ...(images.length ? ["IMAGENES_PRODUCTO:", ...images.map((url) => `- ${url}`)] : []),
+  ].join("\n");
+  return `${mediaContext}\n\n${text}`.slice(0, 50000);
 }
 
 export async function deleteKnowledge(id: string) {

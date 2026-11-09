@@ -10,6 +10,8 @@ import * as sessionService from "./session.service";
 import * as attributionService from "./attribution.service";
 import * as mediaService from "./media.service";
 import * as npsService from "./nps.service";
+import { getKnowledgeContent } from "./knowledge.service";
+import { prepareBotResponse } from "./bot-response.service";
 
 const engine = resolveEngine();
 
@@ -346,25 +348,32 @@ async function processBotFlow(conversation: any, userMessage: string) {
         });
       }
 
-      const response = await generateResponse(configId, aiMessages, { botId: bot.id });
+      const knowledge = await getKnowledgeContent(bot.id);
+      const response = await generateResponse(configId, aiMessages, { botId: bot.id, knowledge });
       if (response) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
-          const sent = await engine.sendText(contact.phone, response);
+          const prepared = prepareBotResponse(response, userMessage, knowledge);
+          const sent = prepared.imageUrl
+            ? await engine.sendImageByUrl(contact.phone, prepared.imageUrl, prepared.text || undefined)
+            : prepared.text
+              ? await engine.sendText(contact.phone, prepared.text)
+              : false;
           if (!sent) {
             console.error(`[BOT] Meta rechazó el envío; no se guardará como enviado ni se avanzará el flujo (conversación ${conversation.id})`);
             return;
           }
           sessionService.trackOutbound(contact.id).catch(() => {});
-          await prisma.message.create({
-            data: { conversationId: conversation.id, direction: "outbound", type: "text", content: response },
+          const message = await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: "outbound",
+              type: prepared.imageUrl ? "image" : "text",
+              content: prepared.text || "[image]",
+              mediaUrl: prepared.imageUrl,
+            },
           });
-          getIo().emit("message:new", {
-            conversationId: conversation.id,
-            content: response,
-            direction: "outbound",
-            timestamp: new Date().toISOString(),
-          });
+          getIo().emit("message:new", { ...message, timestamp: message.timestamp.toISOString() });
           // Lead scoring: MESSAGE_SENT
           addScoreByCondition(conversation.orgId || "", conversation.contactId, "MESSAGE_SENT", "Mensaje enviado por IA").catch(() => {});
         }

@@ -739,7 +739,6 @@ model CustomFieldValue {
 
   customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
   contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal        Deal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([customFieldId])
   @@index([contactId])

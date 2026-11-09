@@ -816,7 +816,7 @@ model SalesPlaybook {
   id          String   @id @default(uuid())
   orgId       String?
   name        String
-  description String
+  description String?
   methodology String   // "SPIN", "BANT", "AIDA", "CHALLENGER", "CONSULTATIVE"
   isActive    Boolean  @default(true)
   isDefault   Boolean  @default(false)

@@ -70,35 +70,32 @@ export async function webhookIncoming(req: Request, res: Response) {
   if (!isSignatureValid(req)) {
     return res.status(401).send("Invalid signature");
   }
-  console.log("[WEBHOOK] Recibido:", JSON.stringify(req.body).slice(0, 300));
+
   try {
     const payload = req.body;
-
-    // Solo formato Meta (entry[].changes[].value.messages[]).
-    // El soporte OpenWA fue eliminado del stack.
-    if (!payload?.entry) {
-      // Eventos de estado u otros payloads sin mensajes: ack y salir.
-      // (status updates de mensajes salientes, etc.)
+    const rawBody = (req as any).rawBody;
+    if (!payload?.entry || !Buffer.isBuffer(rawBody)) {
       return res.sendStatus(200);
     }
 
     // Extract CTWA ref parameter and metadata from Meta webhook
     const change = payload.entry?.[0]?.changes?.[0];
     const msg = change?.value?.messages?.[0];
-    if (msg?.ref) {
-      payload.ref = msg.ref;
-    }
-    if (change?.value?.metadata) {
-      payload.metadata = change.value.metadata;
-    }
+    if (msg?.ref) payload.ref = msg.ref;
+    if (change?.value?.metadata) payload.metadata = change.value.metadata;
 
-    // ACK inmediato a Meta: si el procesamiento tarda, Meta reintenta
-    // el webhook y el mensaje aparece duplicado (ver dedup por wamid).
+    // Persistir antes del ACK. Si PostgreSQL falla, 503 obliga a Meta a
+    // reintentar; nunca confirmamos un evento que no pudimos guardar.
+    const { enqueueWebhookEvent, processWebhookEvent } = await import("../services/webhook-event.service");
+    const { event, isNew } = await enqueueWebhookEvent({ payload, rawBody });
     res.sendStatus(200);
-    processIncomingMessage(payload).catch((err) => console.error("Webhook error:", err));
+
+    if (isNew || event.status === "pending") {
+      setImmediate(() => processWebhookEvent(event.id).catch((err) => console.error("[WEBHOOK-EVENT] Error:", err)));
+    }
   } catch (error) {
-    console.error("Webhook error:", error);
-    res.sendStatus(200);
+    console.error("Webhook persistence error:", error);
+    if (!res.headersSent) res.sendStatus(503);
   }
 }
 
@@ -171,17 +168,20 @@ export async function testConnection(req: Request, res: Response) {
 
 export async function updateConfig(req: Request, res: Response) {
   const { phoneNumberId, accessToken, verifyToken } = req.body;
+  const orgId = (req as any).user?.orgId as string | undefined;
+  if (!orgId) return res.status(400).json({ error: "Usuario sin organización" });
 
   // Encrypt sensitive fields at rest
   const encryptedToken = encrypt(accessToken);
   const encryptedVerify = verifyToken ? encrypt(verifyToken) : null;
 
-  const existing = await prisma.whatsappConfig.findFirst();
+  const existing = await prisma.whatsappConfig.findFirst({ where: { orgId } });
 
   if (existing) {
     const config = await prisma.whatsappConfig.update({
       where: { id: existing.id },
       data: {
+        orgId,
         phoneNumberId,
         accessToken: encryptedToken,
         verifyToken: encryptedVerify || existing.verifyToken,
@@ -192,6 +192,7 @@ export async function updateConfig(req: Request, res: Response) {
 
   const config = await prisma.whatsappConfig.create({
     data: {
+      orgId,
       phoneNumberId,
       accessToken: encryptedToken,
       verifyToken: encryptedVerify || verifyToken,

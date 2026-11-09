@@ -48,6 +48,8 @@ export async function listPhoneNumbers(req: Request, res: Response) {
 export async function completeSignup(req: Request, res: Response) {
   try {
     const { code, accessToken, wabaId, phoneNumberId, verifyToken } = req.body;
+    const orgId = (req as any).user?.orgId as string | undefined;
+    if (!orgId) return res.status(400).json({ error: "Usuario sin organización" });
     if (!code && !accessToken) return res.status(400).json({ error: "code o accessToken requerido" });
 
     const result = await metaOAuth.completeEmbeddedSignup({
@@ -56,6 +58,7 @@ export async function completeSignup(req: Request, res: Response) {
       wabaId,
       phoneNumberId,
       verifyToken,
+      orgId,
     });
     res.json(result);
   } catch (err: any) {

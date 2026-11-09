@@ -88,7 +88,8 @@ model User {
 
 model WhatsappConfig {
   id                 String   @id @default(uuid())
-  phoneNumberId      String
+  orgId              String?
+  phoneNumberId      String   @unique
   accessToken        String
   verifyToken        String
   status             String   @default("offline")
@@ -103,6 +104,29 @@ model WhatsappConfig {
   qualityRating      String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  @@index([orgId])
+}
+
+// Evento recibido de Meta. Se persiste antes del ACK para poder reintentar
+// sin depender de la memoria del proceso; eventKey evita ingesta duplicada.
+model WebhookEvent {
+  id            String    @id @default(uuid())
+  orgId         String?
+  phoneNumberId String?
+  eventKey      String    @unique
+  payload       Json
+  status        String    @default("pending") // pending, processing, done, failed
+  attempts      Int       @default(0)
+  nextRetryAt   DateTime  @default(now())
+  lastError     String?
+  receivedAt    DateTime  @default(now())
+  processedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([orgId, receivedAt])
 }
 
 model Setting {
@@ -799,7 +823,7 @@ model SalesPlaybook {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org         Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
+  org    Organization? @relation("OrgSalesPlaybooks", fields: [orgId], references: [id], onDelete: Cascade)
   stages  PlaybookStage[]
   abTests PlaybookABTest[] @relation("PlaybookA")
   abTestsB PlaybookABTest[] @relation("PlaybookB")

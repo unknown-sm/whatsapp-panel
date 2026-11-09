@@ -1,6 +1,32 @@
 import prisma from "../lib/prisma";
 import { z } from "zod";
 
+type WindowRecord = {
+  windowExpiresAt: Date;
+  isOpen: boolean;
+  freeEntryPointUntil: Date | null;
+};
+
+/** Expone a la interfaz la ventana efectiva para mensajes de texto libre. */
+export function withWindowFields<T extends { contact?: { conversationWindow?: WindowRecord | null } | null }>(conversation: T) {
+  const window = conversation.contact?.conversationWindow;
+  const now = Date.now();
+  const regularOpen = !!window?.isOpen && window.windowExpiresAt.getTime() > now;
+  const freeEntryPointOpen = !!window?.freeEntryPointUntil && window.freeEntryPointUntil.getTime() > now;
+  const windowExpiresAt = regularOpen
+    ? window!.windowExpiresAt
+    : freeEntryPointOpen
+      ? window!.freeEntryPointUntil
+      : window?.windowExpiresAt || null;
+
+  return {
+    ...conversation,
+    windowOpen: regularOpen || freeEntryPointOpen,
+    windowExpiresAt,
+    freeEntryPointUntil: window?.freeEntryPointUntil || null,
+  };
+}
+
 export async function getConversations(filters: { status?: string; botId?: string; agentId?: string; search?: string; page?: number; pageSize?: number; orgId: string }) {
   const where: any = { orgId: filters.orgId };
   if (filters.status) where.status = filters.status;
@@ -18,7 +44,7 @@ export async function getConversations(filters: { status?: string; botId?: strin
     prisma.conversation.findMany({
       where,
       include: {
-        contact: true,
+        contact: { include: { conversationWindow: true } },
         bot: { select: { name: true } },
         assignedAgent: { select: { name: true, email: true } },
         messages: { orderBy: { timestamp: "desc" }, take: 1 },
@@ -31,7 +57,7 @@ export async function getConversations(filters: { status?: string; botId?: strin
   ]);
 
   return {
-    conversations,
+    conversations: conversations.map(withWindowFields),
     pagination: {
       page,
       pageSize,
@@ -42,15 +68,30 @@ export async function getConversations(filters: { status?: string; botId?: strin
 }
 
 export async function getConversation(id: string, orgId: string) {
-  return prisma.conversation.findFirst({
+  const conversation = await prisma.conversation.findFirst({
     where: { id, orgId },
     include: {
-      contact: { include: { tags: { include: { tag: true } }, notes: { include: { agent: true } } } },
+      contact: {
+        include: {
+          tags: { include: { tag: true } },
+          notes: { include: { agent: true }, orderBy: { createdAt: "desc" } },
+          conversationWindow: true,
+          deals: {
+            orderBy: { updatedAt: "desc" },
+            take: 10,
+            include: {
+              stage: true,
+              pipeline: { include: { stages: { orderBy: { order: "asc" } } } },
+            },
+          },
+        },
+      },
       bot: true,
       assignedAgent: true,
       messages: { orderBy: { timestamp: "asc" } },
     },
   });
+  return conversation ? withWindowFields(conversation) : null;
 }
 
 export async function sendMessage(conversationId: string, content: string, direction: "inbound" | "outbound" = "outbound", agentId?: string) {

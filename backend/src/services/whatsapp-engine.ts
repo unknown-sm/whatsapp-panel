@@ -18,6 +18,7 @@ export type MediaType = "image" | "video" | "document" | "audio" | "sticker";
 
 export interface IWhatsAppEngine {
   sendText(phone: string, message: string): Promise<boolean>;
+  sendImageByUrl(phone: string, imageUrl: string, caption?: string): Promise<boolean>;
   sendMediaById(phone: string, mediaId: string, type: MediaType, caption?: string, filename?: string): Promise<boolean>;
   uploadMedia(buffer: Buffer, mimeType: string, filename: string): Promise<string | null>;
   sendMedia(phone: string, buffer: Buffer, mimeType: string, type: MediaType, caption?: string, filename?: string): Promise<boolean>;
@@ -99,6 +100,25 @@ class MetaEngine implements IWhatsAppEngine {
     } catch (err: any) {
       console.error("Meta uploadMedia error:", err.response?.data || err.message);
       return null;
+    }
+  }
+
+  async sendImageByUrl(phone: string, imageUrl: string, caption?: string): Promise<boolean> {
+    const config = await getDecryptedConfig();
+    if (!config) return false;
+    try {
+      await axios.post(`https://graph.facebook.com/v21.0/${config.phoneNumberId}/messages`, {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "image",
+        image: { link: imageUrl, ...(caption ? { caption } : {}) },
+      }, {
+        headers: { Authorization: `Bearer ${config.accessToken}`, "Content-Type": "application/json" },
+      });
+      return true;
+    } catch (err: any) {
+      console.error("Meta sendImageByUrl error:", err.response?.data || err.message);
+      return false;
     }
   }
 

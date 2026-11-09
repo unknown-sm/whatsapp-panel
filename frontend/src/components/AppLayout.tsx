@@ -8,13 +8,13 @@ import AgentChatPanel from "./AgentChatPanel";
 import {
   LayoutDashboard, Bot, MessageSquare, Clock, Settings, LogOut,
   Menu, ChevronLeft, KanbanSquare, Target, Megaphone, BarChart3, FileText,
-  FlaskConical, Send, Star, ClipboardList, Globe, MessageCircle,
+  FlaskConical, Send, Star, ClipboardList, Globe, MessageCircle, Webhook,
 } from "lucide-react";
 
 const languages: Record<string, { label: string; flag: string }> = {
   es: { label: "ES", flag: "\ud83c\uddea\ud83c\uddf8" },
   "pt-BR": { label: "PT", flag: "\ud83c\udde7\ud83c\uddf7" },
-  en: { label: "EN", flag: "\ud83c\uddec\ud83c\udde7" },
+  en: { label: "EN", flag: "\ud83c\uddec\ud83c\uddec\ud83c\uddf7" },
 };
 
 export default function AppLayout() {
@@ -50,6 +50,7 @@ export default function AppLayout() {
     { to: "/reports", icon: ClipboardList, label: t("sidebar.reports") },
     { to: "/analytics", icon: BarChart3, label: t("sidebar.analytics") },
     { to: "/logs", icon: FileText, label: t("sidebar.logs") },
+    { to: "/webhook-events", icon: Webhook, label: t("sidebar.webhookEvents") },
     { to: "/settings", icon: Settings, label: t("sidebar.settings") },
   ];
 

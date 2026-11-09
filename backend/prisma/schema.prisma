@@ -89,7 +89,7 @@ model User {
 model WhatsappConfig {
   id                 String   @id @default(uuid())
   orgId              String?
-  phoneNumberId      String   @unique
+  phoneNumberId      String
   accessToken        String
   verifyToken        String
   status             String   @default("offline")
@@ -191,10 +191,10 @@ model CrmLog {
 }
 
 model BotKeyword {
-  id      String @id @default(uuid())
-  keyword String
-  botId   String
-  bot     Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  keyword   String
+  botId     String
+  bot       Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@index([botId])
   @@index([keyword])
@@ -436,13 +436,13 @@ model FollowUpRule {
 }
 
 model FollowUpAttempt {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   conversationId String
   ruleId         String
   attemptNumber  Int
-  sentAt         DateTime @default(now())
-  replied        Boolean  @default(false)
-  status         String   @default("sent")
+  sentAt         DateTime  @default(now())
+  replied        Boolean   @default(false)
+  status         String    @default("sent")
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -676,9 +676,9 @@ model Broadcast {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  org         Organization? @relation("OrgBroadcasts", fields: [orgId], references: [id], onDelete: Cascade)
-  template    BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  recipients  BroadcastRecipient[]
+  org        Organization? @relation("OrgBroadcasts", fields: [orgId], references: [id], onDelete: Cascade)
+  template   BroadcastTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients BroadcastRecipient[]
 
   @@index([orgId])
 }
@@ -739,6 +739,7 @@ model CustomFieldValue {
 
   customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
   contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  deal        Deal?       @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([customFieldId])
   @@index([contactId])
@@ -816,7 +817,7 @@ model SalesPlaybook {
   id          String   @id @default(uuid())
   orgId       String?
   name        String
-  description String?
+  description String
   methodology String   // "SPIN", "BANT", "AIDA", "CHALLENGER", "CONSULTATIVE"
   isActive    Boolean  @default(true)
   isDefault   Boolean  @default(false)
@@ -847,19 +848,20 @@ model PlaybookStage {
 }
 
 model PlaybookABTest {
-  id           String   @id @default(uuid())
-  playbookAId  String
-  playbookBId  String
-  trafficSplit Int      @default(50) // % para A
-  status       String   @default("draft") // "draft", "running", "completed", "paused"
-  metric       String   @default("conversion_rate")
-  resultsA     Json?
-  resultsB     Json?
-  winnerId     String?
-  confidence   Float?
-  startedAt    DateTime?
-  endedAt      DateTime?
-  createdAt    DateTime @default(now())
+  id              String   @id @default(uuid())
+  playbookAId     String
+  playbookBId     String
+  trafficSplit    Int      @default(50) // % para A
+  status          String   @default("draft") // "draft", "running", "completed", "paused"
+  metric          String   @default("conversion_rate")
+  resultsA        Json?
+  resultsB        Json?
+  winnerId        String?
+  confidence      Float?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   playbookA SalesPlaybook @relation("PlaybookA", fields: [playbookAId], references: [id])
   playbookB SalesPlaybook @relation("PlaybookB", fields: [playbookBId], references: [id])
@@ -952,7 +954,7 @@ model AgentTestRun {
 }
 
 model AgentTestCase {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   runId       String
   personaId   String
   personaName String
@@ -992,6 +994,7 @@ model ReportSubscription {
   period    String   @default("daily") // "daily", "weekly", "monthly"
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   org Organization? @relation("OrgReportSubs", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])

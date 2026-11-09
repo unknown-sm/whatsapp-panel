@@ -14,7 +14,7 @@ import {
 const languages: Record<string, { label: string; flag: string }> = {
   es: { label: "ES", flag: "\ud83c\uddea\ud83c\uddf8" },
   "pt-BR": { label: "PT", flag: "\ud83c\udde7\ud83c\uddf7" },
-  en: { label: "EN", flag: "\ud83c\uddec\ud83c\uddec\ud83c\uddf7" },
+  en: { label: "EN", flag: "🇬🇧" },
 };
 
 export default function AppLayout() {

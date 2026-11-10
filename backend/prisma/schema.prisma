@@ -137,7 +137,7 @@ model Setting {
 
 // ════════════════════════════════════════════════════════════
 // BOTS Y FLOW
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 
 model Bot {
   id           String   @id @default(uuid())
@@ -196,8 +196,8 @@ model BotKeyword {
   botId     String
   bot       Bot    @relation(fields: [botId], references: [id], onDelete: Cascade)
 
-  @@index([botId])
   @@index([keyword])
+  @@index([botId])
 }
 
 model FlowStep {
@@ -249,14 +249,14 @@ model FlowStepMedia {
 }
 
 model IntentRoute {
-  id         String   @id @default(uuid())
-  stepId     String
-  label      String
-  samples    String[]
-  nextStepId String?
+  id          String   @id @default(uuid())
+  stepId      String
+  label       String
+  samples     String[]
+  nextStepId  String?
 
-  step       FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  nextStep   FlowStep? @relation("IntentNextStep", fields: [nextStepId], references: [id])
+  step        FlowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  nextStep    FlowStep? @relation("IntentNextStep", fields: [nextStepId], references: [id])
 
   @@index([stepId])
 }
@@ -296,14 +296,19 @@ model AIConfig {
 // ═══════════════════════════════════════════════════════════
 
 model Contact {
-  id           String   @id @default(uuid())
-  orgId        String?
-  phone        String   @unique
-  name         String?
-  firstContact DateTime @default(now())
-  lastActivity DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(uuid())
+  orgId             String?
+  phone             String    @unique
+  name              String?
+  address           String?
+  locationName      String?
+  latitude          Float?
+  longitude         Float?
+  locationUpdatedAt DateTime?
+  firstContact      DateTime  @default(now())
+  lastActivity      DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   org                Organization?       @relation("OrgContacts", fields: [orgId], references: [id], onDelete: Cascade)
   tags         ContactTags[]
@@ -401,6 +406,10 @@ model Message {
   mediaFilename  String?
   mediaSize      Int?
   transcription  String?  // Audio transcrito por IA
+  locationName   String?
+  locationAddress String?
+  latitude       Float?
+  longitude      Float?
   variables      Json?
   timestamp      DateTime @default(now())
 
@@ -416,18 +425,18 @@ model Message {
 // ═══════════════════════════════════════════════════════════
 
 model FollowUpRule {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   orgId       String?
   botId       String
   stepId      String?
   delayHours  Float
-  maxAttempts Int      @default(3)
+  maxAttempts Int       @default(3)
   message     String
   /// Template aprobado a enviar cuando la ventana de 24h ya cerró (opcional)
   templateId  String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   org         Organization? @relation("OrgFollowUpRules", fields: [orgId], references: [id], onDelete: Cascade)
   bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
@@ -524,13 +533,13 @@ model Pipeline {
 }
 
 model PipelineStage {
-  id         String   @id @default(uuid())
-  name       String
-  pipelineId String
-  order      Int      @default(0)
-  color      String   @default("#3B82F6")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(uuid())
+  name        String
+  pipelineId  String
+  order       Int      @default(0)
+  color       String   @default("#3B82F6")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   deals    Deal[]
@@ -580,7 +589,6 @@ model Deal {
   @@index([stageId])
   @@index([pipelineId])
   @@index([assignedToId])
-  @@index([contactId])
   @@index([status])
 }
 
@@ -816,7 +824,7 @@ model SalesPlaybook {
   id          String   @id @default(uuid())
   orgId       String?
   name        String
-  description String?
+  description String
   methodology String   // "SPIN", "BANT", "AIDA", "CHALLENGER", "CONSULTATIVE"
   isActive    Boolean  @default(true)
   isDefault   Boolean  @default(false)
@@ -859,7 +867,6 @@ model PlaybookABTest {
   confidence   Float?
   startedAt    DateTime?
   endedAt      DateTime?
-  createdAt    DateTime @default(now())
 
   playbookA SalesPlaybook @relation("PlaybookA", fields: [playbookAId], references: [id])
   playbookB SalesPlaybook @relation("PlaybookB", fields: [playbookBId], references: [id])
@@ -986,12 +993,12 @@ model Report {
 }
 
 model ReportSubscription {
-  id        String   @id @default(uuid())
-  orgId     String?
-  email     String
-  period    String   @default("daily") // "daily", "weekly", "monthly"
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  orgId       String?
+  email       String
+  period      String   @default("daily") // "daily", "weekly", "monthly"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
   org Organization? @relation("OrgReportSubs", fields: [orgId], references: [id], onDelete: Cascade)
   @@index([orgId])

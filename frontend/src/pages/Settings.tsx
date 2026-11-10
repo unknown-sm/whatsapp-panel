@@ -16,7 +16,7 @@ function N8n(){
       <button onClick={save}disabled={sc||!ak}className="btn-primary disabled:opacity-50">{sc?"Guardando...":"Guardar"}</button>
       {e?<div className="mt-4 p-4 rounded-lg text-sm"style={{background:"var(--danger-muted)",color:"var(--danger)"}}>{e}</div>:null}
     </div>
-    <div className="card mb-6">
+    <div className="card">
       <button onClick={async()=>{si(true);try{const{data}=await api.post("/api/n8n/setup",{});sr((data.steps||[]).map((s:any)=>s.step+":ok").join("\n"))}catch(er:any){sr("Error:"+(er.response?.data?.error||er.message))}finally{si(false)}}}disabled={i}className="btn-primary disabled:opacity-50">{i?"Configurando...":"Setup Completo"}</button>
       {r?<pre className="mt-4 p-3 rounded text-xs"style={{background:"var(--bg-muted)",color:"var(--text-primary)"}}>{r}</pre>:null}
     </div>
@@ -56,13 +56,13 @@ function TagsManagement() {
       await api.put(`/api/tags/${id}`, { name: editForm.name.trim(), color: editForm.color });
       setEditingId(null);
       fetchTags();
-    } catch (e: any) { alert(e.response?.data?.error || "Error al actualizar"); }
+    } catch (e: any) { alert(e.response?.data?.error || "Error al actualizar tag"); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Eliminar esta etiqueta? Los contactos que la usan la perderan.")) return;
-    try { await api.delete(`/api/tags/${id}`); fetchTags(); } catch (e: any) { alert(e.response?.data?.error || "Error al eliminar"); }
+    try { await api.delete(`/api/tags/${id}`); fetchTags(); } catch {}
   }
 
   const PRESET_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16"];
@@ -78,14 +78,14 @@ function TagsManagement() {
           </div>
           <div>
             <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Color</label>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 items-center">
               {PRESET_COLORS.map((c) => (
                 <button key={c} onClick={() => setForm({ ...form, color: c })}
                   className="w-7 h-7 rounded-md border-2 transition-transform hover:scale-110"
                   style={{ background: c, borderColor: form.color === c ? "var(--text-primary)" : "transparent" }} />
               ))}
               <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
-                className="w-7 h-7 rounded-md cursor-pointer border-0" />
+                className="w-7 h-7 rounded cursor-pointer border-0" />
             </div>
           </div>
           <button onClick={handleCreate} disabled={saving || !form.name.trim()} className="btn-primary disabled:opacity-50 whitespace-nowrap">
@@ -104,7 +104,7 @@ function TagsManagement() {
               <div key={tag.id} className="p-3 rounded-lg flex items-center gap-3" style={{ background: "var(--bg-muted)" }}>
                 {editingId === tag.id ? (
                   <>
-                    <input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} className="w-7 h-7 rounded cursor-pointer border-0" />
+                    <input type="color" value={editForm.color} onChange={(e) => setEditForm({ ...editForm, color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border-0" />
                     <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="input flex-1 text-sm" onKeyDown={(e) => e.key === "Enter" && handleUpdate(tag.id)} autoFocus />
                     <button onClick={() => handleUpdate(tag.id)} disabled={saving} className="btn-secondary text-xs px-2 py-1"><Check size={14} /></button>
                     <button onClick={() => setEditingId(null)} className="btn-secondary text-xs px-2 py-1">Cancelar</button>
@@ -181,6 +181,7 @@ function WhatsappSettings() {
   const [status, setStatus] = useState<any>({ status: "offline", lastPing: null, configured: false });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<{ ok: boolean; message: string; checkedAt: string } | null>(null);
   const [showToken, setShowToken] = useState(false);
   const [signupCode, setSignupCode] = useState("");
   const [signupResult, setSignupResult] = useState<any>(null);
@@ -210,6 +211,7 @@ function WhatsappSettings() {
     try {
       const { data } = await api.get("/api/whatsapp/config");
       setStatus({ ...data, configured: data.configured, lastPing: data.lastPing });
+      setConfig((current) => ({ ...current, phoneNumberId: data.phoneNumberId || current.phoneNumberId }));
     } catch {}
   }
 
@@ -217,7 +219,9 @@ function WhatsappSettings() {
     setSaving(true);
     try {
       await api.put("/webhook/config", config);
-      fetchStatus();
+      setConfig((current) => ({ ...current, accessToken: "", verifyToken: "" }));
+      setConnectionResult(null);
+      await fetchStatus();
     } catch (e: any) {
       alert("No se pudo guardar: " + (e.response?.data?.error || e.message));
     } finally {
@@ -227,14 +231,23 @@ function WhatsappSettings() {
 
   async function handleTest() {
     setTesting(true);
+    setConnectionResult(null);
     try {
       const { data } = await api.post("/webhook/test");
-      fetchStatus();
-      alert(data?.message || "Conexion exitosa!");
+      await fetchStatus();
+      setConnectionResult({
+        ok: true,
+        message: data?.message || "Token valido. Conexion exitosa con Meta.",
+        checkedAt: data?.checkedAt || new Date().toISOString(),
+      });
     }
     catch (e: any) {
       const d = e.response?.data;
-      alert(d?.detail ? `${d.error}\n\n${d.detail}` : (d?.error || "Error de conexion"));
+      const message = d?.metaCode === 190
+        ? "Token invalido o vencido. Renova el token de Meta, guardalo y volve a probar."
+        : [d?.error, d?.detail].filter(Boolean).join(": ") || "Error de conexion";
+      setConnectionResult({ ok: false, message, checkedAt: d?.checkedAt || new Date().toISOString() });
+      await fetchStatus();
     }
     finally { setTesting(false); }
   }
@@ -367,9 +380,13 @@ function WhatsappSettings() {
   }
 
   async function handleDisconnect() {
-    if (!confirm("Desconectar WhatsApp? El bot dejara de responder")) return;
+    if (!confirm("Desconectar WhatsApp? El bot dejara de responder. Las claves se conservaran para reconectar.")) return;
     setDisconnecting(true);
-    try { await api.post("/api/whatsapp/disconnect"); fetchStatus(); } finally { setDisconnecting(false); }
+    try {
+      await api.post("/api/whatsapp/disconnect");
+      setConnectionResult(null);
+      await fetchStatus();
+    } finally { setDisconnecting(false); }
   }
 
   return (
@@ -405,8 +422,12 @@ function WhatsappSettings() {
           </div>
         )}
         {status.configured && (
-          <button onClick={handleDisconnect} disabled={disconnecting} className="btn-ghost text-xs text-danger mt-3 w-full justify-center">
-            {disconnecting ? "Desconectando..." : "Desconectar"}
+          <button
+            onClick={status.status === "online" ? handleDisconnect : handleTest}
+            disabled={disconnecting || testing}
+            className={`${status.status === "online" ? "btn-ghost text-danger" : "btn-primary"} text-xs mt-3 w-full justify-center`}
+          >
+            {disconnecting ? "Desconectando..." : testing ? "Reconectando..." : status.status === "online" ? "Desconectar" : "Reconectar con datos guardados"}
           </button>
         )}
       </div>
@@ -544,8 +565,9 @@ function WhatsappSettings() {
               </div>
               <div className="flex gap-2">
                 <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50"><Save size={16} /> {saving ? "Guardando..." : "Guardar"}</button>
-                <button onClick={handleTest} disabled={testing || !config.phoneNumberId} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar Conexion"}</button>
+                <button onClick={handleTest} disabled={testing || !config.phoneNumberId} className="btn-secondary disabled:opacity-50"><TestTube size={16} /> {testing ? "Probando..." : "Probar token"}</button>
               </div>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>La prueba usa el token guardado. Si pegaste uno nuevo, primero presiona Guardar.</p>
             </div>
           </details>
         </div>
@@ -579,14 +601,54 @@ function WhatsappSettings() {
                 <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>No</span>
               )}
             </div>
-            <div className="flex justify-between py-1.5">
-              <span style={{ color: "var(--text-secondary)" }}>Status</span>
-              <span className={`status-dot ${status.status === "online" ? "status-online" : "status-offline"}`} />
+            <div className="flex justify-between items-center py-1.5">
+              <span style={{ color: "var(--text-secondary)" }}>Ultimo estado guardado</span>
+              <span className="flex items-center gap-2" style={{ color: status.status === "online" ? "var(--success)" : "var(--danger)" }}>
+                <span className={`status-dot ${status.status === "online" ? "status-online" : "status-offline"}`} />
+                {status.status === "online" ? "En linea" : "Sin conexion"}
+              </span>
             </div>
+            {status.lastPing && (
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Ultima validacion exitosa: {new Date(status.lastPing).toLocaleString("es-PY")}
+              </p>
+            )}
           </div>
           <button onClick={handleTest} disabled={testing} className="btn-secondary w-full justify-center mt-4">
-            <TestTube size={14} /> {testing ? "Probando..." : "Probar Conexion"}
+            <TestTube size={14} /> {testing ? "Consultando a Meta..." : "Verificar token ahora"}
           </button>
+          {connectionResult && (
+            <div className="mt-3 p-3 rounded-md text-sm" style={{ background: connectionResult.ok ? "var(--success-muted)" : "var(--danger-muted)", color: connectionResult.ok ? "var(--success)" : "var(--danger)" }} role="status">
+              <p className="font-medium">{connectionResult.message}</p>
+              <p className="mt-1 text-xs">Comprobado: {new Date(connectionResult.checkedAt).toLocaleString("es-PY")}</p>
+            </div>
+          )}
+          <details className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border-default)" }}>
+            <summary className="text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>Actualizar claves guardadas</summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>Las claves anteriores se conservan cifradas. Deja un token vacio para mantener el actual; completalo solo si queres reemplazarlo.</p>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Phone Number ID</label>
+                <input value={config.phoneNumberId} onChange={(e) => setConfig({ ...config, phoneNumberId: e.target.value })} className="input" />
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Nuevo Access Token (opcional)</label>
+                <div className="relative">
+                  <input type={showToken ? "text" : "password"} value={config.accessToken} onChange={(e) => setConfig({ ...config, accessToken: e.target.value })} className="input pr-10" placeholder="••••••••  Token actual conservado" autoComplete="new-password" />
+                  <button onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-tertiary)" }} aria-label="Mostrar u ocultar token">
+                    {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Nuevo Verify Token (opcional)</label>
+                <input type="password" value={config.verifyToken} onChange={(e) => setConfig({ ...config, verifyToken: e.target.value })} className="input" placeholder="••••••••  Token actual conservado" autoComplete="new-password" />
+              </div>
+              <button onClick={handleSave} disabled={saving || !config.phoneNumberId} className="btn-primary w-full justify-center disabled:opacity-50">
+                <Save size={16} /> {saving ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </details>
         </div>
       )}
     </div>
@@ -670,9 +732,9 @@ function AISettings() {
 
   const modelSuggestions: Record<string, string[]> = {
     openrouter: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "mimo-2.5-flash", "deepseek/deepseek-chat", "openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash"],
-    opencode: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "mimo-2.5-flash", "deepseek-v4-flash", "qwen3-coder-480b", "llama-3.1-70b"],
+    opencode: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "deepseek-v4-flash", "qwen3-coder-480b", "llama-3.1-70b"],
     deepseek: ["deepseek-chat", "deepseek-reasoner"],
-    custom: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "mimo-2.5-flash", "deepseek-v4-flash", "llama-3.1-70b", "gemini-2.0-flash"],
+    custom: ["mimo-v2.6-flash", "mimo-v2.6-flash-free", "deepseek-v4-flash", "llama-3.1-70b", "gemini-2.0-flash"],
   };
 
   const endpointSuggestions: Record<string, string> = {
@@ -902,7 +964,7 @@ function BotSettings() {
             <label htmlFor="exactMatch" className="text-sm" style={{ color: "var(--text-secondary)" }}>Match exacto (default: contiene)</label>
           </div>
           <button onClick={handleCreate} disabled={saving || !form.name} className="btn-primary disabled:opacity-50">
-            <Plus size={16} /> {saving ? "Creando..." : "Crear Bot"}
+            <Plus size={16} /> Crear Bot
           </button>
         </div>
       </div>
@@ -1041,24 +1103,28 @@ function UserSettings() {
 
       <div className="card">
         <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--text-primary)" }}>Usuarios</h3>
-        <div className="space-y-2">
-          {users.map((u) => (
-            <div key={u.id} className="p-3 rounded-lg flex items-center justify-between" style={{ background: "var(--bg-muted)" }}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>{u.name}</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: u.role === "ADMIN" ? "var(--accent-muted)" : "var(--bg-card)", color: "var(--text-secondary)" }}>{u.role}</span>
+        {users.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>Sin usuarios.</p>
+        ) : (
+          <div className="space-y-2">
+            {users.map((u) => (
+              <div key={u.id} className="p-3 rounded-lg flex items-center justify-between" style={{ background: "var(--bg-muted)" }}>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>{u.name}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: u.role === "ADMIN" ? "var(--accent-muted)" : "var(--bg-card)", color: "var(--text-secondary)" }}>{u.role}</span>
+                  </div>
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{u.email}{u.phone ? ` | ${u.phone}` : ""}</p>
                 </div>
-                <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>{u.email}{u.phone ? ` | ${u.phone}` : ""}</p>
+                <div className="flex gap-1">
+                  <button onClick={() => handleToggleActive(u)} className="btn-secondary text-xs px-2 py-1"
+                    style={{ color: u.isActive ? "var(--accent)" : "var(--text-tertiary)" }}>{u.isActive ? "Activo" : "Inactivo"}</button>
+                  <button onClick={() => handleDelete(u.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: "var(--danger)" }}><Trash2 size={12} /></button>
+                </div>
               </div>
-              <div className="flex gap-1">
-                <button onClick={() => handleToggleActive(u)} className="btn-secondary text-xs px-2 py-1"
-                  style={{ color: u.isActive ? "var(--accent)" : "var(--text-tertiary)" }}>{u.isActive ? "Activo" : "Inactivo"}</button>
-                <button onClick={() => handleDelete(u.id)} className="btn-secondary text-xs px-2 py-1" style={{ color: "var(--danger)" }}><Trash2 size={12} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1245,7 +1311,7 @@ function WebhookSettings() {
             ) : config?.configured ? (
               <div className="flex gap-2 mb-4">
                 <button onClick={handleRegenerate} disabled={saving}
-                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                  className="btn-secondary text-xs px-2 py-1.5 flex items-center gap-1.5">
                   <RefreshCw size={14} /> {saving ? t("settings.webhooks.generating") : t("settings.webhooks.regenerate")}
                 </button>
               </div>

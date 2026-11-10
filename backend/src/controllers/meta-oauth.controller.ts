@@ -93,14 +93,14 @@ export async function getCurrentConfig(req: Request, res: Response) {
   }
 }
 
-/* ── Disconnect (eliminar config) ─────────────────────── */
+/* ── Disconnect (conservar credenciales cifradas para reconectar) ── */
 
 export async function disconnect(req: Request, res: Response) {
   try {
     const config = await prisma.whatsappConfig.findFirst();
     if (!config) return res.json({ success: true, message: "Sin config" });
-    await prisma.whatsappConfig.delete({ where: { id: config.id } });
-    res.json({ success: true });
+    await prisma.whatsappConfig.update({ where: { id: config.id }, data: { status: "offline" } });
+    res.json({ success: true, message: "Desconectado. La configuracion se conservo para reconectar." });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

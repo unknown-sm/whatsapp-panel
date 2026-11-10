@@ -3,10 +3,10 @@ import FormData from "form-data";
 import prisma from "../lib/prisma";
 import { decrypt, isEncrypted } from "./crypto.service";
 
-/* Helper: get decrypted config */
-async function getDecryptedConfig() {
+/* Helper: get decrypted config. Offline bloquea envios pero conserva las claves. */
+async function getDecryptedConfig(requireOnline = true) {
   const config = await prisma.whatsappConfig.findFirst();
-  if (!config) return null;
+  if (!config || (requireOnline && config.status !== "online")) return null;
   return {
     ...config,
     accessToken: isEncrypted(config.accessToken) ? decrypt(config.accessToken) : config.accessToken,
@@ -169,7 +169,7 @@ class MetaEngine implements IWhatsAppEngine {
   }
 
   async getStatus() {
-    const config = await getDecryptedConfig();
+    const config = await getDecryptedConfig(false);
     return { status: config?.status || "offline", lastPing: config?.lastPing?.toISOString() || null, configured: !!config?.phoneNumberId };
   }
 }

@@ -180,31 +180,34 @@ export async function updateConfig(req: Request, res: Response) {
   const orgId = (req as any).user?.orgId as string | undefined;
   if (!orgId) return res.status(400).json({ error: "Usuario sin organización" });
 
-  // Encrypt sensitive fields at rest
-  const encryptedToken = encrypt(accessToken);
-  const encryptedVerify = verifyToken ? encrypt(verifyToken) : null;
+  if (!phoneNumberId?.trim()) return res.status(400).json({ error: "Phone Number ID requerido" });
 
   const existing = await prisma.whatsappConfig.findFirst({ where: { orgId } });
 
   if (existing) {
+    // Un campo vacio conserva la credencial anterior; nunca devolvemos el secreto al navegador.
     const config = await prisma.whatsappConfig.update({
       where: { id: existing.id },
       data: {
         orgId,
-        phoneNumberId,
-        accessToken: encryptedToken,
-        verifyToken: encryptedVerify || existing.verifyToken,
+        phoneNumberId: phoneNumberId.trim(),
+        accessToken: accessToken?.trim() ? encrypt(accessToken.trim()) : existing.accessToken,
+        verifyToken: verifyToken?.trim() ? encrypt(verifyToken.trim()) : existing.verifyToken,
       },
     });
     return res.json({ config: { id: config.id, phoneNumberId: config.phoneNumberId, status: config.status, configured: true } });
   }
 
+  if (!accessToken?.trim() || !verifyToken?.trim()) {
+    return res.status(400).json({ error: "Access Token y Verify Token requeridos para la primera configuracion" });
+  }
+
   const config = await prisma.whatsappConfig.create({
     data: {
       orgId,
-      phoneNumberId,
-      accessToken: encryptedToken,
-      verifyToken: encryptedVerify || verifyToken,
+      phoneNumberId: phoneNumberId.trim(),
+      accessToken: encrypt(accessToken.trim()),
+      verifyToken: encrypt(verifyToken.trim()),
       webhookUrl: "/webhook",
     },
   });

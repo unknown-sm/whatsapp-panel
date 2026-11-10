@@ -142,8 +142,9 @@ export async function testConnection(req: Request, res: Response) {
     res.json({
       status: "ok",
       message: details.coexistence
-        ? "Conexion exitosa (Coexistence activo: el numero tambien esta en la app del celular)"
-        : "Conexion exitosa",
+        ? "Token valido. Conexion exitosa (Coexistence activo: el numero tambien esta en la app del celular)"
+        : "Token valido. Conexion exitosa con Meta.",
+      checkedAt: new Date().toISOString(),
       displayPhoneNumber: details.displayPhoneNumber,
       verifiedName: details.verifiedName,
       qualityRating: details.qualityRating,
@@ -155,14 +156,22 @@ export async function testConnection(req: Request, res: Response) {
     await prisma.whatsappConfig.updateMany({ data: { status: "offline" } });
     // Devolver el motivo real: sin esto solo se ve "No se pudo conectar" y no se
     // puede distinguir token vencido de phoneNumberId malo o de un bloqueo de red.
+    const metaError = err.response?.data?.error;
     const apiDetail =
-      err.response?.data?.error?.error_user_msg ||
-      err.response?.data?.error?.message ||
-      err.response?.data?.error?.migrate_message ||
+      metaError?.error_user_msg ||
+      metaError?.message ||
+      metaError?.migrate_message ||
       err.message ||
       "error desconocido";
     console.error("Meta testConnection error:", err.response?.status, apiDetail);
-    res.status(500).json({ error: "No se pudo conectar a WhatsApp", detail: apiDetail, httpStatus: err.response?.status || null });
+    res.status(500).json({
+      error: metaError?.code === 190 ? "Token invalido o vencido" : "No se pudo conectar a WhatsApp",
+      detail: apiDetail,
+      metaCode: metaError?.code || null,
+      metaType: metaError?.type || null,
+      httpStatus: err.response?.status || null,
+      checkedAt: new Date().toISOString(),
+    });
   }
 }
 

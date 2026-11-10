@@ -14,6 +14,17 @@ async function getDecryptedConfig() {
   };
 }
 
+/** Un token rechazado por Meta debe reflejarse en el panel sin esperar otra prueba manual. */
+async function markOfflineIfAuthFailed(configId: string, error: any) {
+  const metaError = error?.response?.data?.error;
+  if (metaError?.code !== 190 && metaError?.type !== "OAuthException") return;
+  try {
+    await prisma.whatsappConfig.update({ where: { id: configId }, data: { status: "offline" } });
+  } catch (dbError: any) {
+    console.error("Meta: no se pudo actualizar el estado de conexion:", dbError.message);
+  }
+}
+
 export type MediaType = "image" | "video" | "document" | "audio" | "sticker";
 
 export interface IWhatsAppEngine {
@@ -52,6 +63,7 @@ class MetaEngine implements IWhatsAppEngine {
       return true;
     } catch (error: any) {
       console.error("Meta send error:", error.response?.data || error.message);
+      await markOfflineIfAuthFailed(config.id, error);
       return false;
     }
   }
@@ -72,6 +84,7 @@ class MetaEngine implements IWhatsAppEngine {
       return true;
     } catch (error: any) {
       console.error("Meta typing error:", error.response?.data || error.message);
+      await markOfflineIfAuthFailed(config.id, error);
       return false;
     }
   }
@@ -99,6 +112,7 @@ class MetaEngine implements IWhatsAppEngine {
       return res.data?.id || null;
     } catch (err: any) {
       console.error("Meta uploadMedia error:", err.response?.data || err.message);
+      await markOfflineIfAuthFailed(config.id, err);
       return null;
     }
   }
@@ -118,6 +132,7 @@ class MetaEngine implements IWhatsAppEngine {
       return true;
     } catch (err: any) {
       console.error("Meta sendImageByUrl error:", err.response?.data || err.message);
+      await markOfflineIfAuthFailed(config.id, err);
       return false;
     }
   }
@@ -142,6 +157,7 @@ class MetaEngine implements IWhatsAppEngine {
       return true;
     } catch (err: any) {
       console.error("Meta sendMediaById error:", err.response?.data || err.message);
+      await markOfflineIfAuthFailed(config.id, err);
       return false;
     }
   }

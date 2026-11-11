@@ -9,6 +9,7 @@ import { isBlacklisted } from "./blacklist.service";
 import * as sessionService from "./session.service";
 import * as attributionService from "./attribution.service";
 import * as mediaService from "./media.service";
+import * as locationService from "./location.service";
 import * as npsService from "./nps.service";
 import { getKnowledgeContent } from "./knowledge.service";
 import { prepareBotResponse } from "./bot-response.service";
@@ -49,13 +50,15 @@ export async function processIncomingMessage(data: any, organizationId?: string)
         }
       }
 
-      // Extract media info if present
+      // Extract media and location info if present
       const media = mediaService.extractMediaFromPayload(msg);
-      const text = msg.text?.body || media?.caption || (media ? `[${media.type}]` : "");
+      const location = locationService.extractLocationFromPayload(msg);
+      const locationText = location ? locationService.formatLocationContent(location) : "";
+      const text = msg.text?.body || media?.caption || locationText || (media ? `[${media.type}]` : "");
       // Get contact name from Meta webhook
       const contactName = value.contacts?.[0]?.profile?.name || null;
 
-      if (!text && !media) continue;
+      if (!text && !media && !location) continue;
       const orgId = organizationId || null;
       if (!orgId) throw new Error("Evento de WhatsApp sin organización asociada");
       let contact = await prisma.contact.findUnique({ where: { phone } });
@@ -70,7 +73,21 @@ export async function processIncomingMessage(data: any, organizationId?: string)
         }
       }
 
-      await prisma.contact.update({ where: { id: contact.id }, data: { lastActivity: new Date() } });
+      const now = new Date();
+      contact = await prisma.contact.update({
+        where: { id: contact.id },
+        data: {
+          lastActivity: now,
+          ...(location ? {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            locationUpdatedAt: now,
+            // Un pin nuevo sin texto no debe borrar el nombre/dirección anterior.
+            ...(location.name ? { locationName: location.name } : {}),
+            ...(location.address ? { address: location.address } : {}),
+          } : {}),
+        },
+      });
 
       // Meta CTWA: el mensaje inbound trae `referral` cuando viene de un
       // Click-to-WhatsApp ad o del botón CTA de una Facebook Page.
@@ -139,7 +156,7 @@ export async function processIncomingMessage(data: any, organizationId?: string)
           conversationId: conversation.id,
           direction: "inbound",
           externalId: msg.id || null,
-          type: media?.type || "text",
+          type: location ? "location" : media?.type || "text",
           content: text,
           mediaUrl: savedMedia?.url,
           mediaLocalPath: savedMedia?.localPath,
@@ -147,6 +164,10 @@ export async function processIncomingMessage(data: any, organizationId?: string)
           mediaFilename: savedMedia?.filename,
           mediaSize: savedMedia?.size,
           transcription,
+          locationName: location?.name,
+          locationAddress: location?.address,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
         },
       });
 
@@ -194,10 +215,14 @@ export async function processIncomingMessage(data: any, organizationId?: string)
         phone,
         content: text,
         direction: "inbound",
-        type: media?.type || "text",
+        type: location ? "location" : media?.type || "text",
         mediaUrl: savedMedia?.url,
         mediaMimeType: media?.mimeType,
         transcription,
+        locationName: location?.name,
+        locationAddress: location?.address,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
         timestamp: new Date().toISOString(),
       });
 

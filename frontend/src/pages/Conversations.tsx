@@ -6,7 +6,7 @@ import {
   Check, CheckCheck, X, Clock, ChevronRight,
   AlertCircle, AlertTriangle, UserCheck, ArrowRight, ArrowLeft, Hash, Plus, Loader2,
   FileText, Mic, Bot, Pause, Play,
-  Paperclip, RotateCcw,
+  Paperclip, RotateCcw, MapPin,
 } from "lucide-react";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
@@ -47,10 +47,33 @@ interface ConversationContact {
   id: string;
   phone: string;
   name: string | null;
+  address?: string | null;
+  locationName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationUpdatedAt?: string | null;
   tags?: { tag: { id: string; name: string; color: string } }[];
   notes?: ContactNote[];
   conversationWindow?: ConversationWindow | null;
   deals?: ConversationDeal[];
+}
+
+interface ConversationMessage {
+  id: string;
+  content: string;
+  direction: string;
+  timestamp: string;
+  aiGenerated?: boolean;
+  type?: string;
+  mediaUrl?: string;
+  mediaMimeType?: string;
+  mediaFilename?: string;
+  mediaSize?: number;
+  transcription?: string;
+  locationName?: string | null;
+  locationAddress?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface Conversation {
@@ -60,7 +83,7 @@ interface Conversation {
   contact: ConversationContact;
   bot: { name: string } | null;
   assignedAgent: { name: string } | null;
-  messages: { id: string; content: string; direction: string; timestamp: string; aiGenerated?: boolean; type?: string; mediaUrl?: string; mediaMimeType?: string; mediaFilename?: string; mediaSize?: number; transcription?: string }[];
+  messages: ConversationMessage[];
   updatedAt: string;
   windowExpiresAt?: string | null;
   windowOpen?: boolean;
@@ -129,6 +152,12 @@ function formatRemaining(expiresAt: string) {
 
 function apiError(error: any, fallback: string) {
   return error?.response?.data?.error || fallback;
+}
+
+function googleMapsUrl(latitude?: number | null, longitude?: number | null) {
+  if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}`;
 }
 
 export default function Conversations() {
@@ -486,10 +515,11 @@ export default function Conversations() {
                         <Sparkles size={10} /> IA
                       </div>
                     )}
-                    {msg.type && msg.type !== "text" && msg.mediaUrl && (
+                    {msg.type && msg.type !== "text" && msg.type !== "location" && msg.mediaUrl && (
                       <MediaContent msg={msg} />
                     )}
-                    {msg.content && msg.content !== `[${msg.type}]` && (
+                    {msg.type === "location" && <LocationContent msg={msg} />}
+                    {msg.content && msg.type !== "location" && msg.content !== `[${msg.type}]` && (
                       <p className="text-[13.5px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                     )}
                     {msg.transcription && (
@@ -720,6 +750,31 @@ function ContactPanel({ conversation, contact, customValues, messages, statusSav
         )}
 
         {conversation && <WindowSection conversation={conversation} />}
+
+        {(contact.address || contact.locationName || googleMapsUrl(contact.latitude, contact.longitude)) && (
+          <div>
+            <h4 className="section-label mb-2">Ubicación</h4>
+            <div className="rounded-md border border-border p-3 space-y-1.5">
+              <div className="flex items-start gap-2">
+                <MapPin size={15} className="text-brand-text flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  {contact.locationName && <p className="text-[12.5px] text-ink font-medium">{contact.locationName}</p>}
+                  {contact.address && <p className="text-[12px] text-ink-2 leading-relaxed">{contact.address}</p>}
+                  {!contact.locationName && !contact.address && <p className="text-[12px] text-ink-2">Ubicación compartida por WhatsApp</p>}
+                </div>
+              </div>
+              {googleMapsUrl(contact.latitude, contact.longitude) && (
+                <a href={googleMapsUrl(contact.latitude, contact.longitude)!} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11.5px] text-brand-text hover:underline">
+                  Abrir en Google Maps <ArrowRight size={11} />
+                </a>
+              )}
+              {contact.locationUpdatedAt && (
+                <p className="text-[10.5px] text-ink-3">Actualizada: {new Date(contact.locationUpdatedAt).toLocaleString("es-PY")}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {conversation && (
           <NotesSection contact={contact} onNoteAdded={onNoteAdded} />
@@ -1312,6 +1367,29 @@ function Composer({ newMessage, setNewMessage, sendMessage, conversationId }: {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Location Content Renderer ────────────────────── */
+
+function LocationContent({ msg }: { msg: any }) {
+  const mapsUrl = googleMapsUrl(msg.latitude, msg.longitude);
+  return (
+    <div className="min-w-[210px] py-0.5">
+      <div className="flex items-start gap-2">
+        <MapPin size={17} className="text-brand-text flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-[13px] font-medium text-ink">{msg.locationName || "Ubicación compartida"}</p>
+          {msg.locationAddress && <p className="text-[12px] text-ink-2 mt-0.5 leading-relaxed">{msg.locationAddress}</p>}
+        </div>
+      </div>
+      {mapsUrl && (
+        <a href={mapsUrl} target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-1 mt-2 ml-6 text-[11.5px] text-brand-text hover:underline">
+          Ver en Google Maps <ArrowRight size={11} />
+        </a>
+      )}
     </div>
   );
 }

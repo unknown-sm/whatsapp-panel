@@ -94,8 +94,9 @@ export async function generateResponse(
     if (knowledge) {
       systemPrompt += `\n\n## Conocimiento del negocio\n${knowledge}`;
       systemPrompt += `\n\n## Reglas para productos e imágenes
-- Si recomiendas UN producto concreto y el conocimiento incluye su URL exacta en IMAGENES_PRODUCTO, puedes añadir al final UNA línea: [[IMAGEN:url_exacta]].
-- Nunca envíes más de una imagen en una respuesta y nunca inventes URLs.
+- Cuando el cliente elija UN producto concreto, usa la IMAGEN_PRODUCTO asociada a su PRODUCTO y añade al final UNA línea: [[IMAGEN:url_exacta]]. En conocimiento antiguo también puedes usar una URL exacta de IMAGENES_PRODUCTO.
+- Si dice solamente "el combo", "el producto" o una descripción que coincide con varias opciones, pregunta cuál quiere y NO incluyas imagen hasta que lo precise.
+- Nunca envíes más de una imagen en una respuesta y nunca inventes URLs ni uses la imagen de otro producto.
 - Si el cliente pide varios productos, muchas opciones, comparar, ver más o el catálogo, NO incluyas [[IMAGEN:...]]. Resume brevemente e invítalo a ver todas las fotos en PAGINA_ORIGEN.
 - El marcador [[IMAGEN:...]] es interno: no lo expliques al cliente.`;
     }
@@ -326,7 +327,7 @@ export async function transcribeAudio(configId: string, audioBuffer: Buffer): Pr
   return transcription.text;
 }
 
-/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 export async function suggestResponses(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({

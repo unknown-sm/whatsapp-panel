@@ -55,32 +55,79 @@ export async function addKnowledgeFromUrl(botId: string | null, url: string) {
   });
 }
 
-/** Conserva el origen y las imágenes públicas para respuestas de producto. */
+type WebProduct = { name: string; url: string; image: string | null };
+
+function publicUrl(candidate: unknown, pageUrl: URL): string | null {
+  if (typeof candidate !== "string" || !candidate.trim()) return null;
+  try {
+    const url = new URL(candidate.replace(/&amp;/g, "&"), pageUrl);
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extrae la ficha e imagen principal declaradas por el propio sitio (JSON-LD). */
+function extractWebProduct(html: string, pageUrl: URL): WebProduct | null {
+  for (const match of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      const nodes = Array.isArray(parsed) ? parsed : [parsed];
+      const product = nodes.flatMap((node) => Array.isArray(node?.["@graph"]) ? node["@graph"] : [node])
+        .find((node) => {
+          const type = node?.["@type"];
+          return type === "Product" || (Array.isArray(type) && type.includes("Product"));
+        });
+      if (!product || typeof product.name !== "string" || !product.name.trim()) continue;
+      const rawImages = Array.isArray(product.image) ? product.image : [product.image];
+      const image = rawImages.map((item: unknown) => {
+        const value = typeof item === "object" && item !== null ? (item as { url?: unknown }).url : item;
+        return publicUrl(value, pageUrl);
+      }).find((url: string | null): url is string => !!url) || null;
+      return {
+        name: product.name.trim(),
+        url: publicUrl(product.url, pageUrl) || pageUrl.toString(),
+        image,
+      };
+    } catch {
+      // Un bloque JSON-LD inválido no debe impedir importar el resto de la página.
+    }
+  }
+  return null;
+}
+
+/** Conserva el origen y relaciona cada producto con su ficha e imagen pública. */
 export function buildWebKnowledge(html: string, pageUrl: URL): string {
   const text = htmlToText(html);
   if (text.length < 50) throw new Error("No se pudo extraer texto util de la pagina");
 
+  const extractedProduct = extractWebProduct(html, pageUrl);
   const candidates: string[] = [];
+  // La imagen Open Graph está preparada para compartir y tiene prioridad sobre
+  // las rutas históricas de JSON-LD, que en algunas fichas ya no existen.
   for (const match of html.matchAll(/<meta\b[^>]*(?:property|name)=["']og:image["'][^>]*>/gi)) {
     candidates.push(match[0].match(/\bcontent=["']([^"']+)["']/i)?.[1] || "");
   }
+  if (extractedProduct?.image) candidates.push(extractedProduct.image);
   for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
     candidates.push(match[0].match(/\b(?:src|data-src)=["']([^"']+)["']/i)?.[1] || "");
   }
 
   const images = [...new Set(candidates.map((candidate) => {
-    try {
-      const url = new URL(candidate.replace(/&amp;/g, "&"), pageUrl);
-      if (!["http:", "https:"].includes(url.protocol)) return null;
-      if (/logo|icon|favicon|sprite|placeholder/i.test(url.pathname)) return null;
-      return url.toString();
-    } catch {
-      return null;
-    }
+    const url = publicUrl(candidate, pageUrl);
+    if (!url) return null;
+    if (/logo|icon|favicon|sprite|placeholder/i.test(new URL(url).pathname)) return null;
+    return url;
   }).filter((url): url is string => !!url))].slice(0, 30);
+  const primaryImage = images[0] || null;
 
   const mediaContext = [
     `PAGINA_ORIGEN: ${pageUrl.toString()}`,
+    ...(extractedProduct ? [
+      `PRODUCTO: ${extractedProduct.name}`,
+      `FICHA_PRODUCTO: ${extractedProduct.url}`,
+      ...(primaryImage ? [`IMAGEN_PRODUCTO: ${primaryImage}`] : []),
+    ] : []),
     ...(images.length ? ["IMAGENES_PRODUCTO:", ...images.map((url) => `- ${url}`)] : []),
   ].join("\n");
   return `${mediaContext}\n\n${text}`.slice(0, 50000);

@@ -56,3 +56,31 @@ test("una respuesta normal sin imágenes permanece igual", () => {
   assert.equal(result.text, "Hola, ¿en qué puedo ayudarte?");
   assert.equal(result.imageUrl, null);
 });
+
+const comboKnowledge = `PAGINA_ORIGEN: https://seiva.com.py/tienda
+PRODUCTO: Omega 3 Puro 1000mg + Magnesio citrato 120caps combo
+FICHA_PRODUCTO: https://seiva.com.py/producto/omega-3-puro-combo
+IMAGEN_PRODUCTO: https://seiva.com.py/omega-3-puro-combo.jpeg
+PRODUCTO: Omega 3-6-9 + Magnesio citrato 120caps combo
+FICHA_PRODUCTO: https://seiva.com.py/producto/omega-3-6-9-combo
+IMAGEN_PRODUCTO: https://seiva.com.py/omega-3-6-9-combo.png`;
+
+test("al elegir un combo concreto se envía solamente su imagen asociada", () => {
+  const result = prepareBotResponse(
+    "Este es el combo Omega 3 Puro + Magnesio.\n[[IMAGEN:https://seiva.com.py/omega-3-puro-combo.jpeg]]",
+    "Quiero ver el combo Omega 3 Puro",
+    comboKnowledge,
+  );
+  assert.equal(result.imageUrl, "https://seiva.com.py/omega-3-puro-combo.jpeg");
+  assert.equal(result.text, "Este es el combo Omega 3 Puro + Magnesio.");
+});
+
+test("una consulta ambigua por el combo no envía ninguna foto", () => {
+  const result = prepareBotResponse(
+    "¿Cuál querés ver: Omega 3 Puro u Omega 3-6-9?",
+    "Quiero ver el combo",
+    comboKnowledge,
+  );
+  assert.equal(result.imageUrl, null);
+  assert.match(result.text, /¿Cuál querés ver/);
+});

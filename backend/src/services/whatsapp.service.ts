@@ -13,8 +13,26 @@ import * as locationService from "./location.service";
 import * as npsService from "./nps.service";
 import { getKnowledgeContent } from "./knowledge.service";
 import { prepareBotResponse } from "./bot-response.service";
+import { MessageBatcher } from "./message-batcher.service";
 
 const engine = resolveEngine();
+
+const botMessageBatcher = new MessageBatcher<{ text: string; inboundMessageId?: string }>(
+  6000,
+  async (conversationId, batch) => {
+    // Releer al vencer la espera: un agente pudo tomar la conversación mientras
+    // el cliente escribía y en ese caso el bot no debe responder.
+    const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    if (!conversation?.botId || conversation.status !== "active" || conversation.humanTakeover) return;
+    if (await isBlacklisted(conversation.contactId)) return;
+    const userMessage = batch.map((item) => item.text).filter(Boolean).join("\n");
+    await processBotFlowHumanized(
+      conversation,
+      userMessage,
+      batch[batch.length - 1]?.inboundMessageId,
+    );
+  },
+);
 
 export async function sendWhatsAppMessage(phoneNumber: string, message: string): Promise<boolean> {
   return engine.sendText(phoneNumber, message);
@@ -244,7 +262,7 @@ export async function processIncomingMessage(data: any, organizationId?: string)
             await sendWhatsAppMessage(phone, "Memoria del bot reiniciada. Empezamos de cero: escribi tu consulta.");
             continue;
           }
-          await processBotFlowHumanized(conversation, text, msg.id);
+          botMessageBatcher.push(conversation.id, { text, inboundMessageId: msg.id });
         }
       }
     }
@@ -256,7 +274,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Envuelve el flujo del bot con comportamiento humano:
  * 1. Manda "escribiendo..." de inmediato (tambien marca leido: doble tilde azul).
- * 2. Espera un delay variable de 3-8s para que no responda instantaneo.
+ * 2. Tras los 6s de agrupación, espera 4-9s: la respuesta sale 10-15s
+ *    después del último mensaje del cliente.
  * 3. Mantiene el indicador vivo cada 20s mientras la IA piensa (Meta lo apaga
  *    a los 25s o cuando llega la respuesta).
  */
@@ -269,7 +288,7 @@ async function processBotFlowHumanized(conversation: any, userMessage: string, i
     }, 20000);
   }
   try {
-    await sleep(3000 + Math.random() * 5000);
+    await sleep(4000 + Math.random() * 5000);
     await processBotFlow(conversation, userMessage);
   } finally {
     if (typingTimer) clearInterval(typingTimer);
@@ -378,7 +397,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
       if (response) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
-          const prepared = prepareBotResponse(response, userMessage, knowledge);
+          const prepared = prepareBotResponse(response, userMessage, knowledge, aiMessages);
           const sent = prepared.imageUrl
             ? await engine.sendImageByUrl(contact.phone, prepared.imageUrl, prepared.text || undefined)
             : prepared.text

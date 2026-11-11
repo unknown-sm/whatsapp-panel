@@ -84,3 +84,45 @@ test("una consulta ambigua por el combo no envía ninguna foto", () => {
   assert.equal(result.imageUrl, null);
   assert.match(result.text, /¿Cuál querés ver/);
 });
+
+const numberedHistory = [
+  { role: "user", content: "Quiero ver el combo de omega 3" },
+  { role: "assistant", content: `Tenés dos combos:
+**1️⃣ Omega 3 Puro 1000mg + Magnesio citrato 120caps combo** → 170.000 Gs.
+**2️⃣ Omega 3-6-9 + Magnesio citrato 120caps combo** → 170.000 Gs.
+¿Cuál querés ver?` },
+];
+
+test("responder 1 selecciona la foto del primer combo aunque la IA omita el marcador", () => {
+  const result = prepareBotResponse(
+    "El combo Omega 3 Puro está a 170.000 Gs.",
+    "1",
+    comboKnowledge,
+    numberedHistory,
+  );
+  assert.equal(result.imageUrl, "https://seiva.com.py/omega-3-puro-combo.jpeg");
+});
+
+test("responder 2 selecciona la foto del segundo combo", () => {
+  const result = prepareBotResponse(
+    "El combo Omega 3-6-9 está a 170.000 Gs.",
+    "2",
+    comboKnowledge,
+    numberedHistory,
+  );
+  assert.equal(result.imageUrl, "https://seiva.com.py/omega-3-6-9-combo.png");
+});
+
+test("un número sin una lista previa no adjunta una imagen arbitraria", () => {
+  const result = prepareBotResponse("Anotado.", "1", comboKnowledge, []);
+  assert.equal(result.imageUrl, null);
+});
+
+test("omega 3 sin distinguir el tipo sigue siendo ambiguo", () => {
+  const result = prepareBotResponse(
+    "¿Cuál de los dos combos querés ver?",
+    "Quiero ver el combo de omega 3",
+    comboKnowledge,
+  );
+  assert.equal(result.imageUrl, null);
+});

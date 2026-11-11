@@ -13,8 +13,26 @@ import * as locationService from "./location.service";
 import * as npsService from "./nps.service";
 import { getKnowledgeContent } from "./knowledge.service";
 import { prepareBotResponse } from "./bot-response.service";
+import { MessageBatcher } from "./message-batcher.service";
 
 const engine = resolveEngine();
+
+const botMessageBatcher = new MessageBatcher<{ text: string; inboundMessageId?: string }>(
+  6000,
+  async (conversationId, batch) => {
+    // Releer al vencer la espera: un agente pudo tomar la conversación mientras
+    // el cliente escribía y en ese caso el bot no debe responder.
+    const conversation = await prisma.conversation.findUnique({ where: { id: conversationId } });
+    if (!conversation?.botId || conversation.status !== "active" || conversation.humanTakeover) return;
+    if (await isBlacklisted(conversation.contactId)) return;
+    const userMessage = batch.map((item) => item.text).filter(Boolean).join("\n");
+    await processBotFlowHumanized(
+      conversation,
+      userMessage,
+      batch[batch.length - 1]?.inboundMessageId,
+    );
+  },
+);
 
 export async function sendWhatsAppMessage(phoneNumber: string, message: string): Promise<boolean> {
   return engine.sendText(phoneNumber, message);
@@ -244,7 +262,7 @@ export async function processIncomingMessage(data: any, organizationId?: string)
             await sendWhatsAppMessage(phone, "Memoria del bot reiniciada. Empezamos de cero: escribi tu consulta.");
             continue;
           }
-          await processBotFlowHumanized(conversation, text, msg.id);
+          botMessageBatcher.push(conversation.id, { text, inboundMessageId: msg.id });
         }
       }
     }
@@ -378,7 +396,7 @@ async function processBotFlow(conversation: any, userMessage: string) {
       if (response) {
         const contact = await prisma.contact.findUnique({ where: { id: conversation.contactId } });
         if (contact) {
-          const prepared = prepareBotResponse(response, userMessage, knowledge);
+          const prepared = prepareBotResponse(response, userMessage, knowledge, aiMessages);
           const sent = prepared.imageUrl
             ? await engine.sendImageByUrl(contact.phone, prepared.imageUrl, prepared.text || undefined)
             : prepared.text

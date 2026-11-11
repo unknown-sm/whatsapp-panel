@@ -274,7 +274,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Envuelve el flujo del bot con comportamiento humano:
  * 1. Manda "escribiendo..." de inmediato (tambien marca leido: doble tilde azul).
- * 2. Espera un delay variable de 3-8s para que no responda instantaneo.
+ * 2. Tras los 6s de agrupación, espera 4-9s: la respuesta sale 10-15s
+ *    después del último mensaje del cliente.
  * 3. Mantiene el indicador vivo cada 20s mientras la IA piensa (Meta lo apaga
  *    a los 25s o cuando llega la respuesta).
  */
@@ -287,7 +288,7 @@ async function processBotFlowHumanized(conversation: any, userMessage: string, i
     }, 20000);
   }
   try {
-    await sleep(3000 + Math.random() * 5000);
+    await sleep(4000 + Math.random() * 5000);
     await processBotFlow(conversation, userMessage);
   } finally {
     if (typingTimer) clearInterval(typingTimer);

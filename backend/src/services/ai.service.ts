@@ -10,7 +10,7 @@ const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 const OPENCODE_BASE_URL = "https://api.opencode.ai/v1";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
-const MASK_PREFIX = "••••";
+const MASK_PREFIX = "\u2022\u2022\u2022\u2022";
 
 export function maskApiKey(key: string): string {
   if (!key) return "";
@@ -327,7 +327,7 @@ export async function transcribeAudio(configId: string, audioBuffer: Buffer): Pr
   return transcription.text;
 }
 
-/* ── AI Suggest Responses (Inbox 3-columnas) ──────────── */
+/* \u2500\u2500 AI Suggest Responses (Inbox 3-columnas) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 export async function suggestResponses(conversationId: string) {
   const conversation = await prisma.conversation.findUnique({

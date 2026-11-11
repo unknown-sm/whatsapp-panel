@@ -126,3 +126,20 @@ test("omega 3 sin distinguir el tipo sigue siendo ambiguo", () => {
   );
   assert.equal(result.imageUrl, null);
 });
+
+test("una opción sin foto importada no reutiliza la imagen de otro producto", () => {
+  const berberinaHistory = [
+    { role: "user", content: "Quiero berberina" },
+    { role: "assistant", content: `Tenemos dos opciones:
+1️⃣ Berberina 60 cápsulas 500mg NT → 100.000 Gs.
+2️⃣ Berberina 120 cápsulas 500mg UE → 85.000 Gs.` },
+  ];
+  const result = prepareBotResponse(
+    "Acá tenés la foto. [[IMAGEN:https://seiva.com.py/omega-3-6-9-combo.png]]",
+    "1",
+    comboKnowledge,
+    berberinaHistory,
+  );
+  assert.equal(result.imageUrl, null);
+  assert.equal(result.text, "Acá tenés la foto.");
+});

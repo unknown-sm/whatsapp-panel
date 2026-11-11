@@ -368,11 +368,15 @@ async function processBotFlow(conversation: any, userMessage: string) {
         configId = defaultConfig.id;
       }
 
+      // La IA necesita los 50 mensajes más recientes, no los primeros 50 de
+      // toda la conversación. Prisma no permite take negativo sin cursor, así
+      // que consultamos en orden inverso y restauramos el orden cronológico.
       const messages = await prisma.message.findMany({
         where: { conversationId: conversation.id },
-        orderBy: { timestamp: "asc" },
+        orderBy: { timestamp: "desc" },
         take: 50,
       });
+      messages.reverse();
 
       const aiMessages: { role: string; content: string }[] = [];
 

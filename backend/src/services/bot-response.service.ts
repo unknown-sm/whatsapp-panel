@@ -26,11 +26,13 @@ function productMediaFromKnowledge(knowledge: string): ProductMedia[] {
 
 /** Devuelve un producto solo si hay un único ganador; un empate es ambiguo. */
 function bestProductMatch(text: string, products: ProductMedia[]): ProductMedia | null {
-  const normalized = normalize(text);
+  // Comparar tokens completos: includes("6") haría que "Berberina 60"
+  // coincidiera indebidamente con un producto "Omega 3-6-9".
+  const normalizedTokens = new Set(normalize(text).split(" "));
   const scores = products.map((product) => {
     const tokens = normalize(product.name).split(" ")
       .filter((token) => token && !GENERIC_PRODUCT_TOKENS.has(token));
-    const score = new Set(tokens.filter((token) => normalized.includes(token))).size;
+    const score = new Set(tokens.filter((token) => normalizedTokens.has(token))).size;
     return { product, score };
   }).filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score);
@@ -78,6 +80,10 @@ export function prepareBotResponse(
   const products = productMediaFromKnowledge(knowledge);
   const selectedProduct = productFromNumberedList(userMessage, history, products)
     || (VISUAL_REQUEST.test(userMessage) ? bestProductMatch(userMessage, products) : null);
+  // Si el cliente eligió una opción pero no pudimos vincularla con un producto
+  // que tenga imagen importada, no uses el marcador de la IA como fallback:
+  // podría corresponder a otra opción o a una conversación anterior.
+  const unresolvedNumericSelection = selectedOption(userMessage) !== null && !selectedProduct;
   const catalogUrl = knowledge.match(/^PAGINA_ORIGEN:\s*(https?:\/\/\S+)\s*$/m)?.[1] || null;
 
   let text = response.replace(IMAGE_DIRECTIVE, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -87,7 +93,7 @@ export function prepareBotResponse(
 
   return {
     text,
-    imageUrl: catalogRequested ? null : selectedProduct?.imageUrl || knownImage,
+    imageUrl: catalogRequested || unresolvedNumericSelection ? null : selectedProduct?.imageUrl || knownImage,
     catalogRequested,
   };
 }
